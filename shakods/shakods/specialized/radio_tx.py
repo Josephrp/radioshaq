@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -36,11 +36,13 @@ class RadioTransmissionAgent(SpecializedAgent):
         digital_modes: Any = None,
         packet_radio: Any = None,
         config: Any = None,
+        sdr_transmitter: Any = None,
     ):
         self.rig_manager = rig_manager
         self.digital_modes = digital_modes
         self.packet_radio = packet_radio
         self.config = config
+        self.sdr_transmitter = sdr_transmitter
 
     async def execute(
         self,
@@ -77,7 +79,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "frequency": frequency,
                     "transmission_type": transmission_type,
                     "message_sent": message[:100],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": "Frequency not allowed for TX (restricted or out of band)",
                 }
                 await self.emit_result(upstream_callback, err)
@@ -138,7 +140,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "mode": mode,
                     "transmission_type": "voice",
                     "message_sent": message[:100],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": "SDR tone (HackRF)",
                 }
             except ValueError as e:
@@ -148,7 +150,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "mode": mode,
                     "transmission_type": "voice",
                     "message_sent": message[:100],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": str(e),
                 }
         if not self.rig_manager:
@@ -158,7 +160,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "mode": mode,
                 "transmission_type": "voice",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "Rig manager not configured",
             }
 
@@ -177,7 +179,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "mode": mode,
                     "transmission_type": "voice",
                     "message_sent": message[:100],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": f"Audio file not found: {play_path}",
                 }
         elif (use_tts or voice_use_tts) and message:
@@ -195,7 +197,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "mode": mode,
                     "transmission_type": "voice",
                     "message_sent": message[:100],
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": f"TTS failed: {e}",
                 }
 
@@ -238,7 +240,7 @@ class RadioTransmissionAgent(SpecializedAgent):
             "mode": mode,
             "transmission_type": "voice",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "notes": result_notes,
         }
 
@@ -253,7 +255,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "mode": digital_mode,
                 "transmission_type": "digital",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "FLDIGI not configured",
             }
         if self.rig_manager:
@@ -266,7 +268,7 @@ class RadioTransmissionAgent(SpecializedAgent):
             "mode": digital_mode,
             "transmission_type": "digital",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _transmit_packet(
@@ -279,7 +281,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "destination": destination,
                 "transmission_type": "packet",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "Packet radio not configured",
             }
         await self.packet_radio.send_packet(destination, message)
@@ -288,5 +290,5 @@ class RadioTransmissionAgent(SpecializedAgent):
             "destination": destination,
             "transmission_type": "packet",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }

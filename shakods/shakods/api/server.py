@@ -65,10 +65,10 @@ async def lifespan(app: FastAPI):
             if getattr(app.state, "_bus_consumer_stop", None):
                 app.state._bus_consumer_stop.set()
             _consumer_task.cancel()
-                try:
-                    await _consumer_task
-                except asyncio.CancelledError:
-                    pass
+            try:
+                await _consumer_task
+            except asyncio.CancelledError:
+                pass
     finally:
         if getattr(app.state, "db", None) and hasattr(app.state.db, "close"):
             await app.state.db.close()
