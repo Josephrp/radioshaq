@@ -1,6 +1,6 @@
 """Internal message bus endpoints (nanobot InboundMessage ingestion)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException, Request
@@ -32,9 +32,9 @@ async def publish_inbound(
         try:
             timestamp = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         except ValueError:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
     else:
-        timestamp = datetime.utcnow()
+        timestamp = datetime.now(timezone.utc)
     msg = InboundMessage(
         channel=channel,
         sender_id=sender_id,

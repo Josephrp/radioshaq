@@ -11,6 +11,14 @@ from fastapi import FastAPI
 from shakods.config.schema import Config
 
 
+def _is_bus_consumer_enabled(config: Config) -> bool:
+    """True if MessageBus inbound consumer should run (config or SHAKODS_BUS_CONSUMER_ENABLED)."""
+    import os
+    if getattr(config, "bus_consumer_enabled", None) is True:
+        return True
+    return os.environ.get("SHAKODS_BUS_CONSUMER_ENABLED", "").strip().lower() in ("1", "true", "yes")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create and tear down shared resources."""
@@ -31,7 +39,7 @@ async def lifespan(app: FastAPI):
         from shakods.orchestrator.factory import create_orchestrator, create_tool_registry
         from shakods.vendor.nanobot.bus.queue import MessageBus
         from loguru import logger
-        _bus_consumer_enabled = getattr(config, "bus_consumer_enabled", None) or __import__("os").environ.get("SHAKODS_BUS_CONSUMER_ENABLED", "").strip().lower() in ("1", "true", "yes")
+        _bus_consumer_enabled = _is_bus_consumer_enabled(config)
         app.state.message_bus = MessageBus(max_size=1000, inbound_timeout=10.0 if _bus_consumer_enabled else None)
         app.state.tool_registry = None
         try:

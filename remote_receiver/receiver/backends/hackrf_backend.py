@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
+import numpy as np
 from loguru import logger
 
 from receiver.backends.base import SDRBackend
@@ -67,7 +68,6 @@ class HackRFBackend(SDRBackend):
                         None,
                         lambda: self._device.read_samples(num_samples),
                     )
-                    import numpy as np
                     if hasattr(samples, "dtype") and np.iscomplexobj(samples):
                         power = np.mean(np.abs(samples) ** 2)
                     else:

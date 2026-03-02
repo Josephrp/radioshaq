@@ -6,6 +6,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import AsyncIterator
 
+import numpy as np
 from loguru import logger
 
 from receiver.backends.base import SDRBackend
@@ -51,7 +52,6 @@ class RtlSdrBackend(SDRBackend):
                         None,
                         lambda: self._rtl.read_samples(chunk_size),
                     )
-                    import numpy as np
                     power = np.mean(np.abs(samples) ** 2)
                     strength_db = 10.0 * np.log10(power + 1e-30) if power > 0 else -120.0
                 except Exception as e:

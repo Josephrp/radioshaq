@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 from loguru import logger
 
 
@@ -54,7 +55,6 @@ def play_audio_to_device(
                 ) from None
             seg = AudioSegment.from_mp3(str(path))
             data = seg.get_array_of_samples()
-            import numpy as np
             data = np.array(data, dtype=np.float32) / (1 << 15)
             if seg.channels == 2:
                 data = data.reshape(-1, 2).mean(axis=1)

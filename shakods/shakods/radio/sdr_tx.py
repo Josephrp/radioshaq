@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Protocol
 
+import numpy as np
 from loguru import logger
 
 from shakods.radio.bands import BAND_PLANS
@@ -160,7 +161,6 @@ class HackRFTransmitter:
         """Transmit I/Q samples. Compliance checked; audit logged."""
         self._check_compliance(frequency_hz)
         # Convert to int8 interleaved if needed, then same as tone path
-        import numpy as np
         s = np.asarray(samples_iq)
         if np.iscomplexobj(s):
             i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
