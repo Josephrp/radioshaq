@@ -1,0 +1,113 @@
+# SHAKODS Lambda functions: API handler, message handler
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SHAKODS Lambda - API and message handlers
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+  StateTableArn:
+    Type: String
+    Description: ARN of DynamoDB state table (from database stack)
+    Default: ""
+  SessionsTableArn:
+    Type: String
+    Description: ARN of DynamoDB sessions table
+    Default: ""
+  ApiHandlerZipPath:
+    Type: String
+    Description: S3 key or local path for Lambda zip (deploy_lambda.sh uploads to S3)
+    Default: ""
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "shakods-${Environment}-lambda-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+
+  LambdaExecutionPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "shakods-${Environment}-lambda-policy"
+      Roles: [!Ref LambdaExecutionRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [logs:CreateLogGroup, logs:CreateLogStream, logs:PutLogEvents]
+            Resource: "*"
+          - Effect: Allow
+            Action: [xray:PutTraceSegments, xray:PutTelemetryRecords]
+            Resource: "*"
+          - Effect: Allow
+            Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:Scan, dynamodb:BatchGetItem, dynamodb:BatchWriteItem]
+            Resource: !Sub "arn:aws:dynamodb:${AWS::Region}:${AWS::AccountId}:table/shakods-${Environment}-*"
+          - Effect: Allow
+            Action: [states:StartExecution]
+            Resource: !Sub "arn:aws:states:${AWS::Region}:${AWS::AccountId}:stateMachine:shakods-${Environment}-orchestrator"
+
+  ApiHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shakods-${Environment}-api-handler"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200, "body": "{}"}
+      Timeout: 30
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          JWT_SECRET: "CHANGE_ME_USE_SECRETS_MANAGER"
+          DYNAMODB_TABLE: !Sub "shakods-${Environment}-state"
+          ENVIRONMENT: !Ref Environment
+
+  MessageHandlerFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "shakods-${Environment}-message-handler"
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          def lambda_handler(event, context):
+              return {"statusCode": 200}
+      Timeout: 60
+      MemorySize: 256
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Environment:
+        Variables:
+          DYNAMODB_TABLE: !Sub "shakods-${Environment}-state"
+          ENVIRONMENT: !Ref Environment
+
+Outputs:
+  ApiHandlerFunctionName:
+    Description: API Lambda function name
+    Value: !Ref ApiHandlerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiHandlerFunctionName"
+  ApiHandlerFunctionArn:
+    Description: API Lambda function ARN (for API Gateway)
+    Value: !GetAtt ApiHandlerFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiHandlerFunctionArn"
+  MessageHandlerFunctionName:
+    Description: Message Lambda function name
+    Value: !Ref MessageHandlerFunction
+    Export:
+      Name: !Sub "${AWS::StackName}-MessageHandlerFunctionName"
+  LambdaExecutionRoleArn:
+    Description: Lambda execution role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-LambdaExecutionRoleArn"

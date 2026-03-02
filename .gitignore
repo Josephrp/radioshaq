@@ -1,0 +1,171 @@
+# -----------------------------------------------------------------------------
+# Monorepo .gitignore — Python, Node, Rust, OS, editors, env, logs
+# ------------------------
+codex/
+mistral-vibe-main/
+nanobot-main/
+
+# --- OS / system ---
+.DS_Store
+.DS_Store?
+.AppleDouble
+.LSOverride
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.Spotlight-V100
+.Trashes
+*.swp
+*~
+Icon?
+*.lnk
+
+# --- Editors / IDEs ---
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.cursor/
+.history/
+.zed/
+*.iml
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+.envrc
+.env.local
+.env.*.local
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+*.egg
+*.egg-info/
+.eggs/
+*.manifest
+dist/
+build/
+sdist/
+wheels/
+*.whl
+.installed.cfg
+*.egg-info
+MANIFEST
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.nox
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+.ropeproject
+.pybuilder/
+target/
+*.log
+pip-log.txt
+pip-delete-this-directory.txt
+*.sage.py
+.ipynb_checkpoints/
+profile_default/
+ipython_config.py
+.pdm.toml
+.pdm-python
+.pdm-build/
+__pypackages__/
+celerybeat-schedule
+celerybeat.pid
+cython_debug/
+*.pyz
+*.pywz
+
+# --- Node / npm / pnpm / yarn ---
+node_modules/
+.npm
+.pnpm-store/
+.pnpm-debug.log*
+.yarn-integrity
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+.turbo/
+.parcel-cache/
+.eslintcache
+.nyc_output/
+*.tsbuildinfo
+.nest/
+dist/
+out/
+storybook-static/
+*.tgz
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.vercel/
+.netlify/
+.next/
+nuxt.d.ts
+.output/
+.nuxt/
+
+# --- Rust (Cargo) ---
+target/
+target-*/
+
+# --- Logs / runtime ---
+logs/
+*.log
+botpy.log
+*.pid
+
+# --- Shakods / PM2 ---
+# (logs/ above; PM2 dump is in user home)
+
+# --- Docker / local dev ---
+.docker/
+*.local
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- Misc ---
+*.bak
+*.tmp
+*.temp
+.cache/
+result
+result-*
+*.dump
+*.sqlite
+*.sqlite3
+db.sqlite3-journal
+
+# --- Optional: uncomment if you don’t want lockfiles in vcs ---
+# uv.lock
+# package-lock.json
+# pnpm-lock.yaml

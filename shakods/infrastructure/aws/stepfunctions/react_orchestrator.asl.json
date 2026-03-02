@@ -1,0 +1,23 @@
+{
+  "Comment": "SHAKODS REACT orchestrator - single Lambda invocation; expand to full Reason/Act/Evaluate loop when judge/agent Lambdas exist",
+  "StartAt": "InvokeOrchestrator",
+  "States": {
+    "InvokeOrchestrator": {
+      "Type": "Task",
+      "Resource": "arn:aws:states:::lambda:invoke",
+      "Parameters": {
+        "FunctionName.$": "$.orchestratorFunctionArn",
+        "Payload": {
+          "request.$": "$.request",
+          "context.$": "$.context"
+        }
+      },
+      "ResultPath": "$.result",
+      "ResultSelector": {
+        "response.$": "$.Payload.response",
+        "status.$": "$.Payload.status"
+      },
+      "End": true
+    }
+  }
+}
