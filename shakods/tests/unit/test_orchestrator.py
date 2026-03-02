@@ -104,3 +104,27 @@ def test_agent_registry_register_and_get():
     assert registry.get_agent_for_task({"capability": "voice_transmission"}) is agent
     assert registry.get_agent_for_task({"transmission_type": "voice"}) is agent
     assert registry.list_capabilities()["voice_transmission"] == ["radio_tx"]
+
+
+@pytest.mark.asyncio
+async def test_radio_tx_compliance_rejects_restricted_frequency():
+    """RadioTransmissionAgent returns error when frequency is in restricted band."""
+    from types import SimpleNamespace
+    from shakods.specialized.radio_tx import RadioTransmissionAgent
+
+    config = SimpleNamespace(
+        radio=SimpleNamespace(
+            tx_allowed_bands_only=True,
+            restricted_bands_region="FCC",
+        ),
+    )
+    agent = RadioTransmissionAgent(rig_manager=None, config=config)
+    task = {
+        "transmission_type": "voice",
+        "frequency": 115e6,  # 108-121.94 MHz restricted (FCC §15.205)
+        "message": "test",
+        "mode": "FM",
+    }
+    result = await agent.execute(task)
+    assert result.get("success") is False
+    assert "not allowed" in result.get("notes", "").lower() or "restricted" in result.get("notes", "").lower()

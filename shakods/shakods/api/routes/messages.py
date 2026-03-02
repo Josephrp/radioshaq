@@ -1,4 +1,11 @@
-"""Message and orchestrator request endpoints."""
+"""Message and orchestrator request endpoints.
+
+Request body may include InboundMessage-compatible fields for outbound routing:
+- message or text: required, content to process
+- channel: optional (e.g. whatsapp, sms, api), for future OutboundMessage routing
+- chat_id: optional, for future OutboundMessage routing
+- sender_id: optional, for logging/context
+"""
 
 from typing import Any
 
@@ -19,6 +26,7 @@ async def process_message(
     """
     Submit a message for REACT orchestration.
     Requires orchestrator to be set in app state (lifespan).
+    Optional body fields: channel, chat_id, sender_id (InboundMessage shape for routing).
     """
     if not orchestrator:
         raise HTTPException(
@@ -29,8 +37,13 @@ async def process_message(
     if not request_text:
         raise HTTPException(status_code=400, detail="message or text required")
     result = await orchestrator.process_request(request=request_text)
-    return {
+    response: dict[str, Any] = {
         "success": result.success,
         "message": result.message,
         "task_id": result.state.task_id,
     }
+    if body.get("channel") is not None:
+        response["channel"] = body["channel"]
+    if body.get("chat_id") is not None:
+        response["chat_id"] = body["chat_id"]
+    return response

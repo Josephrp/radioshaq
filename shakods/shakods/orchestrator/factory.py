@@ -1,0 +1,274 @@
+"""Orchestrator factory: build REACTOrchestrator with Judge, AgentRegistry, and optional MessageBus."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any
+
+from loguru import logger
+
+from shakods.config.schema import Config
+from shakods.llm.client import LLMClient
+from shakods.orchestrator.judge import JudgeSystem
+from shakods.orchestrator.react_loop import REACTOrchestrator
+from shakods.orchestrator.registry import AgentRegistry
+from shakods.prompts import PromptLoader
+from shakods.specialized.gis_agent import GISAgent
+from shakods.specialized.propagation_agent import PropagationAgent
+from shakods.specialized.radio_rx import RadioReceptionAgent
+from shakods.specialized.radio_tx import RadioTransmissionAgent
+from shakods.specialized.scheduler_agent import SchedulerAgent
+from shakods.specialized.sms_agent import SMSAgent
+from shakods.specialized.whatsapp_agent import WhatsAppAgent
+from shakods.vendor.nanobot.tools.registry import ToolRegistry
+from shakods.specialized.radio_tools import SendAudioOverRadioTool
+
+
+def _prompts_dir() -> Path:
+    """Resolve prompts directory (package-relative)."""
+    try:
+        from shakods.prompts import DEFAULT_PROMPTS_DIR as D
+        return D
+    except Exception:
+        # Package layout: .../shakods/orchestrator/factory.py -> .../shakods/prompts
+        return Path(__file__).resolve().parent.parent / "prompts"
+
+
+def _llm_model_string(config: Config) -> str:
+    """Build LiteLLM-style model string from config."""
+    model = getattr(config.llm, "model", "mistral-large-latest") or "mistral-large-latest"
+    provider = getattr(config.llm, "provider", None)
+    if provider and str(provider).lower() == "mistral" and "/" not in model:
+        return f"mistral/{model}"
+    if provider and str(provider).lower() == "openai" and "/" not in model:
+        return f"openai/{model}"
+    if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/")):
+        return f"mistral/{model}"
+    return model
+
+
+def _llm_api_key(config: Config) -> str | None:
+    """Get API key for configured provider."""
+    if getattr(config.llm, "mistral_api_key", None):
+        return config.llm.mistral_api_key
+    if getattr(config.llm, "openai_api_key", None):
+        return config.llm.openai_api_key
+    if getattr(config.llm, "anthropic_api_key", None):
+        return config.llm.anthropic_api_key
+    if getattr(config.llm, "custom_api_key", None):
+        return config.llm.custom_api_key
+    return None
+
+
+def create_judge(config: Config) -> JudgeSystem:
+    """Build JudgeSystem with LLM provider and judge prompts."""
+    prompts_dir = _prompts_dir()
+    loader = PromptLoader(prompts_dir=prompts_dir)
+    task_path = "judges/task_completion"
+    subtask_path = "judges/subtask_quality"
+    try:
+        task_prompt = loader.load_raw(task_path)
+    except FileNotFoundError:
+        task_prompt = "Evaluate if the overall task is complete. Respond with JSON: is_complete, confidence, reasoning, missing_elements, quality_score, next_action."
+    try:
+        subtask_prompt = loader.load_raw(subtask_path)
+    except FileNotFoundError:
+        subtask_prompt = "Evaluate subtask execution. Respond with JSON: success, output_quality, errors, recommendations, retry_eligible."
+
+    model = _llm_model_string(config)
+    api_key = _llm_api_key(config)
+    provider = LLMClient(
+        model=model,
+        api_key=api_key,
+        temperature=getattr(config.llm, "temperature", 0.1),
+        max_tokens=getattr(config.llm, "max_tokens", 4096),
+    )
+    return JudgeSystem(
+        provider=provider,
+        task_judge_prompt=task_prompt,
+        subtask_judge_prompt=subtask_prompt,
+        quality_threshold=0.7,
+    )
+
+
+def _create_rig_manager(config: Config) -> Any:
+    """Create RigManager and register one rig from config.radio if enabled. Return None if disabled."""
+    if not getattr(config.radio, "enabled", False):
+        return None
+    try:
+        from shakods.radio import RigManager
+        from shakods.radio.cat_control import HamlibCATControl
+    except ImportError as e:
+        logger.warning("Radio stack not available: %s", e)
+        return None
+    rm = RigManager()
+    cat = HamlibCATControl(
+        rig_model=getattr(config.radio, "rig_model", 1),
+        port=getattr(config.radio, "port", "/dev/ttyUSB0"),
+        use_daemon=getattr(config.radio, "use_daemon", False),
+        daemon_host=getattr(config.radio, "daemon_host", "localhost"),
+        daemon_port=getattr(config.radio, "daemon_port", 4532),
+    )
+    rm.register_rig("default", cat)
+    return rm
+
+
+def _create_digital_modes(config: Config) -> Any:
+    """Create FLDIGI interface if enabled. Return None otherwise."""
+    if not getattr(config.radio, "fldigi_enabled", False):
+        return None
+    try:
+        from shakods.radio.digital_modes import FLDIGIInterface
+        return FLDIGIInterface(
+            host=getattr(config.radio, "fldigi_host", "localhost"),
+            port=getattr(config.radio, "fldigi_port", 7362),
+        )
+    except ImportError:
+        return None
+
+
+def _create_packet_radio(config: Config) -> Any:
+    """Create packet radio interface if enabled. Return None otherwise."""
+    if not getattr(config.radio, "packet_enabled", False):
+        return None
+    try:
+        from shakods.radio.packet_radio import PacketRadioInterface
+        return PacketRadioInterface(
+            callsign=getattr(config.radio, "packet_callsign", "N0CALL"),
+            ssid=getattr(config.radio, "packet_ssid", 0),
+            kiss_host=getattr(config.radio, "packet_kiss_host", "localhost"),
+            kiss_port=getattr(config.radio, "packet_kiss_port", 8001),
+        )
+    except ImportError:
+        return None
+
+
+def _create_sdr_transmitter(config: Config) -> Any:
+    """Create HackRF transmitter if sdr_tx_enabled and backend is hackrf. Return None otherwise."""
+    if not getattr(config.radio, "sdr_tx_enabled", False):
+        return None
+    if getattr(config.radio, "sdr_tx_backend", "hackrf").strip().lower() != "hackrf":
+        return None
+    try:
+        from shakods.radio.sdr_tx import HackRFTransmitter
+        return HackRFTransmitter(
+            device_index=getattr(config.radio, "sdr_tx_device_index", 0),
+            serial_number=getattr(config.radio, "sdr_tx_serial", None),
+            max_gain=getattr(config.radio, "sdr_tx_max_gain", 47),
+            allow_bands_only=getattr(config.radio, "sdr_tx_allow_bands_only", True),
+            audit_log_path=getattr(config.radio, "tx_audit_log_path", None),
+            restricted_region=getattr(config.radio, "restricted_bands_region", "FCC"),
+        )
+    except Exception as e:
+        logger.warning("SDR TX (HackRF) not available: %s", e)
+        return None
+
+
+def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
+    """Build AgentRegistry and register all specialized agents with config/db dependencies."""
+    registry = AgentRegistry()
+
+    rig_manager = _create_rig_manager(config)
+    digital_modes = _create_digital_modes(config)
+    packet_radio = _create_packet_radio(config)
+    sdr_transmitter = _create_sdr_transmitter(config)
+
+    sms_client = None
+    sms_from = None
+    if getattr(config, "twilio_sid", None) or getattr(config, "twilio_from", None):
+        try:
+            from twilio.rest import Client
+            sid = getattr(config, "twilio_sid", None) or getattr(config, "twilio_account_sid", None)
+            token = getattr(config, "twilio_token", None) or getattr(config, "twilio_auth_token", None)
+            if sid and token:
+                sms_client = Client(sid, token)
+                sms_from = getattr(config, "twilio_from", None) or getattr(config, "twilio_from_number", None)
+        except ImportError:
+            pass
+
+    registry.register_agent(SMSAgent(twilio_client=sms_client, from_number=sms_from))
+    registry.register_agent(WhatsAppAgent(client=None))
+
+    registry.register_agent(
+        RadioTransmissionAgent(
+            rig_manager=rig_manager,
+            digital_modes=digital_modes,
+            packet_radio=packet_radio,
+            config=config,
+            sdr_transmitter=sdr_transmitter,
+        )
+    )
+    registry.register_agent(
+        RadioReceptionAgent(rig_manager=rig_manager, digital_modes=digital_modes)
+    )
+
+    gis_agent = GISAgent(db=db)
+    registry.register_agent(gis_agent)
+    registry.register_agent(PropagationAgent(gis_agent=gis_agent))
+    registry.register_agent(SchedulerAgent(db=db))
+
+    logger.debug("Agent registry created with %d agents", len(registry.list_agents()))
+    return registry
+
+
+def create_tool_registry(config: Config, db: Any = None) -> ToolRegistry:
+    """Build ToolRegistry and register LLM-callable tools (e.g. SendAudioOverRadioTool)."""
+    registry = ToolRegistry()
+    rig_manager = _create_rig_manager(config)
+    try:
+        tool = SendAudioOverRadioTool(rig_manager=rig_manager, config=config)
+        registry.register(tool)
+        logger.debug("Tool registry created with tool: %s", tool.name)
+    except Exception as e:
+        logger.warning("Could not register SendAudioOverRadioTool: %s", e)
+    return registry
+
+
+def create_middleware_pipeline(
+    config: Config,
+    *,
+    max_turns: int | None = None,
+    max_tokens: int = 50_000,
+) -> Any:
+    """Build MiddlewarePipeline with TurnLimit and TokenLimit. Optional for REACT loop."""
+    from shakods.vendor.vibe.middleware import (
+        MiddlewarePipeline,
+        TurnLimitMiddleware,
+        TokenLimitMiddleware,
+    )
+    pipeline = MiddlewarePipeline()
+    turns = max_turns if max_turns is not None else getattr(config, "max_iterations", 20) or 20
+    pipeline.add(TurnLimitMiddleware(max_turns=turns))
+    pipeline.add(TokenLimitMiddleware(max_tokens=max_tokens))
+    return pipeline
+
+
+def create_orchestrator(
+    config: Config,
+    db: Any = None,
+    message_bus: Any = None,
+    max_iterations: int = 20,
+    middleware_pipeline: Any = None,
+) -> REACTOrchestrator:
+    """Build REACTOrchestrator with Judge, PromptLoader, AgentRegistry, and optional middleware.
+    Optionally store message_bus for future bridge use.
+    """
+    judge = create_judge(config)
+    agent_registry = create_agent_registry(config, db)
+    prompts_dir = _prompts_dir()
+    prompt_loader = PromptLoader(prompts_dir=prompts_dir)
+    if middleware_pipeline is None:
+        middleware_pipeline = create_middleware_pipeline(
+            config, max_turns=max_iterations, max_tokens=50_000
+        )
+
+    orchestrator = REACTOrchestrator(
+        judge=judge,
+        prompt_loader=prompt_loader,
+        max_iterations=max_iterations,
+        agent_registry=agent_registry,
+        middleware_pipeline=middleware_pipeline,
+    )
+    if message_bus is not None:
+        setattr(orchestrator, "_message_bus", message_bus)
+    return orchestrator

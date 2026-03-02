@@ -12,7 +12,7 @@ from loguru import logger
 
 from receiver.auth import JWTReceiverAuth
 from receiver.hq_client import HQClient
-from receiver.radio_interface import SDRInterface, SignalSample
+from receiver.radio_interface import SDRInterface, SignalSample, create_sdr_from_env
 
 
 class ReceiverService:
@@ -39,9 +39,7 @@ class ReceiverService:
         secret = os.environ.get("JWT_SECRET", "")
         station_id = os.environ.get("STATION_ID", "RECEIVER")
         jwt_auth = JWTReceiverAuth(secret=secret)
-        radio = SDRInterface(
-            device_index=int(os.environ.get("RTLSDR_INDEX", "0")),
-        )
+        radio = create_sdr_from_env()
         hq_url = os.environ.get("HQ_URL")
         hq_token = os.environ.get("HQ_TOKEN", "")
         hq_client = HQClient(hq_url or "http://localhost:8000", hq_token, station_id) if hq_url else None

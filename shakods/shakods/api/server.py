@@ -2,12 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI
 
 from shakods.config.schema import Config
+
+
+def _is_bus_consumer_enabled(config: Config) -> bool:
+    """True if MessageBus inbound consumer should run (config or SHAKODS_BUS_CONSUMER_ENABLED)."""
+    import os
+    if getattr(config, "bus_consumer_enabled", None) is True:
+        return True
+    return os.environ.get("SHAKODS_BUS_CONSUMER_ENABLED", "").strip().lower() in ("1", "true", "yes")
 
 
 @asynccontextmanager
@@ -17,6 +26,7 @@ async def lifespan(app: FastAPI):
     app.state.config = config
     app.state.db = None
     app.state.orchestrator = None
+    app.state.agent_registry = None
 
     try:
         if config.database.postgres_url and "localhost" in config.database.postgres_url:
@@ -25,7 +35,48 @@ async def lifespan(app: FastAPI):
                 app.state.db = PostGISManager(config.database.postgres_url)
             except Exception:
                 pass
+
+        from shakods.orchestrator.factory import create_orchestrator, create_tool_registry
+        from shakods.vendor.nanobot.bus.queue import MessageBus
+        from loguru import logger
+        _bus_consumer_enabled = _is_bus_consumer_enabled(config)
+        app.state.message_bus = MessageBus(max_size=1000, inbound_timeout=10.0 if _bus_consumer_enabled else None)
+        app.state.tool_registry = None
+        try:
+            app.state.tool_registry = create_tool_registry(config, db=getattr(app.state, "db", None))
+        except Exception as e:
+            logger.warning("Tool registry not created: %s", e)
+        try:
+            app.state.orchestrator = create_orchestrator(
+                config,
+                db=getattr(app.state, "db", None),
+                message_bus=app.state.message_bus,
+                max_iterations=20,
+            )
+            app.state.agent_registry = getattr(app.state.orchestrator, "agent_registry", None)
+        except Exception as e:
+            logger.warning("Orchestrator not created (messages/process will be unavailable): %s", e)
+
+        # Optional: run MessageBus inbound consumer in background (set SHAKODS_BUS_CONSUMER_ENABLED=1)
+        _consumer_task = None
+        if _bus_consumer_enabled:
+            if getattr(app.state, "orchestrator", None) and getattr(app.state, "message_bus", None):
+                from shakods.orchestrator.bridge import run_inbound_consumer
+                _stop_event = asyncio.Event()
+                _consumer_task = asyncio.create_task(run_inbound_consumer(app.state.message_bus, app.state.orchestrator, stop_event=_stop_event))
+                app.state._bus_consumer_stop = _stop_event
+                app.state._bus_consumer_task = _consumer_task
+                logger.info("MessageBus inbound consumer started")
+
         yield
+        if _consumer_task is not None and not _consumer_task.done():
+            if getattr(app.state, "_bus_consumer_stop", None):
+                app.state._bus_consumer_stop.set()
+            _consumer_task.cancel()
+            try:
+                await _consumer_task
+            except asyncio.CancelledError:
+                pass
     finally:
         if getattr(app.state, "db", None) and hasattr(app.state.db, "close"):
             await app.state.db.close()
@@ -40,7 +91,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from shakods.api.routes import auth, health, inject, messages, radio, relay, transcripts
+    from shakods.api.routes import auth, bus, health, inject, messages, radio, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
@@ -48,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(relay.router, prefix="/messages", tags=["messages"])
     app.include_router(transcripts.router, prefix="/transcripts", tags=["transcripts"])
     app.include_router(inject.router, prefix="/inject", tags=["inject"])
+    app.include_router(bus.router, prefix="/internal", tags=["internal"])
 
     return app
 

@@ -13,6 +13,17 @@ from shakods.orchestrator.judge import (
     SubtaskEvaluation,
 )
 from shakods.orchestrator.registry import AgentRegistry
+from shakods.orchestrator.factory import (
+    create_orchestrator,
+    create_judge,
+    create_agent_registry,
+    create_tool_registry,
+    create_middleware_pipeline,
+)
+from shakods.orchestrator.bridge import (
+    process_inbound_message,
+    run_inbound_consumer,
+)
 
 __all__ = [
     "REACTPhase",
@@ -24,4 +35,11 @@ __all__ = [
     "TaskEvaluation",
     "SubtaskEvaluation",
     "AgentRegistry",
+    "create_orchestrator",
+    "create_judge",
+    "create_agent_registry",
+    "create_tool_registry",
+    "create_middleware_pipeline",
+    "process_inbound_message",
+    "run_inbound_consumer",
 ]

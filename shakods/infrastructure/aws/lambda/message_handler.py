@@ -1,12 +1,15 @@
 """
 Lambda handler for SHAKODS message ingestion (e.g. SQS, API Gateway webhook).
-Processes incoming messages (WhatsApp, SMS, etc.) and enqueues for orchestration.
+Processes incoming messages (WhatsApp, SMS, etc.) and forwards to HQ API when
+SHAKODS_HQ_URL is set. Expects body with InboundMessage-compatible fields:
+channel, sender_id, chat_id, content; optional media, metadata.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import urllib.request
 from typing import Any
 
 from aws_lambda_powertools import Logger, Tracer
@@ -14,6 +17,29 @@ from aws_lambda_powertools.utilities.typing import LambdaContext
 
 logger = Logger()
 tracer = Tracer()
+
+# When set, POST each message to {HQ_URL}/internal/bus/inbound (nanobot MessageBus).
+HQ_URL = os.environ.get("SHAKODS_HQ_URL", "").rstrip("/")
+
+
+def _forward_to_hq(payload: dict[str, Any]) -> bool:
+    """POST payload to HQ /internal/bus/inbound. Returns True if accepted."""
+    if not HQ_URL:
+        return False
+    url = f"{HQ_URL}/internal/bus/inbound"
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return 200 <= resp.status < 300
+    except Exception as e:
+        logger.warning("HQ forward failed: %s", e)
+        return False
 
 
 def _process_record(record: dict[str, Any]) -> bool:
@@ -26,9 +52,20 @@ def _process_record(record: dict[str, Any]) -> bool:
             body = {"raw": body}
     if not body:
         return False
-    # Placeholder: forward to orchestrator / SNS / Step Functions as needed
     channel = body.get("channel", "unknown")
     logger.info("Message received", extra={"channel": channel, "body_keys": list(body.keys())})
+
+    # InboundMessage-compatible payload for HQ bus
+    payload = {
+        "channel": body.get("channel", "api"),
+        "sender_id": body.get("sender_id", ""),
+        "chat_id": body.get("chat_id", ""),
+        "content": body.get("content", body.get("message", body.get("text", ""))),
+        "media": body.get("media", []),
+        "metadata": body.get("metadata", {}),
+    }
+    if HQ_URL:
+        _forward_to_hq(payload)
     return True
 
 

@@ -63,6 +63,8 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
 
 Roles: `field` (default), `hq`, `receiver`. Full details: [docs/auth.md](docs/auth.md).
 
+**Connecting real radios (IC-7300, FT-450D, FT-817, RTL-SDR):** see [../docs/HARDWARE_CONNECTION.md](../docs/HARDWARE_CONNECTION.md) for CAT/Hamlib config, rig model numbers, and remote receiver deployment.
+
 ## Demo (inject, relay, poll)
 
 With the API running, in a second terminal:

@@ -2,19 +2,23 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import asyncio
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from loguru import logger
 
 from shakods.middleware.upstream import UpstreamEvent
+from shakods.radio.compliance import is_tx_allowed, log_tx
+from shakods.radio.bands import BAND_PLANS
 from shakods.specialized.base import SpecializedAgent
 
 
 class RadioTransmissionAgent(SpecializedAgent):
     """
     Specialized agent for ham radio transmission.
-    Supports voice, digital modes, and packet radio.
+    Supports voice (with optional audio file or TTS), digital modes, and packet radio.
     """
 
     name = "radio_tx"
@@ -31,10 +35,14 @@ class RadioTransmissionAgent(SpecializedAgent):
         rig_manager: Any = None,
         digital_modes: Any = None,
         packet_radio: Any = None,
+        config: Any = None,
+        sdr_transmitter: Any = None,
     ):
         self.rig_manager = rig_manager
         self.digital_modes = digital_modes
         self.packet_radio = packet_radio
+        self.config = config
+        self.sdr_transmitter = sdr_transmitter
 
     async def execute(
         self,
@@ -46,6 +54,8 @@ class RadioTransmissionAgent(SpecializedAgent):
         frequency = task.get("frequency", 0.0)
         message = task.get("message", "")
         mode = task.get("mode", "FM")
+        audio_path = task.get("audio_path")
+        use_tts = task.get("use_tts", False)
 
         await self.emit_progress(
             upstream_callback,
@@ -55,9 +65,33 @@ class RadioTransmissionAgent(SpecializedAgent):
             transmission_type=transmission_type,
         )
 
+        # Compliance: do not TX on restricted or out-of-band frequencies
+        radio_cfg = getattr(self.config, "radio", None) if self.config else None
+        if frequency and radio_cfg and getattr(radio_cfg, "tx_allowed_bands_only", True):
+            if not is_tx_allowed(
+                frequency,
+                band_plan_source=BAND_PLANS,
+                allow_tx_only_amateur_bands=True,
+                restricted_region=getattr(radio_cfg, "restricted_bands_region", "FCC"),
+            ):
+                err = {
+                    "success": False,
+                    "frequency": frequency,
+                    "transmission_type": transmission_type,
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": "Frequency not allowed for TX (restricted or out of band)",
+                }
+                await self.emit_result(upstream_callback, err)
+                return err
+
         try:
             if transmission_type == "voice":
-                result = await self._transmit_voice(frequency, message, mode)
+                result = await self._transmit_voice(
+                    frequency, message, mode,
+                    audio_path=audio_path,
+                    use_tts=use_tts,
+                )
             elif transmission_type == "digital":
                 result = await self._transmit_digital(
                     frequency,
@@ -80,9 +114,45 @@ class RadioTransmissionAgent(SpecializedAgent):
             raise
 
     async def _transmit_voice(
-        self, frequency_hz: float, message: str, mode: str
+        self,
+        frequency_hz: float,
+        message: str,
+        mode: str,
+        *,
+        audio_path: str | Path | None = None,
+        use_tts: bool = False,
     ) -> dict[str, Any]:
-        """Voice transmission via rig (PTT + message for logging)."""
+        """Voice transmission: CAT (PTT + audio) or SDR (tone) when use_sdr/sdr_transmitter."""
+        use_sdr = getattr(
+            getattr(self.config, "radio", None) if self.config else None,
+            "sdr_tx_enabled",
+            False,
+        )
+        if use_sdr and self.sdr_transmitter:
+            # SDR path: transmit tone (voice-over-SDR would need modulation later)
+            try:
+                await self.sdr_transmitter.transmit_tone(
+                    frequency_hz, duration_sec=0.5, sample_rate=2_000_000
+                )
+                return {
+                    "success": True,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": "SDR tone (HackRF)",
+                }
+            except ValueError as e:
+                return {
+                    "success": False,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": str(e),
+                }
         if not self.rig_manager:
             return {
                 "success": False,
@@ -90,24 +160,88 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "mode": mode,
                 "transmission_type": "voice",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "Rig manager not configured",
             }
+
+        play_path: str | Path | None = None
+        voice_use_tts = getattr(
+            getattr(self.config, "radio", None) if self.config else None,
+            "voice_use_tts",
+            False,
+        )
+        if audio_path:
+            play_path = Path(audio_path)
+            if not play_path.exists():
+                return {
+                    "success": False,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": f"Audio file not found: {play_path}",
+                }
+        elif (use_tts or voice_use_tts) and message:
+            try:
+                from shakods.audio.tts import text_to_speech_elevenlabs
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+                    text_to_speech_elevenlabs(message, output_path=f.name)
+                    play_path = f.name
+            except Exception as e:
+                logger.warning("TTS failed for voice TX: %s", e)
+                return {
+                    "success": False,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": f"TTS failed: {e}",
+                }
+
         await self.rig_manager.set_frequency(frequency_hz)
         await self.rig_manager.set_mode(mode)
         await self.rig_manager.set_ptt(True)
+        result_notes = "PTT only (no audio)"
         try:
-            import asyncio
-            await asyncio.sleep(0.5)
+            if play_path is not None:
+                device = None
+                if self.config and hasattr(self.config, "radio"):
+                    device = getattr(self.config.radio, "audio_output_device", None)
+                from shakods.audio.playback import play_audio_to_device
+                loop = asyncio.get_event_loop()
+                duration = await loop.run_in_executor(
+                    None,
+                    lambda: play_audio_to_device(path=play_path, device=device),
+                )
+                result_notes = f"played {duration:.1f}s"
+            else:
+                await asyncio.sleep(0.5)
         finally:
             await self.rig_manager.set_ptt(False)
+
+        # Audit log for CAT TX
+        radio_cfg = getattr(self.config, "radio", None) if self.config else None
+        if radio_cfg and getattr(radio_cfg, "tx_audit_log_path", None):
+            duration = 1.0 if play_path is not None else 0.5
+            log_tx(
+                frequency_hz=frequency_hz,
+                duration_sec=duration,
+                mode=mode,
+                rig_or_sdr="cat",
+                audit_log_path=radio_cfg.tx_audit_log_path,
+            )
+
         return {
             "success": True,
             "frequency": frequency_hz,
             "mode": mode,
             "transmission_type": "voice",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "notes": result_notes,
         }
 
     async def _transmit_digital(
@@ -121,7 +255,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "mode": digital_mode,
                 "transmission_type": "digital",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "FLDIGI not configured",
             }
         if self.rig_manager:
@@ -134,7 +268,7 @@ class RadioTransmissionAgent(SpecializedAgent):
             "mode": digital_mode,
             "transmission_type": "digital",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     async def _transmit_packet(
@@ -147,7 +281,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "destination": destination,
                 "transmission_type": "packet",
                 "message_sent": message[:100],
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "Packet radio not configured",
             }
         await self.packet_radio.send_packet(destination, message)
@@ -156,5 +290,5 @@ class RadioTransmissionAgent(SpecializedAgent):
             "destination": destination,
             "transmission_type": "packet",
             "message_sent": message[:100],
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
