@@ -4,6 +4,7 @@
 codex/
 mistral-vibe-main/
 nanobot-main/
+docs/
 
 # --- OS / system ---
 .DS_Store

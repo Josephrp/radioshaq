@@ -122,6 +122,13 @@ audio = [
     "mistral-common[audio]>=1.8.1",
 ]
 
+# Voice TX: play audio to rig (sound device → rig line-in)
+voice_tx = [
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "pydub>=0.25.1",
+]
+
 [project.scripts]
 shakods = "shakods.cli:app"
 alembic-upgrade = "shakods.scripts.alembic_runner:main_upgrade"

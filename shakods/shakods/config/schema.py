@@ -177,6 +177,25 @@ class RadioConfig(BaseModel):
     rx_enabled: bool = Field(default=True)
     max_power_watts: float = Field(default=100.0, ge=0.0)
 
+    # Voice TX: play audio to rig (CAT rig + sound card)
+    # audio_output_device: name or index of sound device that feeds rig line-in (None = default device)
+    audio_output_device: str | int | None = Field(default=None)
+    # If true, agent will use TTS to generate audio from message when no audio_path is provided
+    voice_use_tts: bool = Field(default=False)
+
+    # Compliance (TX allowlist, restricted bands, audit log)
+    tx_audit_log_path: str | None = Field(default=None, description="Path to JSONL file for TX audit log")
+    tx_allowed_bands_only: bool = Field(default=True, description="Only allow TX in band_plan bands")
+    restricted_bands_region: str = Field(default="FCC", description="Region for restricted bands (FCC, CEPT)")
+
+    # SDR TX (HackRF) – off by default
+    sdr_tx_enabled: bool = Field(default=False)
+    sdr_tx_backend: str = Field(default="hackrf")
+    sdr_tx_device_index: int = Field(default=0)
+    sdr_tx_serial: str | None = Field(default=None, description="HackRF serial (optional)")
+    sdr_tx_max_gain: int = Field(default=47, ge=0, le=47)
+    sdr_tx_allow_bands_only: bool = Field(default=True)
+
 
 class PM2Config(BaseModel):
     """PM2 process manager configuration."""

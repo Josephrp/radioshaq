@@ -13,10 +13,9 @@ dependencies = [
     "numpy",
     "loguru",
 ]
-optional-dependencies = {
-    "sdr": ["pyrtlsdr"],
-}
 [project.optional-dependencies]
+sdr = ["pyrtlsdr"]
+hackrf = ["python-hackrf"]
 dev = ["pytest", "pytest-asyncio", "ruff"]
 
 [build-system]

@@ -1,11 +1,12 @@
-"""SDR radio interface (RTL-SDR when pyrtlsdr available)."""
+"""SDR radio interface: backend abstraction and factory from env."""
 
 from __future__ import annotations
 
 import asyncio
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, AsyncIterator
+from typing import AsyncIterator
 
 from loguru import logger
 
@@ -27,50 +28,57 @@ class SignalSample:
         return self.strength_db >= -90.0
 
 
+def create_sdr_from_env() -> "SDRInterface":
+    """
+    Build SDR from environment. SDR_TYPE=rtlsdr (default) or hackrf.
+    RTL-SDR: RTLSDR_INDEX (default 0).
+    HackRF: HACKRF_INDEX (default 0), HACKRF_SERIAL (optional).
+    """
+    sdr_type = os.environ.get("SDR_TYPE", "rtlsdr").strip().lower()
+    if sdr_type == "hackrf":
+        from receiver.backends.hackrf_backend import HackRFBackend
+        index = int(os.environ.get("HACKRF_INDEX", "0"))
+        serial = os.environ.get("HACKRF_SERIAL") or None
+        sample_rate = int(os.environ.get("HACKRF_SAMPLE_RATE", "10000000"))
+        backend = HackRFBackend(
+            device_index=index,
+            serial_number=serial,
+            sample_rate=sample_rate,
+        )
+    else:
+        from receiver.backends.rtlsdr_backend import RtlSdrBackend
+        index = int(os.environ.get("RTLSDR_INDEX", "0"))
+        sample_rate = int(os.environ.get("RTLSDR_SAMPLE_RATE", "2400000"))
+        backend = RtlSdrBackend(device_index=index, sample_rate=sample_rate)
+    return SDRInterface(backend=backend)
+
+
 class SDRInterface:
     """
-    SDR interface for receiving. Uses pyrtlsdr when available;
-    otherwise provides a stub for testing.
+    SDR interface for receiving. Wraps an SDRBackend (RTL-SDR or HackRF).
+    Use create_sdr_from_env() to build from environment.
     """
 
-    def __init__(self, device_index: int = 0, sample_rate: int = 2_400_000):
-        self.device_index = device_index
-        self.sample_rate = sample_rate
-        self._frequency_hz: float = 0.0
-        self._rtl = None
+    def __init__(self, backend: "SDRBackend | None" = None, device_index: int = 0, sample_rate: int = 2_400_000):
+        if backend is not None:
+            self._backend = backend
+        else:
+            # Legacy: no backend given, build RTL-SDR backend
+            from receiver.backends.rtlsdr_backend import RtlSdrBackend
+            self._backend = RtlSdrBackend(device_index=device_index, sample_rate=sample_rate)
 
     async def initialize(self) -> None:
         """Initialize SDR hardware."""
-        try:
-            import rtlsdr
-            self._rtl = rtlsdr.RtlSdr(self.device_index)
-            self._rtl.sample_rate = self.sample_rate
-            logger.info("RTL-SDR initialized")
-        except ImportError:
-            logger.warning("pyrtlsdr not installed; using stub SDR")
-        except Exception as e:
-            logger.warning("RTL-SDR init failed: %s; using stub", e)
+        await self._backend.initialize()
 
     async def set_frequency(self, frequency_hz: float) -> None:
         """Tune to frequency in Hz."""
-        self._frequency_hz = frequency_hz
-        if self._rtl:
-            self._rtl.center_freq = int(frequency_hz)
+        await self._backend.set_frequency(frequency_hz)
 
-    async def receive(
-        self, duration_seconds: float
-    ) -> AsyncIterator[SignalSample]:
-        """Stream signal samples for duration (stub yields placeholder)."""
-        loop = asyncio.get_running_loop()
-        end = loop.time() + duration_seconds
-        while loop.time() < end:
-            yield SignalSample(
-                timestamp=datetime.now(timezone.utc),
-                frequency_hz=self._frequency_hz,
-                strength_db=-100.0,
-                decoded_data=None,
-            )
-            await asyncio.sleep(0.1)
+    async def receive(self, duration_seconds: float) -> AsyncIterator[SignalSample]:
+        """Stream signal samples for duration."""
+        async for sample in self._backend.receive(duration_seconds):
+            yield sample
 
     async def scan_frequency(
         self,
@@ -78,9 +86,19 @@ class SDRInterface:
         bandwidth_hz: float,
         duration_seconds: float,
     ) -> list[SignalSample]:
-        """Scan a frequency and return list of samples (stub)."""
+        """Scan a frequency and return list of samples."""
         await self.set_frequency(frequency_hz)
         samples: list[SignalSample] = []
         async for s in self.receive(duration_seconds):
             samples.append(s)
         return samples
+
+    async def close(self) -> None:
+        """Release SDR (call on shutdown)."""
+        await self._backend.close()
+
+
+# Type alias for backend protocol (avoid circular import at runtime)
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from receiver.backends.base import SDRBackend

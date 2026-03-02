@@ -1,8 +1,10 @@
-"""Ham radio interfaces (CAT, digital modes, packet)."""
+"""Ham radio interfaces (CAT, digital modes, packet, compliance)."""
 
 from shakods.radio.bands import BAND_PLANS, BandPlan, get_band_for_frequency
 from shakods.radio.cat_control import HamlibCATControl, RigMode, RigState
+from shakods.radio.compliance import is_restricted, is_tx_allowed, log_tx
 from shakods.radio.digital_modes import FLDIGIInterface, DigitalTransmission
+from shakods.radio.sdr_tx import HackRFTransmitter, SDRTransmitter
 from shakods.radio.packet_radio import AX25Frame, PacketRadioInterface
 from shakods.radio.rig_manager import RigManager
 
@@ -18,4 +20,9 @@ __all__ = [
     "BandPlan",
     "BAND_PLANS",
     "get_band_for_frequency",
+    "is_restricted",
+    "is_tx_allowed",
+    "log_tx",
+    "SDRTransmitter",
+    "HackRFTransmitter",
 ]
