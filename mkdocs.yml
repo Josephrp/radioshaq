@@ -2,7 +2,7 @@
 # Build: mkdocs build (from repo root). Deploy: GitHub Actions (upload-pages-artifact + deploy-pages).
 site_name: RadioShaq
 site_description: Ham Radio AI Orchestration and Field-to-HQ Coordination
-site_url: https://memyself.github.io/monorepo/  # Set to your GitHub Pages URL (owner.github.io/repo/)
+site_url: https://josephrp.github.io/radioshaq/
 
 docs_dir: docs
 site_dir: site
