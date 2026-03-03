@@ -1,6 +1,6 @@
-# SHAKODS Remote Receiver
+# RadioShaq Remote Receiver
 
-Remote receiver station: SDR interface, JWT auth, and HQ upload. Deploy on Raspberry Pi or similar.
+Remote receiver station for RadioShaq: SDR interface, JWT auth, and HQ upload. Deploy on Raspberry Pi or similar.
 
 ## Setup
 
@@ -22,7 +22,7 @@ uv sync
 | `HACKRF_SAMPLE_RATE` | HackRF sample rate (Hz) | `10000000` |
 | `JWT_SECRET` | Secret for JWT auth | — |
 | `STATION_ID` | Unique ID for this receiver | — |
-| `HQ_URL` | SHAKODS HQ API base URL | — |
+| `HQ_URL` | RadioShaq HQ API base URL | — |
 | `HQ_TOKEN` | Optional JWT/API token for HQ uploads | — |
 
 ## Run

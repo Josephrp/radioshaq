@@ -1,0 +1,54 @@
+# SHAKODS base infrastructure: VPC (optional), security groups
+# Use default VPC for minimal serverless; this stack can export subnet/security group for Lambda if needed.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SHAKODS base - shared resources (optional VPC, security groups)
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+    Description: Environment name
+
+Resources:
+  StepFunctionsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "radioshaq-${Environment}-stepfunctions-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: states.amazonaws.com
+            Action: sts:AssumeRole
+
+  StepFunctionsPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "radioshaq-${Environment}-stepfunctions-policy"
+      Roles: [!Ref StepFunctionsRole]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: lambda:InvokeFunction
+            Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:radioshaq-${Environment}-*"
+          - Effect: Allow
+            Action: [logs:CreateLogDelivery, logs:GetLogDelivery, logs:PutResourcePolicy]
+            Resource: "*"
+          - Effect: Allow
+            Action: [xray:PutTraceSegments, xray:PutTelemetryRecords]
+            Resource: "*"
+
+Outputs:
+  StepFunctionsRoleArn:
+    Description: Role ARN for Step Functions state machine
+    Value: !GetAtt StepFunctionsRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StepFunctionsRoleArn"
+  Environment:
+    Description: Environment name
+    Value: !Ref Environment
+    Export:
+      Name: !Sub "${AWS::StackName}-Environment"

@@ -1,0 +1,75 @@
+# SHAKODS database layer: DynamoDB (sessions/state). RDS PostGIS optional.
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SHAKODS database - DynamoDB state/sessions
+
+Parameters:
+  Environment:
+    Type: String
+    Default: staging
+    AllowedValues: [staging, production]
+  TablePrefix:
+    Type: String
+    Default: radioshaq
+
+Resources:
+  StateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-${Environment}-state"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: pk
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+      KeySchema:
+        - AttributeName: pk
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: radioshaq
+
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${TablePrefix}-${Environment}-sessions"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Service
+          Value: radioshaq
+
+Outputs:
+  StateTableName:
+    Description: DynamoDB state table name
+    Value: !Ref StateTable
+    Export:
+      Name: !Sub "${AWS::StackName}-StateTableName"
+  StateTableArn:
+    Description: DynamoDB state table ARN
+    Value: !GetAtt StateTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-StateTableArn"
+  SessionsTableName:
+    Description: DynamoDB sessions table name
+    Value: !Ref SessionsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionsTableName"
+  SessionsTableArn:
+    Description: DynamoDB sessions table ARN
+    Value: !GetAtt SessionsTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionsTableArn"
