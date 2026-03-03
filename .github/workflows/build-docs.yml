@@ -1,0 +1,68 @@
+# Build and deploy documentation (manual only). Tests run first; then MkDocs build; then deploy to GitHub Pages.
+name: Build and deploy documentation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        env:
+          UV_INSTALL_DIR: ${{ github.workspace }}/.local
+      - name: Run tests
+        run: |
+          cd radioshaq && \
+          ${{ github.workspace }}/.local/bin/uv sync --extra dev --extra test && \
+          ${{ github.workspace }}/.local/bin/uv run pytest tests/unit tests/integration -v
+
+  build-docs:
+    name: Build docs
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        env:
+          UV_INSTALL_DIR: ${{ github.workspace }}/.local
+      - name: Install doc dependencies
+        run: pip install -r docs/requirements.txt
+      - name: Install radioshaq (for OpenAPI export)
+        run: ${{ github.workspace }}/.local/bin/uv sync --directory radioshaq
+      - name: Export OpenAPI
+        run: ${{ github.workspace }}/.local/bin/uv run --directory radioshaq python scripts/export_openapi.py
+      - name: Build MkDocs
+        run: mkdocs build
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

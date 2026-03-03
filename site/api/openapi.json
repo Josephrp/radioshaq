@@ -1,0 +1,1950 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "RadioShaq API",
+    "description": "Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health",
+        "description": "Liveness probe.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Ready",
+        "description": "Readiness probe: DB (if configured), orchestrator, optional audio agent.",
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Ready Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/token": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create Token",
+        "description": "Create an access token (e.g. for field station).",
+        "operationId": "create_token_auth_token_post",
+        "parameters": [
+          {
+            "name": "subject",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Subject"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "field",
+              "title": "Role"
+            }
+          },
+          {
+            "name": "station_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Station Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Create Token Auth Token Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh Token",
+        "description": "Exchange refresh token for new access token.",
+        "operationId": "refresh_token_auth_refresh_post",
+        "parameters": [
+          {
+            "name": "refresh_token",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Refresh Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Refresh Token Auth Refresh Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Me",
+        "description": "Return current token claims (requires Bearer token).",
+        "operationId": "me_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Me Auth Me Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/radio/propagation": {
+      "get": {
+        "tags": [
+          "radio"
+        ],
+        "summary": "Propagation",
+        "description": "Get propagation prediction between two points.",
+        "operationId": "propagation_radio_propagation_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "lat_origin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "description": "Origin latitude",
+              "title": "Lat Origin"
+            },
+            "description": "Origin latitude"
+          },
+          {
+            "name": "lon_origin",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "description": "Origin longitude",
+              "title": "Lon Origin"
+            },
+            "description": "Origin longitude"
+          },
+          {
+            "name": "lat_dest",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "description": "Destination latitude",
+              "title": "Lat Dest"
+            },
+            "description": "Destination latitude"
+          },
+          {
+            "name": "lon_dest",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "description": "Destination longitude",
+              "title": "Lon Dest"
+            },
+            "description": "Destination longitude"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Propagation Radio Propagation Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/radio/bands": {
+      "get": {
+        "tags": [
+          "radio"
+        ],
+        "summary": "Bands",
+        "description": "List supported bands (from band plan).",
+        "operationId": "bands_radio_bands_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "type": "object",
+                  "title": "Response Bands Radio Bands Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/radio/send-tts": {
+      "post": {
+        "tags": [
+          "radio"
+        ],
+        "summary": "Send Tts",
+        "description": "Send arbitrary text as TTS over the radio (audio out).",
+        "operationId": "send_tts_radio_send_tts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendTTSBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Send Tts Radio Send Tts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/messages/process": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Process Message",
+        "description": "Submit a message for REACT orchestration.\nRequires orchestrator to be set in app state (lifespan).\nOptional body fields: channel, chat_id, sender_id (InboundMessage shape for routing).",
+        "operationId": "process_message_messages_process_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Process Message Messages Process Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/messages/whitelist-request": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Whitelist Request",
+        "description": "Whitelist entry point: request access to gated services (e.g. messaging between bands).\nText or audio \u2192 orchestrator evaluates \u2192 response as text and optionally TTS.\nAccepts application/json: { \"text\" or \"message\", \"callsign?\", \"send_audio_back?\" }\nor multipart/form-data: file (audio), callsign, send_audio_back.\n\nApproved/message can come from either the orchestrator final message (tool path:\nLLM used register_callsign tool and replied) or a completed whitelist agent task\n(agent path: ACTING ran the whitelist agent; result in completed_tasks).",
+        "operationId": "whitelist_request_messages_whitelist_request_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Whitelist Request Messages Whitelist Request Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/messages/from-audio": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Message From Audio",
+        "description": "Upload audio; run ASR; whitelist check; store transcript. Optionally inject to RX queue.",
+        "operationId": "message_from_audio_messages_from_audio_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_message_from_audio_messages_from_audio_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Message From Audio Messages From Audio Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/messages/inject-and-store": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Inject And Store",
+        "description": "Inject message into RX queue and store to DB (whitelist enforced).",
+        "operationId": "inject_and_store_messages_inject_and_store_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectAndStoreBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Inject And Store Messages Inject And Store Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/messages/relay": {
+      "post": {
+        "tags": [
+          "messages"
+        ],
+        "summary": "Relay Message Between Bands",
+        "description": "Translate a message from one band to another and store both sides.\n\nScenario: User A emits on band A (e.g. 40m), message is received and stored;\nthen it is \"relayed\" to band B (e.g. 2m) for User B. Stores:\n1. Original (or reference) transcript on source band\n2. Relay transcript on target band with metadata linking to source\n\nBody:\n- message (str): Text to relay\n- source_band (str): e.g. \"40m\"\n- source_frequency_hz (float, optional): exact freq if known\n- source_callsign (str): who sent on source band\n- target_band (str): e.g. \"2m\"\n- target_frequency_hz (float, optional): target freq; else use band default\n- destination_callsign (str, optional): who receives on target band\n- session_id (str, optional): default generated",
+        "operationId": "relay_message_between_bands_messages_relay_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Relay Message Between Bands Messages Relay Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/transcripts": {
+      "get": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Search Transcripts",
+        "description": "Search transcripts (received/relayed messages). Use for demo so User 2 can poll\nfor messages on a band or for their callsign (e.g. after relay from 40m to 2m).\nWhen whitelist is configured, only transcripts whose source/destination is in the whitelist are returned.",
+        "operationId": "search_transcripts_transcripts_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by source or destination callsign",
+              "title": "Callsign"
+            },
+            "description": "Filter by source or destination callsign"
+          },
+          {
+            "name": "frequency_min",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum frequency (Hz)",
+              "title": "Frequency Min"
+            },
+            "description": "Minimum frequency (Hz)"
+          },
+          {
+            "name": "frequency_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Maximum frequency (Hz)",
+              "title": "Frequency Max"
+            },
+            "description": "Maximum frequency (Hz)"
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by mode (FM, PSK31, etc.)",
+              "title": "Mode"
+            },
+            "description": "Filter by mode (FM, PSK31, etc.)"
+          },
+          {
+            "name": "band",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by band name (e.g. 40m, 2m); uses extra_data.band",
+              "title": "Band"
+            },
+            "description": "Filter by band name (e.g. 40m, 2m); uses extra_data.band"
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only transcripts after this time (ISO 8601)",
+              "title": "Since"
+            },
+            "description": "Only transcripts after this time (ISO 8601)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "description": "Max results",
+              "default": 100,
+              "title": "Limit"
+            },
+            "description": "Max results"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Search Transcripts Transcripts Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcripts/{transcript_id}": {
+      "get": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Get Transcript",
+        "description": "Get a single transcript by id (for play or display).",
+        "operationId": "get_transcript_transcripts__transcript_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transcript_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Transcript Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Transcript Transcripts  Transcript Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/transcripts/{transcript_id}/play": {
+      "post": {
+        "tags": [
+          "transcripts"
+        ],
+        "summary": "Play Transcript Over Radio",
+        "description": "Load transcript, generate TTS, and send over radio (audio out).",
+        "operationId": "play_transcript_over_radio_transcripts__transcript_id__play_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "transcript_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Transcript Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Play Transcript Over Radio Transcripts  Transcript Id  Play Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/callsigns": {
+      "get": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "List Registered",
+        "description": "List all registered callsigns (whitelist).",
+        "operationId": "list_registered_callsigns_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Registered Callsigns Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/callsigns/register": {
+      "post": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Register Callsign",
+        "description": "Register a callsign so it is automatically accepted for store/relay.",
+        "operationId": "register_callsign_callsigns_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Register Callsign Callsigns Register Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/callsigns/register-from-audio": {
+      "post": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Register From Audio",
+        "description": "Upload audio; run ASR and register the extracted or confirmed callsign.",
+        "operationId": "register_from_audio_callsigns_register_from_audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Callsign"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_register_from_audio_callsigns_register_from_audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Register From Audio Callsigns Register From Audio Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/callsigns/registered/{callsign}": {
+      "delete": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Unregister Callsign",
+        "description": "Remove a callsign from the registry.",
+        "operationId": "unregister_callsign_callsigns_registered__callsign__delete",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Unregister Callsign Callsigns Registered  Callsign  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/inject/message": {
+      "post": {
+        "tags": [
+          "inject"
+        ],
+        "summary": "Inject Message",
+        "description": "Inject a message into the RX path for demo/testing.\n\nThe message will be available to receivers (radio_rx / digital_modes)\nwhen they poll the injection queue. Use for:\n- User injection script (e.g. audio \u2192 text \u2192 this endpoint)\n- Simulating one user emitting on a band for another to receive",
+        "operationId": "inject_message_inject_message_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InjectMessageBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Inject Message Inject Message Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/internal/bus/inbound": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Publish Inbound",
+        "description": "Accept an inbound message (e.g. from Lambda) and publish to MessageBus.\nBody: channel, sender_id, chat_id, content; optional media, metadata, session_key_override.\nOrchestrator consumer must be running elsewhere to process (e.g. run_inbound_consumer).",
+        "operationId": "publish_inbound_internal_bus_inbound_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Publish Inbound Internal Bus Inbound Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/config/audio": {
+      "get": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Get Audio Config",
+        "description": "Get current audio configuration (env/file + optional runtime overrides).",
+        "operationId": "get_audio_config_api_v1_config_audio_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Audio Config Api V1 Config Audio Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Update Audio Config",
+        "description": "Update audio configuration (runtime overlay only; does not persist to file).",
+        "operationId": "update_audio_config_api_v1_config_audio_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Update Audio Config Api V1 Config Audio Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/config/audio/reset": {
+      "post": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Reset Audio Config",
+        "description": "Clear runtime audio config overrides.",
+        "operationId": "reset_audio_config_api_v1_config_audio_reset_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Reset Audio Config Api V1 Config Audio Reset Post"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audio/devices": {
+      "get": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "List Audio Devices",
+        "description": "List available audio input/output devices (requires voice_rx).",
+        "operationId": "list_audio_devices_api_v1_audio_devices_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Audio Devices Api V1 Audio Devices Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audio/devices/{device_id}/test": {
+      "post": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Test Audio Device",
+        "description": "Test an audio device by ID (placeholder).",
+        "operationId": "test_audio_device_api_v1_audio_devices__device_id__test_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Test Audio Device Api V1 Audio Devices  Device Id  Test Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audio/pending": {
+      "get": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "List Pending Responses",
+        "description": "List pending responses awaiting human confirmation.",
+        "operationId": "list_pending_responses_api_v1_audio_pending_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Pending Responses Api V1 Audio Pending Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/audio/pending/{pending_id}/approve": {
+      "post": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Approve Pending Response",
+        "description": "Approve a pending response (send it over the radio).",
+        "operationId": "approve_pending_response_api_v1_audio_pending__pending_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Pending Response Api V1 Audio Pending  Pending Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/audio/pending/{pending_id}/reject": {
+      "post": {
+        "tags": [
+          "audio"
+        ],
+        "summary": "Reject Pending Response",
+        "description": "Reject a pending response.",
+        "operationId": "reject_pending_response_api_v1_audio_pending__pending_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "pending_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pending Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "default": {},
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Pending Response Api V1 Audio Pending  Pending Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_message_from_audio_messages_from_audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "source_callsign": {
+            "type": "string",
+            "title": "Source Callsign"
+          },
+          "destination_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Callsign"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "PSK31"
+          },
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz",
+            "default": 0.0
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "inject": {
+            "type": "boolean",
+            "title": "Inject",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "source_callsign"
+        ],
+        "title": "Body_message_from_audio_messages_from_audio_post"
+      },
+      "Body_register_from_audio_callsigns_register_from_audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_register_from_audio_callsigns_register_from_audio_post"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InjectAndStoreBody": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz",
+            "default": 0.0
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "default": "PSK31"
+          },
+          "source_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Callsign"
+          },
+          "destination_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Callsign"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "InjectAndStoreBody",
+        "description": "Body for POST /messages/inject-and-store."
+      },
+      "InjectMessageBody": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Text",
+            "description": "Message text to inject as received"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band",
+            "description": "Band name (e.g. 40m, 2m)"
+          },
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz",
+            "description": "Frequency in Hz",
+            "default": 0.0
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Mode (PSK31, FT8, FM, etc.)",
+            "default": "PSK31"
+          },
+          "source_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Callsign",
+            "description": "Source callsign"
+          },
+          "destination_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Callsign",
+            "description": "Destination callsign"
+          },
+          "audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audio Path",
+            "description": "Optional path to audio file (stored with transcript)"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Metadata"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "InjectMessageBody",
+        "description": "Body for POST /inject/message (user injection for demo)."
+      },
+      "RegisterBody": {
+        "properties": {
+          "callsign": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 3,
+            "title": "Callsign"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "api or audio",
+            "default": "api"
+          }
+        },
+        "type": "object",
+        "required": [
+          "callsign"
+        ],
+        "title": "RegisterBody",
+        "description": "Body for POST /callsigns/register."
+      },
+      "RelayBody": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Message"
+          },
+          "source_band": {
+            "type": "string",
+            "title": "Source Band"
+          },
+          "target_band": {
+            "type": "string",
+            "title": "Target Band"
+          },
+          "source_frequency_hz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Frequency Hz"
+          },
+          "target_frequency_hz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Frequency Hz"
+          },
+          "source_callsign": {
+            "type": "string",
+            "title": "Source Callsign",
+            "default": "UNKNOWN"
+          },
+          "destination_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Callsign"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "source_audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Audio Path"
+          },
+          "target_audio_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Audio Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message",
+          "source_band",
+          "target_band"
+        ],
+        "title": "RelayBody",
+        "description": "Body for POST /messages/relay (band translation)."
+      },
+      "SendTTSBody": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Message"
+          },
+          "frequency_hz": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency Hz"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SendTTSBody",
+        "description": "Body for POST /radio/send-tts."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}
