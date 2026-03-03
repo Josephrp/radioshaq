@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Awaitable
+from typing import TYPE_CHECKING, Any, Callable, Awaitable
 
 from loguru import logger
 
-from shakods.orchestrator.react_loop import REACTState
+if TYPE_CHECKING:
+    from shakods.orchestrator.react_loop import REACTState
 
 
 @dataclass

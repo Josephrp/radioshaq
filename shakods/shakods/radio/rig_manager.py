@@ -88,6 +88,11 @@ class RigManager:
         async with self._lock:
             return await rig.get_state()
 
+    async def is_ptt_active(self, rig_name: str | None = None) -> bool:
+        """Return True if PTT is currently active on the rig."""
+        state = await self.get_state(rig_name)
+        return state.ptt if state else False
+
     def list_rigs(self) -> list[str]:
         """List registered rig names."""
         return list(self._rigs.keys())

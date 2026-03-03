@@ -91,7 +91,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from shakods.api.routes import auth, bus, health, inject, messages, radio, relay, transcripts
+    from shakods.api.routes import auth, audio, bus, health, inject, messages, radio, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
@@ -100,6 +100,8 @@ def create_app() -> FastAPI:
     app.include_router(transcripts.router, prefix="/transcripts", tags=["transcripts"])
     app.include_router(inject.router, prefix="/inject", tags=["inject"])
     app.include_router(bus.router, prefix="/internal", tags=["internal"])
+    app.include_router(audio.router, prefix="/api/v1")
+    app.include_router(audio.ws_router, prefix="/ws")
 
     return app
 

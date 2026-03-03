@@ -37,12 +37,14 @@ class RadioTransmissionAgent(SpecializedAgent):
         packet_radio: Any = None,
         config: Any = None,
         sdr_transmitter: Any = None,
+        ptt_coordinator: Any = None,
     ):
         self.rig_manager = rig_manager
         self.digital_modes = digital_modes
         self.packet_radio = packet_radio
         self.config = config
         self.sdr_transmitter = sdr_transmitter
+        self.ptt_coordinator = ptt_coordinator
 
     async def execute(
         self,
@@ -203,7 +205,29 @@ class RadioTransmissionAgent(SpecializedAgent):
 
         await self.rig_manager.set_frequency(frequency_hz)
         await self.rig_manager.set_mode(mode)
-        await self.rig_manager.set_ptt(True)
+
+        if self.ptt_coordinator:
+            if not await self.ptt_coordinator.request_transmit():
+                return {
+                    "success": False,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": "TX denied by PTT coordinator (channel busy or safety)",
+                }
+            if not await self.ptt_coordinator.begin_transmit():
+                return {
+                    "success": False,
+                    "frequency": frequency_hz,
+                    "mode": mode,
+                    "transmission_type": "voice",
+                    "message_sent": message[:100],
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "notes": "PTT begin denied by coordinator",
+                }
+
         result_notes = "PTT only (no audio)"
         try:
             if play_path is not None:
@@ -220,7 +244,10 @@ class RadioTransmissionAgent(SpecializedAgent):
             else:
                 await asyncio.sleep(0.5)
         finally:
-            await self.rig_manager.set_ptt(False)
+            if self.ptt_coordinator:
+                await self.ptt_coordinator.end_transmit()
+            else:
+                await self.rig_manager.set_ptt(False)
 
         # Audit log for CAT TX
         radio_cfg = getattr(self.config, "radio", None) if self.config else None

@@ -225,6 +225,13 @@ class REACTOrchestrator:
 
     async def _phase_acting(self, state: REACTState) -> None:
         """ACTING: Delegate to specialized agents."""
+        from shakods.middleware.upstream import UpstreamEvent
+
+        async def upstream_callback(ev: UpstreamEvent) -> None:
+            state.context.setdefault("upstream_events", []).append(
+                {"source": ev.source, "event_type": ev.event_type, "payload": ev.payload}
+            )
+
         for task in state.decomposed_tasks:
             if task.status != "pending":
                 continue
@@ -234,7 +241,9 @@ class REACTOrchestrator:
                 agent = self.agent_registry.get_agent_for_task(task_dict)
                 if agent:
                     try:
-                        task.result = await agent.execute(task_dict, upstream_callback=None)
+                        task.result = await agent.execute(
+                            task_dict, upstream_callback=upstream_callback
+                        )
                         task.status = "completed"
                     except Exception as e:
                         logger.exception("Agent execution failed: %s", e)

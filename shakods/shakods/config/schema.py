@@ -6,6 +6,8 @@ supporting file-based config, environment variables, and validation.
 
 from __future__ import annotations
 
+import uuid
+from datetime import datetime, timezone
 from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, Literal
@@ -50,6 +52,39 @@ class RadioMode(StrEnum):
     SSB_LSB = "LSB"
     CW = "CW"
     DIGITAL = "DIG"
+
+
+class ResponseMode(StrEnum):
+    """Response modes for radio audio reception."""
+    LISTEN_ONLY = "listen_only"          # Transcribe only, no TX
+    CONFIRM_FIRST = "confirm_first"      # Queue for human approval
+    AUTO_RESPOND = "auto_respond"        # Full auto (use with caution)
+    CONFIRM_TIMEOUT = "confirm_timeout"  # Auto-respond after timeout if not rejected
+
+
+class VADMode(StrEnum):
+    """WebRTC VAD aggressiveness presets."""
+    NORMAL = "normal"      # Aggressiveness 0
+    LOW_BITRATE = "low"    # Aggressiveness 1
+    AGGRESSIVE = "aggressive"  # Aggressiveness 2
+    VERY_AGGRESSIVE = "very_aggressive"  # Aggressiveness 3
+
+
+class TriggerMatchMode(StrEnum):
+    """How trigger phrases are matched."""
+    EXACT = "exact"
+    CONTAINS = "contains"
+    STARTS_WITH = "starts_with"
+    FUZZY = "fuzzy"  # Requires fuzzywuzzy or similar
+
+
+class PendingResponseStatus(StrEnum):
+    """Status of a pending response awaiting confirmation."""
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+    EXPIRED = "expired"
+    AUTO_SENT = "auto_sent"
 
 
 # =============================================================================
@@ -196,6 +231,101 @@ class RadioConfig(BaseModel):
     sdr_tx_max_gain: int = Field(default=47, ge=0, le=47)
     sdr_tx_allow_bands_only: bool = Field(default=True)
 
+    # Audio RX/TX integration (voice_rx pipeline)
+    audio_input_enabled: bool = Field(default=False)
+    audio_output_enabled: bool = Field(default=False)
+    audio_monitoring_enabled: bool = Field(default=False)
+
+
+class AudioConfig(BaseModel):
+    """Audio capture and processing configuration (voice_rx pipeline)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    # Input/Output devices
+    input_device: str | int | None = Field(
+        default=None,
+        description="Audio input device (rig line-out)",
+    )
+    input_sample_rate: int = Field(default=16000)
+    output_device: str | int | None = Field(
+        default=None,
+        description="Audio output device (rig line-in)",
+    )
+
+    # Preprocessing
+    preprocessing_enabled: bool = Field(default=True)
+    agc_enabled: bool = Field(default=True)
+    agc_target_rms: float = Field(default=0.1, ge=0.01, le=1.0)
+    highpass_filter_enabled: bool = Field(default=True)
+    highpass_cutoff_hz: float = Field(default=80.0, ge=20.0, le=500.0)
+
+    # Denoising
+    denoising_enabled: bool = Field(default=True)
+    denoising_backend: str = Field(default="rnnoise")  # "rnnoise", "spectral", "none"
+    noise_calibration_seconds: float = Field(default=3.0, ge=1.0, le=10.0)
+    min_snr_db: float = Field(default=3.0, ge=-10.0, le=40.0)
+
+    # VAD
+    vad_enabled: bool = Field(default=True)
+    vad_threshold: float = Field(default=0.02)
+    vad_mode: VADMode = Field(default=VADMode.AGGRESSIVE)
+    pre_speech_buffer_ms: int = Field(default=300, ge=0, le=1000)
+    post_speech_buffer_ms: int = Field(default=400, ge=0, le=1000)
+    min_speech_duration_ms: int = Field(default=500, ge=100, le=2000)
+    max_speech_duration_ms: int = Field(default=30000, ge=5000, le=60000)
+    silence_duration_ms: int = Field(default=800, ge=200, le=2000)
+
+    # ASR
+    asr_model: str = Field(default="voxtral")
+    asr_language: str = Field(default="en")
+    asr_min_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+
+    # Response behavior
+    auto_respond: bool = Field(default=False)  # Legacy; prefer response_mode
+    response_mode: ResponseMode = Field(default=ResponseMode.LISTEN_ONLY)
+    response_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    response_delay_ms: int = Field(default=500, ge=0, le=5000)
+    response_cooldown_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
+
+    # Trigger filtering
+    trigger_enabled: bool = Field(default=True)
+    trigger_phrases: list[str] = Field(default_factory=lambda: ["shakods", "field station"])
+    trigger_match_mode: TriggerMatchMode = Field(default=TriggerMatchMode.CONTAINS)
+    trigger_callsign: str | None = Field(default=None)
+    trigger_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
+
+    # PTT coordination
+    ptt_coordination_enabled: bool = Field(default=True)
+    ptt_cooldown_ms: int = Field(default=500, ge=100, le=2000)
+    break_in_enabled: bool = Field(default=True)
+
+
+class PendingResponse(BaseModel):
+    """A pending response awaiting human confirmation (in-memory)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: datetime = Field(...)
+
+    # Source
+    incoming_transcript: str = Field(...)
+    incoming_audio_path: str | None = None
+    frequency_hz: float | None = None
+    mode: str | None = None
+
+    # Proposed response
+    proposed_message: str = Field(...)
+    proposed_audio_path: str | None = None
+
+    # Status
+    status: PendingResponseStatus = Field(default=PendingResponseStatus.PENDING)
+    responded_at: datetime | None = None
+    responded_by: str | None = None
+    notes: str | None = None
+
 
 class PM2Config(BaseModel):
     """PM2 process manager configuration."""
@@ -317,6 +447,7 @@ class Config(BaseSettings):
     jwt: JWTConfig = Field(default_factory=JWTConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     radio: RadioConfig = Field(default_factory=RadioConfig)
+    audio: AudioConfig = Field(default_factory=AudioConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
     
     # Mode-specific configs
@@ -405,6 +536,7 @@ def save_config(config: Config, path: Path | str) -> None:
 
 
 __all__ = [
+    "AudioConfig",
     "Config",
     "DatabaseConfig",
     "FieldConfig",
@@ -412,8 +544,13 @@ __all__ = [
     "JWTConfig",
     "LLMConfig",
     "Mode",
+    "PendingResponse",
+    "PendingResponseStatus",
     "PM2Config",
     "RadioConfig",
+    "ResponseMode",
+    "TriggerMatchMode",
+    "VADMode",
     "load_config",
     "save_config",
 ]

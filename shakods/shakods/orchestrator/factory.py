@@ -173,6 +173,21 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
     packet_radio = _create_packet_radio(config)
     sdr_transmitter = _create_sdr_transmitter(config)
 
+    ptt_coordinator = None
+    if rig_manager and getattr(config, "audio", None):
+        audio_cfg = config.audio
+        if getattr(audio_cfg, "ptt_coordination_enabled", True):
+            try:
+                from shakods.radio.ptt_coordinator import PTTCoordinator
+                ptt_coordinator = PTTCoordinator(
+                    rig_manager=rig_manager,
+                    cooldown_ms=getattr(audio_cfg, "ptt_cooldown_ms", 500),
+                    break_in_enabled=getattr(audio_cfg, "break_in_enabled", True),
+                )
+                logger.debug("PTTCoordinator created for half-duplex safety")
+            except Exception as e:
+                logger.warning("PTTCoordinator not created: %s", e)
+
     sms_client = None
     sms_from = None
     if getattr(config, "twilio_sid", None) or getattr(config, "twilio_from", None):
@@ -196,11 +211,53 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
             packet_radio=packet_radio,
             config=config,
             sdr_transmitter=sdr_transmitter,
+            ptt_coordinator=ptt_coordinator,
         )
     )
     registry.register_agent(
         RadioReceptionAgent(rig_manager=rig_manager, digital_modes=digital_modes)
     )
+
+    if getattr(config.radio, "audio_input_enabled", False) and getattr(config, "audio", None):
+        try:
+            from shakods.audio.stream_processor import AudioStreamProcessor
+            from shakods.audio.capture import AudioCaptureService
+            from shakods.specialized.radio_rx_audio import RadioAudioReceptionAgent
+
+            audio_cfg = config.audio
+            stream_processor = AudioStreamProcessor(
+                sample_rate=audio_cfg.input_sample_rate,
+                frame_duration_ms=30,
+                vad_aggressiveness={"normal": 0, "low": 1, "aggressive": 2, "very_aggressive": 3}.get(
+                    getattr(audio_cfg.vad_mode, "value", "aggressive"), 2
+                ),
+                pre_speech_buffer_ms=audio_cfg.pre_speech_buffer_ms,
+                post_speech_buffer_ms=audio_cfg.post_speech_buffer_ms,
+                min_speech_duration_ms=audio_cfg.min_speech_duration_ms,
+                max_speech_duration_ms=audio_cfg.max_speech_duration_ms,
+                silence_duration_ms=audio_cfg.silence_duration_ms,
+                use_rnnoise=False,
+            )
+            capture_service = AudioCaptureService(
+                stream_processor=stream_processor,
+                input_device=audio_cfg.input_device,
+                sample_rate=audio_cfg.input_sample_rate,
+                chunk_duration_ms=30,
+            )
+            tx_agent = registry.get_agent("radio_tx")
+            rx_audio_agent = RadioAudioReceptionAgent(
+                config=audio_cfg,
+                rig_manager=rig_manager,
+                capture_service=capture_service,
+                stream_processor=stream_processor,
+                response_agent=tx_agent,
+            )
+            registry.register_agent(rx_audio_agent)
+            logger.debug("Registered RadioAudioReceptionAgent (voice_rx)")
+        except ImportError as e:
+            logger.warning("Voice RX not available (missing voice_rx deps): %s", e)
+        except Exception as e:
+            logger.warning("Could not register RadioAudioReceptionAgent: %s", e)
 
     gis_agent = GISAgent(db=db)
     registry.register_agent(gis_agent)

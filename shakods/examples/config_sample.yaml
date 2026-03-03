@@ -15,6 +15,24 @@ auth:
 radio:
   default_band: 40m
   cat_enabled: false
+  audio_input_enabled: false
+  audio_output_enabled: false
+  audio_monitoring_enabled: false
+
+# Voice RX pipeline (audio capture, ASR, response modes)
+audio:
+  input_device: null
+  input_sample_rate: 16000
+  output_device: null
+  vad_enabled: true
+  vad_mode: aggressive
+  asr_model: voxtral
+  asr_language: en
+  response_mode: listen_only
+  response_delay_ms: 500
+  trigger_enabled: true
+  trigger_phrases: ["shakods", "field station"]
+  trigger_match_mode: contains
 
 llm:
   provider: mistral

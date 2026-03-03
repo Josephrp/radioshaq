@@ -46,7 +46,22 @@ def get_orchestrator(request: Request) -> Any:
     return getattr(request.app.state, "orchestrator", None)
 
 
+def get_agent_registry(request: Request) -> Any:
+    """Return agent registry if available, else None."""
+    return getattr(request.app.state, "agent_registry", None)
+
+
+def get_audio_agent(request: Request) -> Any:
+    """Return RadioAudioReceptionAgent if registered, else None."""
+    registry = get_agent_registry(request)
+    if not registry:
+        return None
+    return registry.get_agent("radio_rx_audio")
+
+
 __all__ = [
+    "get_agent_registry",
+    "get_audio_agent",
     "get_auth_manager",
     "get_config",
     "get_current_user",

@@ -282,8 +282,47 @@ module.exports = {
       wait_ready: true,
       listen_timeout: 30000,
     },
+
+    // =====================================================
+    // E2E Test Runner (no radio integration)
+    // =====================================================
+    // Run against a live API started with: pm2 start shakods-api --env test
+    // Then: pm2 start ecosystem.config.js --only shakods-e2e
+    {
+      name: 'shakods-e2e',
+      script: require('fs').existsSync(venvPython) ? venvPython : 'python',
+      args: [
+        '-m', 'pytest',
+        'tests/integration',
+        '-v',
+        '--tb=short',
+        '-m', 'integration and live_api',
+      ],
+      cwd: __dirname,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,
+      watch: false,
+      max_memory_restart: '512M',
+      env: {
+        NODE_ENV: 'test',
+        BASE_URL: 'http://127.0.0.1:8001',
+        SHAKODS_MODE: 'field',
+        SHAKODS_RADIO__ENABLED: 'false',
+        SHAKODS_RADIO__AUDIO_INPUT_ENABLED: 'false',
+        RADIO_ENABLED: 'false',
+        DATABASE_URL: 'postgresql+asyncpg://shakods:shakods@127.0.0.1:5434/shakods_test',
+        JWT_SECRET: 'test-secret',
+      },
+      log_file: './logs/e2e-combined.log',
+      out_file: './logs/e2e-out.log',
+      error_file: './logs/e2e-error.log',
+      log_date_format: 'YYYY-MM-DD HH:mm:ss.SSS Z',
+      merge_logs: true,
+      kill_timeout: 60000,
+    },
   ],
-  
+
   // =====================================================
   // Deployment Configuration
   // =====================================================

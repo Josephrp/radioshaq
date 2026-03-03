@@ -129,6 +129,16 @@ voice_tx = [
     "pydub>=0.25.1",
 ]
 
+# Voice RX: audio capture + preprocessing + VAD + ASR
+voice_rx = [
+    "sounddevice>=0.4.6",
+    "soundfile>=0.12.1",
+    "webrtcvad-wheels>=2.0.11",
+    "numpy>=2.4",
+    "noisereduce>=3.0",
+    "webrtcvad>=2.0.10",
+]
+
 [project.scripts]
 shakods = "shakods.cli:app"
 alembic-upgrade = "shakods.scripts.alembic_runner:main_upgrade"
