@@ -65,7 +65,10 @@ export function connectMetricsWebSocket(sessionId: string): WebSocket {
     url.pathname = `/ws/audio/metrics/${sessionId}`;
     wsUrl = url.toString();
   } catch {
-    wsUrl = `${API_BASE.replace(/^http/, 'ws')}/ws/audio/metrics/${sessionId}`;
+    const protocol = API_BASE.startsWith('https') ? 'wss:' : 'ws:';
+    const afterProto = API_BASE.replace(/^https?:\/\//, '');
+    const origin = `${protocol}//${afterProto.split('/')[0]}`;
+    wsUrl = `${origin}/ws/audio/metrics/${sessionId}`;
   }
   return new WebSocket(wsUrl);
 }

@@ -240,12 +240,8 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         )
 
         try:
-            await asyncio.wait_for(
-                self.capture_service.start(),
-                timeout=float(duration_seconds),
-            )
-        except asyncio.TimeoutError:
-            pass
+            await self.capture_service.start()
+            await asyncio.sleep(duration_seconds)
         finally:
             self._monitoring = False
             self._audio_activated = False

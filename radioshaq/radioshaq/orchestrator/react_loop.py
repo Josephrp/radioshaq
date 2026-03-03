@@ -325,9 +325,7 @@ class REACTOrchestrator:
                 {"role": "user", "content": user_content},
             ]
             try:
-                plan_response = await self.llm_client.chat(
-                    plan_messages, temperature=0.2, max_tokens=2048
-                )
+                plan_response = await self.llm_client.chat(plan_messages)
                 content = getattr(plan_response, "content", "") or ""
                 state.decomposed_tasks = self._parse_decomposed_tasks_from_llm(
                     content, state.original_request
@@ -362,7 +360,7 @@ class REACTOrchestrator:
                 last_content = ""
                 for _round in range(max_tool_rounds):
                     response = await self.llm_client.chat_with_tools(
-                        messages, tools=tool_definitions, temperature=0.2, max_tokens=2048
+                        messages, tools=tool_definitions
                     )
                     last_content = (response.content or "").strip()
                     tool_calls = getattr(response, "tool_calls", None) or []
