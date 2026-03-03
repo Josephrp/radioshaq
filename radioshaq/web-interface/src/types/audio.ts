@@ -19,6 +19,11 @@ export enum TriggerMatchMode {
   FUZZY = 'fuzzy',
 }
 
+export enum AudioActivationMode {
+  SESSION = 'session',
+  PER_MESSAGE = 'per_message',
+}
+
 export enum PendingResponseStatus {
   PENDING = 'pending',
   APPROVED = 'approved',
@@ -59,6 +64,9 @@ export interface AudioConfig {
   trigger_match_mode: TriggerMatchMode;
   trigger_callsign: string | null;
   trigger_min_confidence: number;
+  audio_activation_enabled: boolean;
+  audio_activation_phrase: string;
+  audio_activation_mode: AudioActivationMode;
   ptt_coordination_enabled: boolean;
   ptt_cooldown_ms: number;
   break_in_enabled: boolean;

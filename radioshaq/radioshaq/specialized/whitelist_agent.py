@@ -106,16 +106,23 @@ class WhitelistAgent(SpecializedAgent):
         callsign_from_llm = None
 
         try:
-            # Strip possible markdown code fences
+            # Strip possible markdown code fences; try each JSON-like block to handle multiple code blocks
+            data = None
             if "```" in content:
                 for part in content.split("```"):
                     part = part.strip()
                     if part.startswith("json"):
                         part = part[4:].strip()
                     if part.startswith("{"):
-                        content = part
-                        break
-            data = json.loads(content)
+                        try:
+                            parsed = json.loads(part)
+                            if isinstance(parsed, dict) and "approved" in parsed:
+                                data = parsed
+                                break
+                        except json.JSONDecodeError:
+                            continue
+            if data is None:
+                data = json.loads(content)
             approved = bool(data.get("approved", False))
             reason = str(data.get("reason", reason))
             raw_callsign = data.get("callsign")

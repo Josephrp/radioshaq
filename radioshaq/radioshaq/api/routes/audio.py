@@ -92,19 +92,21 @@ async def list_audio_devices(
                 continue
             max_in = d.get("max_input_channels")
             max_out = d.get("max_output_channels")
+            sample_rate_val = d.get("default_samplerate")
+            sample_rate = float(sample_rate_val) if sample_rate_val is not None else None
             if max_in is not None and int(max_in) > 0:
                 input_devices.append({
                     "index": i,
                     "name": str(d.get("name", "?")),
                     "channels": int(max_in),
-                    "sample_rate": float(d["default_samplerate"]) if d.get("default_samplerate") is not None else None,
+                    "sample_rate": sample_rate,
                 })
             if max_out is not None and int(max_out) > 0:
                 output_devices.append({
                     "index": i,
                     "name": str(d.get("name", "?")),
                     "channels": int(max_out),
-                    "sample_rate": float(d["default_samplerate"]) if d.get("default_samplerate") is not None else None,
+                    "sample_rate": sample_rate,
                 })
         return {"input_devices": input_devices, "output_devices": output_devices}
     except Exception as e:

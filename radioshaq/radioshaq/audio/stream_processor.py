@@ -289,7 +289,7 @@ class AudioStreamProcessor:
                 self._ring_buffer.append(frame)
 
         elif self._state == StreamState.SPEECH_DETECTED:
-            # Always append current frame (speech or silence) so we include post-speech tail
+            # Append every frame (speech or silence) to capture the silence tail after speech for natural cutoff
             self._speech_buffer.append(frame)
             if is_speech:
                 self._speech_frames += 1

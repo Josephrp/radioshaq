@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ResponseMode } from '../../types/audio';
+import { AudioActivationMode, ResponseMode } from '../../types/audio';
 import { ResponseModeSelector } from '../../components/audio/ResponseModeSelector';
 import { ConfirmationQueue } from '../../components/audio/ConfirmationQueue';
 import { VADVisualizer } from '../../components/audio/VADVisualizer';
@@ -53,6 +53,20 @@ export function AudioConfigPage() {
     }
   };
 
+  const handleAudioActivationChange = async (patch: {
+    audio_activation_enabled?: boolean;
+    audio_activation_phrase?: string;
+    audio_activation_mode?: AudioActivationMode;
+  }) => {
+    if (!config) return;
+    try {
+      const updated = await updateAudioConfig(patch);
+      setConfig(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to update');
+    }
+  };
+
   const [devices, setDevices] = useState<{ input_devices: { index: number; name: string }[]; output_devices: { index: number; name: string }[] } | null>(null);
   useEffect(() => {
     listAudioDevices().then(setDevices).catch(() => setDevices(null));
@@ -72,6 +86,60 @@ export function AudioConfigPage() {
           value={config.response_mode}
           onChange={handleResponseModeChange}
         />
+      </section>
+
+      <section>
+        <h2>Audio activation</h2>
+        <p>
+          <label>
+            <input
+              type="checkbox"
+              checked={config.audio_activation_enabled ?? false}
+              onChange={(e) =>
+                handleAudioActivationChange({
+                  audio_activation_enabled: e.target.checked,
+                })
+              }
+            />{' '}
+            Require activation phrase before processing
+          </label>
+        </p>
+        {config.audio_activation_enabled && (
+          <>
+            <p>
+              <label>
+                Phrase:{' '}
+                <input
+                  type="text"
+                  value={config.audio_activation_phrase ?? 'radioshaq'}
+                  onChange={(e) =>
+                    handleAudioActivationChange({
+                      audio_activation_phrase: e.target.value,
+                    })
+                  }
+                  placeholder="radioshaq"
+                />
+              </label>
+            </p>
+            <p>
+              <label>
+                Mode:{' '}
+                <select
+                  value={config.audio_activation_mode ?? AudioActivationMode.SESSION}
+                  onChange={(e) =>
+                    handleAudioActivationChange({
+                      audio_activation_mode: e.target
+                        .value as AudioActivationMode,
+                    })
+                  }
+                >
+                  <option value={AudioActivationMode.SESSION}>Session (once heard, stay active)</option>
+                  <option value={AudioActivationMode.PER_MESSAGE}>Per-message (require phrase each time)</option>
+                </select>
+              </label>
+            </p>
+          </>
+        )}
       </section>
 
       {devices && (

@@ -12,6 +12,7 @@ from typing import Any
 from loguru import logger
 
 from radioshaq.config.schema import (
+    AudioActivationMode,
     AudioConfig,
     PendingResponse,
     PendingResponseStatus,
@@ -275,27 +276,37 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         if not transcript:
             return
         segment.transcript = transcript
-        # Optional audio activation: require phrase before processing
+        # Optional audio activation: require phrase before processing.
         if getattr(self.config, "audio_activation_enabled", False):
-            if not self._audio_activated:
-                phrase = getattr(self.config, "audio_activation_phrase", "radioshaq") or "radioshaq"
-                if phrase.lower() in transcript.lower():
+            phrase = getattr(self.config, "audio_activation_phrase", "radioshaq") or "radioshaq"
+            mode = getattr(
+                self.config, "audio_activation_mode", AudioActivationMode.SESSION
+            ) or AudioActivationMode.SESSION
+            if mode == AudioActivationMode.SESSION:
+                if not self._audio_activated:
+                    if phrase.lower() not in transcript.lower():
+                        return
                     self._audio_activated = True
-                else:
+            else:
+                # PER_MESSAGE: this segment must contain the phrase
+                if phrase.lower() not in transcript.lower():
                     return
         confidence = getattr(segment, "transcript_confidence", None) or 0.8
         if not self._trigger_filter.check(transcript, confidence):
             return
         response_text = await self._generate_response_text(transcript)
         if self.config.response_mode == ResponseMode.LISTEN_ONLY:
+            self._maybe_reset_activation_per_message()
             return
         if self.config.response_mode == ResponseMode.CONFIRM_FIRST:
             await self._confirmation_manager.create_pending(
                 transcript=transcript, proposed_message=response_text
             )
+            self._maybe_reset_activation_per_message()
             return
         if self.config.response_mode == ResponseMode.AUTO_RESPOND:
             await self._send_response(response_text)
+            self._maybe_reset_activation_per_message()
 
     async def _confirmation_watcher(
         self,
@@ -316,6 +327,16 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         self._confirmation_manager.add_callback(on_change)
         while self._monitoring:
             await asyncio.sleep(1)
+
+    def _maybe_reset_activation_per_message(self) -> None:
+        """In per-message mode, reset activation after processing a segment."""
+        if not getattr(self.config, "audio_activation_enabled", False):
+            return
+        mode = getattr(
+            self.config, "audio_activation_mode", AudioActivationMode.SESSION
+        ) or AudioActivationMode.SESSION
+        if mode == AudioActivationMode.PER_MESSAGE:
+            self._audio_activated = False
 
     def _get_whisper_model(self) -> Any:
         """Load Whisper model once and cache for reuse."""

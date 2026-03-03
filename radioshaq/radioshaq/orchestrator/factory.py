@@ -239,7 +239,10 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
                 min_speech_duration_ms=audio_cfg.min_speech_duration_ms,
                 max_speech_duration_ms=audio_cfg.max_speech_duration_ms,
                 silence_duration_ms=audio_cfg.silence_duration_ms,
-                use_rnnoise=False,
+                use_rnnoise=(
+                    getattr(audio_cfg, "denoising_enabled", True)
+                    and getattr(audio_cfg, "denoising_backend", "rnnoise") == "rnnoise"
+                ),
             )
             capture_service = AudioCaptureService(
                 stream_processor=stream_processor,

@@ -3,14 +3,43 @@
 from __future__ import annotations
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from radioshaq.config.schema import AudioConfig, ResponseMode, TriggerMatchMode
+from radioshaq.config.schema import (
+    AudioActivationMode,
+    AudioConfig,
+    ResponseMode,
+    TriggerMatchMode,
+)
 from radioshaq.specialized.radio_rx_audio import (
     ConfirmationManager,
     RadioAudioReceptionAgent,
     TriggerFilter,
 )
+
+
+class _FakeProcessedSegment:
+    """Minimal segment-like object to avoid importing stream_processor (heavy deps)."""
+
+    def __init__(self, snr_db: float = 10.0) -> None:
+        self.audio = b""
+        self.sample_rate = 16000
+        self.snr_db = snr_db
+        self.transcript = None
+
+
+def test_audio_config_default_activation_mode_is_session() -> None:
+    """Default audio_activation_mode is SESSION for backward compatibility."""
+    config = AudioConfig()
+    assert config.audio_activation_mode == AudioActivationMode.SESSION
+
+
+def test_audio_config_load_per_message_from_dict() -> None:
+    """Loading from dict/YAML with audio_activation_mode string parses to enum."""
+    config = AudioConfig(**{"audio_activation_mode": "per_message"})
+    assert config.audio_activation_mode == AudioActivationMode.PER_MESSAGE
+    config2 = AudioConfig(**{"audio_activation_mode": "session"})
+    assert config2.audio_activation_mode == AudioActivationMode.SESSION
 
 
 def test_trigger_filter_disabled() -> None:
@@ -80,3 +109,103 @@ async def test_radio_rx_audio_transcribe_file_no_path() -> None:
     result = await agent.execute({"action": "transcribe_file"})
     assert "error" in result
     assert "audio_path" in result["error"]
+
+
+def _make_segment(snr_db: float = 10.0) -> _FakeProcessedSegment:
+    return _FakeProcessedSegment(snr_db=snr_db)
+
+
+@pytest.mark.asyncio
+async def test_audio_activation_session_mode() -> None:
+    """Session mode: once phrase is heard, subsequent segments are processed without phrase."""
+    config = AudioConfig(
+        audio_activation_enabled=True,
+        audio_activation_mode=AudioActivationMode.SESSION,
+        audio_activation_phrase="radioshaq",
+        trigger_enabled=False,
+        response_mode=ResponseMode.LISTEN_ONLY,
+        min_snr_db=0.0,
+    )
+    agent = RadioAudioReceptionAgent(config=config, stream_processor=MagicMock())
+    agent._monitoring = True
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "hello world"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False  # no phrase, dropped
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq copy"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is True  # phrase heard, session active
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "any other message"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is True  # still active for session
+
+
+@pytest.mark.asyncio
+async def test_audio_activation_per_message_mode() -> None:
+    """Per-message mode: each processed segment must contain the phrase; activation resets after process."""
+    config = AudioConfig(
+        audio_activation_enabled=True,
+        audio_activation_mode=AudioActivationMode.PER_MESSAGE,
+        audio_activation_phrase="radioshaq",
+        trigger_enabled=False,
+        response_mode=ResponseMode.LISTEN_ONLY,
+        min_snr_db=0.0,
+    )
+    agent = RadioAudioReceptionAgent(config=config, stream_processor=MagicMock())
+    agent._monitoring = True
+    segment = _make_segment()
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "no phrase here"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False  # dropped, never activated
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq go"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False  # processed then reset in per_message mode
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "no phrase again"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False  # segment dropped (no phrase)
+
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq second time"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False  # processed and reset again
+
+
+@pytest.mark.asyncio
+async def test_audio_activation_per_message_confirm_first_reset() -> None:
+    """Per-message mode with CONFIRM_FIRST: activation resets after create_pending."""
+    config = AudioConfig(
+        audio_activation_enabled=True,
+        audio_activation_mode=AudioActivationMode.PER_MESSAGE,
+        audio_activation_phrase="radioshaq",
+        trigger_enabled=False,
+        response_mode=ResponseMode.CONFIRM_FIRST,
+        min_snr_db=0.0,
+    )
+    agent = RadioAudioReceptionAgent(config=config, stream_processor=MagicMock())
+    agent._monitoring = True
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq request"
+            await agent._on_segment_ready(segment)
+    assert agent._audio_activated is False
+    pending = await agent._confirmation_manager.list_pending()
+    assert len(pending) == 1

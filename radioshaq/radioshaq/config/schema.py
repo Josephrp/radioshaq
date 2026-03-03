@@ -87,6 +87,12 @@ class PendingResponseStatus(StrEnum):
     AUTO_SENT = "auto_sent"
 
 
+class AudioActivationMode(StrEnum):
+    """When audio activation phrase is required."""
+    SESSION = "session"       # Once heard, active until monitoring stops
+    PER_MESSAGE = "per_message"  # Require phrase in each segment that is processed
+
+
 # =============================================================================
 # Component Configurations
 # =============================================================================
@@ -318,6 +324,10 @@ class AudioConfig(BaseModel):
     audio_activation_phrase: str = Field(
         default="radioshaq",
         description="Phrase that must be heard before processing (when audio_activation_enabled).",
+    )
+    audio_activation_mode: AudioActivationMode = Field(
+        default=AudioActivationMode.SESSION,
+        description="Session: once activated, stay active. Per_message: require phrase in each processed segment.",
     )
 
     # PTT coordination
@@ -561,6 +571,7 @@ def save_config(config: Config, path: Path | str) -> None:
 
 
 __all__ = [
+    "AudioActivationMode",
     "AudioConfig",
     "Config",
     "DatabaseConfig",
