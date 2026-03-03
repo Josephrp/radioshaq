@@ -1,6 +1,8 @@
 # -----------------------------------------------------------------------------
 # Monorepo .gitignore — Python, Node, Rust, OS, editors, env, logs
-# ------------------------
+# -----------------------------------------------------------------------------
+
+# Reference-only folders (not part of the published codebase)
 codex/
 mistral-vibe-main/
 nanobot-main/
