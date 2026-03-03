@@ -4,6 +4,8 @@
 
 A specialized AI-powered orchestrator for ham radio operations, emergency communications, and field-to-HQ coordination.
 
+**Documentation:** [Quick Start](https://memyself.github.io/monorepo/quick-start/), [Configuration](https://memyself.github.io/monorepo/configuration/), [API Reference](https://memyself.github.io/monorepo/api-reference/) (published site). In-repo source: [../docs/](../docs/) (MkDocs Material).
+
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
@@ -24,7 +26,7 @@ uv sync --extra dev --extra test
 .\infrastructure\local\setup.ps1
 ```
 
-See **[docs/install.md](docs/install.md)** for the full install guide (prerequisites, DB, PM2, troubleshooting).
+See the [documentation site](https://memyself.github.io/monorepo/) (Quick Start, Configuration) or **[docs/install.md](docs/install.md)** for the full install guide (prerequisites, DB, PM2, troubleshooting).
 
 ## Quick Start
 
@@ -40,7 +42,7 @@ uv run python -m radioshaq.api.server
 # API: http://localhost:8000/docs
 ```
 
-See [docs/database.md](docs/database.md) for DATABASE_URL and migration commands (including the `run_alembic.py` script).
+See [Configuration](https://memyself.github.io/monorepo/configuration/) or [docs/database.md](docs/database.md) for DATABASE_URL and migration commands (including the `run_alembic.py` script).
 
 ## Authentication
 
@@ -61,9 +63,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8000/auth/token?subject=op1&role=field
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
 ```
 
-Roles: `field` (default), `hq`, `receiver`. Full details: [docs/auth.md](docs/auth.md).
-
-**Connecting real radios (IC-7300, FT-450D, FT-817, RTL-SDR):** see [../docs/HARDWARE_CONNECTION.md](../docs/HARDWARE_CONNECTION.md) for CAT/Hamlib config, rig model numbers, and remote receiver deployment.
+Roles: `field` (default), `hq`, `receiver`. Full details: [docs/auth.md](docs/auth.md). **Connecting real radios (IC-7300, FT-450D, FT-817, RTL-SDR):** see [Radio Usage](https://memyself.github.io/monorepo/radio-usage/) or [../docs/HARDWARE_CONNECTION.md](../docs/HARDWARE_CONNECTION.md) for CAT/Hamlib config and remote receiver deployment.
 
 ## Demo (inject, relay, poll)
 

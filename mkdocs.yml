@@ -1,0 +1,77 @@
+# RadioShaq documentation — MkDocs Material
+# Build: mkdocs build (from repo root). Deploy: GitHub Actions (upload-pages-artifact + deploy-pages).
+site_name: RadioShaq
+site_description: Ham Radio AI Orchestration and Field-to-HQ Coordination
+site_url: https://josephrp.github.io/radioshaq/
+
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  language: en
+  palette:
+    # Light mode (default) — Lakers: blue + gold/yellow
+    - scheme: default
+      primary: blue
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode
+    - scheme: slate
+      primary: blue
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.path
+    - content.tabs.link
+    - content.code.copy
+    - content.code.select
+    - content.code.annotate
+    - toc.follow
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: [., radioshaq]
+      check_paths: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      type: date
+      timezone: UTC
+      locale: en
+      fallback_to_build_date: true
+  - neoteroi.mkdocsoad:
+      use_pymdownx: true
+
+# optional: add docs/stylesheets/mkdocsoad.css from neoteroi/mkdocs-plugins releases for OAD styling
+# extra_css:
+#   - stylesheets/mkdocsoad.css
+
+nav:
+  - About: index.md
+  - Quick Start: quick-start.md
+  - Radio Usage: radio-usage.md
+  - Configuration: configuration.md
+  - API Reference: api-reference.md
+  - Legacy: legacy/index.md

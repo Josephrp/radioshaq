@@ -6,7 +6,10 @@
 codex/
 mistral-vibe-main/
 nanobot-main/
-docs/
+ancient-docs/
+
+# Docs build output (MkDocs: mkdocs build → site/)
+site/
 
 # --- OS / system ---
 .DS_Store
