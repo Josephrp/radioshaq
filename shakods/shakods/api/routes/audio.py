@@ -83,13 +83,29 @@ async def list_audio_devices(
         )
     try:
         devices = sd.query_devices()
+        if not isinstance(devices, (list, tuple)):
+            devices = [devices] if devices is not None else []
         input_devices = []
         output_devices = []
         for i, d in enumerate(devices):
-            if d.get("max_input_channels", 0) > 0:
-                input_devices.append({"index": i, "name": d.get("name", "?"), "channels": d.get("max_input_channels"), "sample_rate": d.get("default_samplerate")})
-            if d.get("max_output_channels", 0) > 0:
-                output_devices.append({"index": i, "name": d.get("name", "?"), "channels": d.get("max_output_channels"), "sample_rate": d.get("default_samplerate")})
+            if not isinstance(d, dict):
+                continue
+            max_in = d.get("max_input_channels")
+            max_out = d.get("max_output_channels")
+            if max_in is not None and int(max_in) > 0:
+                input_devices.append({
+                    "index": i,
+                    "name": str(d.get("name", "?")),
+                    "channels": int(max_in),
+                    "sample_rate": float(d["default_samplerate"]) if d.get("default_samplerate") is not None else None,
+                })
+            if max_out is not None and int(max_out) > 0:
+                output_devices.append({
+                    "index": i,
+                    "name": str(d.get("name", "?")),
+                    "channels": int(max_out),
+                    "sample_rate": float(d["default_samplerate"]) if d.get("default_samplerate") is not None else None,
+                })
         return {"input_devices": input_devices, "output_devices": output_devices}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

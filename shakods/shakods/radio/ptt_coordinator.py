@@ -247,7 +247,13 @@ class PTTCoordinator:
                     logger.exception(f"State change callback error: {e}")
 
     async def _is_ptt_active(self) -> bool:
-        """Check if PTT is currently active."""
+        """Check if PTT is currently active on the local rig.
+
+        Note: This only detects whether our rig's PTT is keyed, not whether
+        the channel is busy from another station. For true channel-busy
+        detection (e.g. someone else transmitting), squelch or RX level
+        detection would be needed and is not implemented here.
+        """
         if not self.rig_manager:
             return False
         try:

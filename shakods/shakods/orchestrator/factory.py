@@ -229,7 +229,7 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
                 sample_rate=audio_cfg.input_sample_rate,
                 frame_duration_ms=30,
                 vad_aggressiveness={"normal": 0, "low": 1, "aggressive": 2, "very_aggressive": 3}.get(
-                    getattr(audio_cfg.vad_mode, "value", "aggressive"), 2
+                    str(audio_cfg.vad_mode), 2
                 ),
                 pre_speech_buffer_ms=audio_cfg.pre_speech_buffer_ms,
                 post_speech_buffer_ms=audio_cfg.post_speech_buffer_ms,

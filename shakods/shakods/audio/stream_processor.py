@@ -152,7 +152,17 @@ class NoiseSuppressor:
                 var_orig = np.var(frame[:min_len])
                 var_red = np.var(reduced)
                 snr = 10.0 * np.log10(var_orig / (var_red + 1e-10))
-                return reduced.astype(np.float32), float(snr)
+                # Pad or truncate to match input frame length for caller (VAD expects frame_samples)
+                if len(reduced) < len(frame):
+                    reduced = np.pad(
+                        reduced.astype(np.float32),
+                        (0, len(frame) - len(reduced)),
+                        mode="constant",
+                        constant_values=0.0,
+                    )
+                else:
+                    reduced = reduced[: len(frame)].astype(np.float32)
+                return reduced, float(snr)
         except ImportError:
             pass
         return frame, 0.0
@@ -274,8 +284,8 @@ class AudioStreamProcessor:
                 self._ring_buffer.append(frame)
 
         elif self._state == StreamState.SPEECH_DETECTED:
+            # Always append current frame (speech or silence) so we include post-speech tail
             self._speech_buffer.append(frame)
-
             if is_speech:
                 self._speech_frames += 1
                 self._silence_frames = 0
@@ -285,8 +295,7 @@ class AudioStreamProcessor:
                 self._silence_frames += 1
                 if self._silence_frames >= self.silence_frames:
                     await self._finalize_segment(snr)
-                elif self._silence_frames <= self.post_speech_frames:
-                    pass  # already appended above
+                # While _silence_frames <= post_speech_frames we keep appending (already done above)
 
     async def _finalize_segment(self, snr: float) -> None:
         """Finalize current speech segment and emit."""

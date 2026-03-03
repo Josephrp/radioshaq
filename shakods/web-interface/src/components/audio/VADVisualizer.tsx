@@ -17,7 +17,7 @@ export function VADVisualizer({ sessionId }: VADVisualizerProps) {
     ws.onclose = () => setConnected(false);
     ws.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data as string) as AudioMetrics;
+        const data = JSON.parse(event.data) as AudioMetrics;
         setMetrics(data);
       } catch {
         // ignore
