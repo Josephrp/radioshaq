@@ -12,7 +12,7 @@ RadioShaq is configured via a single **Pydantic Settings** model (`radioshaq.con
    - `RADIOSHAQ_MODE=field`
    - `RADIOSHAQ_DATABASE__POSTGRES_URL=postgresql+asyncpg://user:pass@host:5432/db`
    - `RADIOSHAQ_LLM__PROVIDER=mistral`
-   - `RADIOSHAQ_LLM__MISTRAL_API_KEY=your-key` (or set `MISTRAL_API_KEY` if your code reads it separately)
+   - `RADIOSHAQ_LLM__MISTRAL_API_KEY=your-key` (or set `MISTRAL_API_KEY`)
    - `RADIOSHAQ_RADIO__ENABLED=true`
    - `RADIOSHAQ_RADIO__RIG_MODEL=3073`
    - `RADIOSHAQ_AUDIO__RESPONSE_MODE=confirm_first`
