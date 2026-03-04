@@ -140,8 +140,20 @@ class ConfirmationManager:
         async with self._lock:
             return self._pending.get(pending_id)
 
-    async def list_pending(self) -> list[PendingResponse]:
+    async def list_pending(self, *, include_expired: bool = False) -> list[PendingResponse]:
         async with self._lock:
+            if include_expired:
+                return [
+                    pending for pending in self._pending.values()
+                    if pending.status == PendingResponseStatus.PENDING
+                ]
+            now = datetime.now(timezone.utc)
+            for pending in self._pending.values():
+                if (
+                    pending.status == PendingResponseStatus.PENDING
+                    and pending.expires_at <= now
+                ):
+                    pending.status = PendingResponseStatus.EXPIRED
             return [
                 p for p in self._pending.values()
                 if p.status == PendingResponseStatus.PENDING
@@ -429,7 +441,9 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     async def _handle_pending_timeouts(self) -> None:
         """Expire or auto-send timed-out pending responses based on response_mode."""
         now = datetime.now(timezone.utc)
-        pending_list = await self._confirmation_manager.list_pending()
+        pending_list = await self._confirmation_manager.list_pending(
+            include_expired=self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT
+        )
         if not pending_list:
             return
         if self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT:
@@ -587,6 +601,14 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "pending_id required"}
         pending = await self._confirmation_manager.approve(pending_id, operator)
         if not pending:
+            existing = await self._confirmation_manager.get_pending(pending_id)
+            if existing is not None:
+                return {
+                    "error": (
+                        "Pending response is already in state: "
+                        f"{existing.status.value}"
+                    ),
+                }
             return {"error": "Pending response not found"}
         return {"success": True, "pending": pending.model_dump()}
 

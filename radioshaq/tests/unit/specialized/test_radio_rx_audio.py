@@ -83,6 +83,24 @@ async def test_confirmation_manager_create_and_list() -> None:
 
 
 @pytest.mark.asyncio
+async def test_confirmation_manager_list_pending_expires_stale_items() -> None:
+    config = AudioConfig(response_timeout_seconds=30.0)
+    mgr = ConfirmationManager(config)
+    pending = await mgr.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    listed = await mgr.list_pending()
+    assert listed == []
+
+    fetched = await mgr.get_pending(pending.id)
+    assert fetched is not None
+    assert fetched.status.value == "expired"
+
+
+@pytest.mark.asyncio
 async def test_radio_rx_audio_unknown_action() -> None:
     config = AudioConfig()
     agent = RadioAudioReceptionAgent(config=config)
@@ -421,6 +439,7 @@ async def test_confirm_timeout_claim_prevents_approve_race_double_send() -> None
 
     approve_result = await agent._action_approve_response({"pending_id": pending.id, "operator": "op"})
     assert "error" in approve_result
+    assert approve_result["error"] == "Pending response is already in state: sending"
 
     release_send.set()
     await auto_task
@@ -429,3 +448,21 @@ async def test_confirm_timeout_claim_prevents_approve_race_double_send() -> None
     pending_after = await agent._confirmation_manager.get_pending(pending.id)
     assert pending_after is not None
     assert pending_after.status.value == "auto_sent"
+
+
+@pytest.mark.asyncio
+async def test_approve_response_reports_existing_non_pending_state() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+
+    claimed = await agent._confirmation_manager.claim_for_sending(pending.id)
+    assert claimed is not None
+
+    result = await agent._action_approve_response(
+        {"pending_id": pending.id, "operator": "op"}
+    )
+    assert result["error"] == "Pending response is already in state: sending"

@@ -58,7 +58,7 @@ class RadioTransmissionAgent(SpecializedAgent):
         if frequency is None:
             frequency = task.get("frequency_hz", 0.0)
         message = task.get("message", "")
-        mode = task.get("mode", "FM")
+        mode = task.get("mode")
         audio_path = task.get("audio_path")
         use_tts = task.get("use_tts") if "use_tts" in task else None
 
@@ -122,7 +122,7 @@ class RadioTransmissionAgent(SpecializedAgent):
         self,
         frequency_hz: float,
         message: str,
-        mode: str,
+        mode: str | None,
         *,
         audio_path: str | Path | None = None,
         use_tts: bool | None = None,
@@ -209,7 +209,8 @@ class RadioTransmissionAgent(SpecializedAgent):
         # If no explicit frequency is provided, transmit on the current rig frequency.
         if frequency_hz and frequency_hz > 0:
             await self.rig_manager.set_frequency(frequency_hz)
-        await self.rig_manager.set_mode(mode)
+        if mode:
+            await self.rig_manager.set_mode(mode)
 
         if self.ptt_coordinator:
             if not await self.ptt_coordinator.request_transmit():
