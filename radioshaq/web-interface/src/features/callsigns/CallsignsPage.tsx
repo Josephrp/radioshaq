@@ -1,0 +1,168 @@
+import React, { useEffect, useState } from 'react';
+import {
+  listCallsigns,
+  registerCallsign,
+  unregisterCallsign,
+  registerCallsignFromAudio,
+  type CallsignEntry,
+} from '../../services/radioshaqApi';
+
+export function CallsignsPage() {
+  const [list, setList] = useState<CallsignEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [addCallsign, setAddCallsign] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [audioFile, setAudioFile] = useState<File | null>(null);
+  const [audioCallsign, setAudioCallsign] = useState('');
+
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
+    setError(null);
+    try {
+      const res = await listCallsigns();
+      setList(res.registered ?? []);
+    } catch (e) {
+      if (!silent) setError(e instanceof Error ? e.message : 'Failed to load');
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  // Live polling: silent refresh every 20s
+  useEffect(() => {
+    const interval = setInterval(() => load(true), 20000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cs = addCallsign.trim().toUpperCase();
+    if (!cs) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await registerCallsign(cs, 'api');
+      setAddCallsign('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to add');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleRemove = async (callsign: string) => {
+    const cs = typeof callsign === 'string' ? callsign : (callsign as CallsignEntry).callsign;
+    if (!cs) return;
+    setError(null);
+    try {
+      await unregisterCallsign(cs);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to remove');
+    }
+  };
+
+  const handleRegisterFromAudio = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!audioFile) {
+      setError('Select an audio file');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await registerCallsignFromAudio(audioFile, audioCallsign.trim() || undefined);
+      setAudioFile(null);
+      setAudioCallsign('');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to register from audio');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) return <p>Loading…</p>;
+
+  return (
+    <div className="callsigns-page">
+      <h1>Callsigns (whitelist)</h1>
+      {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
+
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h2>Add callsign</h2>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={addCallsign}
+            onChange={(e) => setAddCallsign(e.target.value)}
+            placeholder="e.g. K5ABC"
+            maxLength={10}
+            style={{ padding: '0.4rem', width: 120 }}
+            aria-label="Callsign to add"
+          />
+          <button type="submit" disabled={submitting || !addCallsign.trim()}>
+            {submitting ? 'Adding…' : 'Add'}
+          </button>
+        </form>
+      </section>
+
+      <section style={{ marginBottom: '1.5rem' }}>
+        <h2>Register from audio</h2>
+        <form onSubmit={handleRegisterFromAudio} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxWidth: 400 }}>
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
+            aria-label="Audio file"
+          />
+          <input
+            type="text"
+            value={audioCallsign}
+            onChange={(e) => setAudioCallsign(e.target.value)}
+            placeholder="Optional: confirm callsign (else from ASR)"
+            maxLength={10}
+            style={{ padding: '0.4rem' }}
+          />
+          <button type="submit" disabled={submitting || !audioFile}>
+            {submitting ? 'Uploading…' : 'Register from audio'}
+          </button>
+        </form>
+      </section>
+
+      <section>
+        <h2>Registered ({list.length})</h2>
+        <p style={{ marginTop: 0, fontSize: '0.9rem' }}>
+          <button type="button" onClick={() => load()} disabled={loading}>
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+          <span style={{ marginLeft: '0.5rem', color: '#666' }}>Auto-refresh every 20s</span>
+        </p>
+        {list.length === 0 ? (
+          <p>No callsigns registered.</p>
+        ) : (
+          <ul style={{ listStyle: 'none', padding: 0 }}>
+            {list.map((entry, i) => {
+              const cs = typeof entry === 'string' ? entry : (entry.callsign ?? (entry as Record<string, unknown>).callsign);
+              const key = typeof cs === 'string' ? cs : `c-${i}`;
+              return (
+                <li key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                  <span>{String(cs)}</span>
+                  <button type="button" onClick={() => handleRemove(String(cs))} style={{ fontSize: '0.85rem' }}>
+                    Remove
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}

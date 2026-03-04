@@ -95,8 +95,9 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from radioshaq.api.routes import auth, audio, bus, callsigns, health, inject, messages, radio, relay, transcripts
+    from radioshaq.api.routes import auth, audio, bus, callsigns, health, inject, messages, metrics, radio, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
+    app.include_router(metrics.metrics_router, prefix="/metrics", tags=["metrics"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])

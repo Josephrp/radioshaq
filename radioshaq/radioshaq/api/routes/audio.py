@@ -184,18 +184,34 @@ async def reject_pending_response(
 
 @ws_router.websocket("/audio/metrics/{session_id}")
 async def websocket_audio_metrics(websocket: WebSocket, session_id: str) -> None:
-    """WebSocket for real-time audio metrics (VAD, SNR, state). Placeholder: sends heartbeat."""
+    """
+    WebSocket for real-time audio metrics (VAD, SNR, state).
+    When the voice_rx pipeline is wired, set app.state.audio_metrics_latest to a dict with
+    vad_active, snr_db, state (and optional type); this handler sends that when present,
+    otherwise sends a placeholder heartbeat.
+    """
     await websocket.accept()
     import asyncio
     try:
         while True:
-            await websocket.send_json({
-                "session_id": session_id,
-                "type": "heartbeat",
-                "vad_active": False,
-                "snr_db": None,
-                "state": "idle",
-            })
+            latest = getattr(websocket.app.state, "audio_metrics_latest", None)
+            if isinstance(latest, dict):
+                payload = {
+                    "session_id": session_id,
+                    "type": latest.get("type", "metrics"),
+                    "vad_active": latest.get("vad_active", False),
+                    "snr_db": latest.get("snr_db"),
+                    "state": latest.get("state", "idle"),
+                }
+            else:
+                payload = {
+                    "session_id": session_id,
+                    "type": "heartbeat",
+                    "vad_active": False,
+                    "snr_db": None,
+                    "state": "idle",
+                }
+            await websocket.send_json(payload)
             await asyncio.sleep(1.0)
     except WebSocketDisconnect:
         pass

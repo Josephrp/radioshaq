@@ -1,4 +1,4 @@
-"""Entry point for running SHAKODS as a module."""
+"""Entry point for running RadioShaq as a module (CLI)."""
 
 from __future__ import annotations
 
