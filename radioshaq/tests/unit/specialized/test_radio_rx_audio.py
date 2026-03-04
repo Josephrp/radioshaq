@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -321,3 +322,61 @@ async def test_voice_store_keywords_stores_when_match() -> None:
             m_transcribe.return_value = "please relay this to 2m"
             await agent._on_segment_ready(segment)
     assert storage.store.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_creates_pending_without_immediate_send() -> None:
+    """CONFIRM_TIMEOUT queues pending response first; timeout handler sends later."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        response_agent=response_agent,
+    )
+    agent._monitoring = True
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq status check"
+            await agent._on_segment_ready(segment)
+    pending = await agent._confirmation_manager.list_pending()
+    assert len(pending) == 1
+    response_agent.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_auto_sends_expired_pending_with_frequency_and_mode() -> None:
+    """Expired pending response in CONFIRM_TIMEOUT is auto-sent over voice TX with original freq/mode."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(config=config, response_agent=response_agent)
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack timeout",
+        frequency_hz=145_550_000.0,
+        mode="FM",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    await agent._handle_pending_timeouts()
+
+    response_agent.execute.assert_awaited_once()
+    sent_task = response_agent.execute.await_args.args[0]
+    assert sent_task.get("transmission_type") == "voice"
+    assert sent_task.get("use_tts") is True
+    assert sent_task.get("frequency") == 145_550_000.0
+    assert sent_task.get("mode") == "FM"
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "auto_sent"

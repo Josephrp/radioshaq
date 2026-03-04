@@ -53,7 +53,10 @@ class RadioTransmissionAgent(SpecializedAgent):
     ) -> dict[str, Any]:
         """Execute radio transmission task."""
         transmission_type = task.get("transmission_type", "voice")
-        frequency = task.get("frequency", 0.0)
+        # Accept both "frequency" and "frequency_hz" task keys for compatibility.
+        frequency = task.get("frequency")
+        if frequency is None:
+            frequency = task.get("frequency_hz", 0.0)
         message = task.get("message", "")
         mode = task.get("mode", "FM")
         audio_path = task.get("audio_path")
@@ -203,7 +206,9 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "notes": f"TTS failed: {e}",
                 }
 
-        await self.rig_manager.set_frequency(frequency_hz)
+        # If no explicit frequency is provided, transmit on the current rig frequency.
+        if frequency_hz and frequency_hz > 0:
+            await self.rig_manager.set_frequency(frequency_hz)
         await self.rig_manager.set_mode(mode)
 
         if self.ptt_coordinator:
