@@ -3,7 +3,6 @@
 Provides SQLAlchemy models, PostGIS integration, and data access layers.
 """
 
-from radioshaq.database.dynamodb import DynamoDBStateStore
 from radioshaq.database.gis import (
     haversine_km,
     propagation_note,
@@ -33,3 +32,11 @@ __all__ = [
     "propagation_note",
     "suggest_bands_for_distance_km",
 ]
+
+
+def __getattr__(name: str):
+    """Lazy-import DynamoDB (boto3) so gis/models/postgres/transcripts can be used without it."""
+    if name == "DynamoDBStateStore":
+        from radioshaq.database.dynamodb import DynamoDBStateStore
+        return DynamoDBStateStore
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
