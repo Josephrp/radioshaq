@@ -290,7 +290,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "FLDIGI not configured",
             }
-        if self.rig_manager:
+        if self.rig_manager and frequency_hz and frequency_hz > 0:
             await self.rig_manager.set_frequency(frequency_hz)
         await self.digital_modes.set_modem(digital_mode)
         await self.digital_modes.transmit_text(message)

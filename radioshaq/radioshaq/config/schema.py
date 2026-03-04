@@ -81,6 +81,7 @@ class TriggerMatchMode(StrEnum):
 class PendingResponseStatus(StrEnum):
     """Status of a pending response awaiting confirmation."""
     PENDING = "pending"
+    SENDING = "sending"
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPIRED = "expired"

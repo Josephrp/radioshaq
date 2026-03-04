@@ -109,6 +109,8 @@ class ConfirmationManager:
             if pending_id not in self._pending:
                 return None
             pending = self._pending[pending_id]
+            if pending.status != PendingResponseStatus.PENDING:
+                return None
             pending.status = PendingResponseStatus.APPROVED
             pending.responded_at = datetime.now(timezone.utc)
             pending.responded_by = operator
@@ -125,6 +127,8 @@ class ConfirmationManager:
             if pending_id not in self._pending:
                 return None
             pending = self._pending[pending_id]
+            if pending.status != PendingResponseStatus.PENDING:
+                return None
             pending.status = PendingResponseStatus.REJECTED
             pending.responded_at = datetime.now(timezone.utc)
             pending.responded_by = operator
@@ -146,7 +150,10 @@ class ConfirmationManager:
     async def mark_expired(self, pending_id: str) -> PendingResponse | None:
         async with self._lock:
             pending = self._pending.get(pending_id)
-            if not pending or pending.status != PendingResponseStatus.PENDING:
+            if not pending or pending.status not in (
+                PendingResponseStatus.PENDING,
+                PendingResponseStatus.SENDING,
+            ):
                 return None
             pending.status = PendingResponseStatus.EXPIRED
             pending.responded_at = datetime.now(timezone.utc)
@@ -156,12 +163,24 @@ class ConfirmationManager:
     async def mark_auto_sent(self, pending_id: str) -> PendingResponse | None:
         async with self._lock:
             pending = self._pending.get(pending_id)
-            if not pending or pending.status != PendingResponseStatus.PENDING:
+            if not pending or pending.status not in (
+                PendingResponseStatus.PENDING,
+                PendingResponseStatus.SENDING,
+            ):
                 return None
             pending.status = PendingResponseStatus.AUTO_SENT
             pending.responded_at = datetime.now(timezone.utc)
         await self._notify_change(pending)
         return pending
+
+    async def claim_for_sending(self, pending_id: str) -> PendingResponse | None:
+        """Atomically claim a pending item for TX to prevent concurrent approval/auto-send races."""
+        async with self._lock:
+            pending = self._pending.get(pending_id)
+            if not pending or pending.status != PendingResponseStatus.PENDING:
+                return None
+            pending.status = PendingResponseStatus.SENDING
+            return pending
 
     async def _notify_change(self, pending: PendingResponse) -> None:
         for callback in self._callbacks:
@@ -417,15 +436,18 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             for pending in pending_list:
                 if pending.expires_at > now:
                     continue
+                claimed = await self._confirmation_manager.claim_for_sending(pending.id)
+                if not claimed:
+                    continue
                 sent = await self._send_response(
-                    pending.proposed_message,
-                    frequency_hz=pending.frequency_hz,
-                    mode=pending.mode,
+                    claimed.proposed_message,
+                    frequency_hz=claimed.frequency_hz,
+                    mode=claimed.mode,
                 )
                 if sent:
-                    await self._confirmation_manager.mark_auto_sent(pending.id)
+                    await self._confirmation_manager.mark_auto_sent(claimed.id)
                 else:
-                    await self._confirmation_manager.mark_expired(pending.id)
+                    await self._confirmation_manager.mark_expired(claimed.id)
             return
         for pending in pending_list:
             if pending.expires_at <= now:

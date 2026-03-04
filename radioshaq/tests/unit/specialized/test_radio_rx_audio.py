@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -377,6 +378,54 @@ async def test_confirm_timeout_auto_sends_expired_pending_with_frequency_and_mod
     assert sent_task.get("use_tts") is True
     assert sent_task.get("frequency") == 145_550_000.0
     assert sent_task.get("mode") == "FM"
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "auto_sent"
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_claim_prevents_approve_race_double_send() -> None:
+    """Timeout auto-send claims pending item, so concurrent approve cannot trigger a second TX."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(config=config, response_agent=response_agent)
+
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack once",
+        frequency_hz=145_550_000.0,
+        mode="FM",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    send_started = asyncio.Event()
+    release_send = asyncio.Event()
+    call_count = 0
+
+    async def blocked_send(*args, **kwargs) -> bool:
+        nonlocal call_count
+        call_count += 1
+        send_started.set()
+        await release_send.wait()
+        return True
+
+    agent._send_response = AsyncMock(side_effect=blocked_send)
+
+    auto_task = asyncio.create_task(agent._handle_pending_timeouts())
+    await asyncio.wait_for(send_started.wait(), timeout=1.0)
+
+    approve_result = await agent._action_approve_response({"pending_id": pending.id, "operator": "op"})
+    assert "error" in approve_result
+
+    release_send.set()
+    await auto_task
+
+    assert call_count == 1
     pending_after = await agent._confirmation_manager.get_pending(pending.id)
     assert pending_after is not None
     assert pending_after.status.value == "auto_sent"

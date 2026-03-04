@@ -276,3 +276,40 @@ async def test_radio_tx_explicit_use_tts_false_overrides_voice_use_tts_true():
     result = await agent.execute(task)
     assert result.get("success") is True
     assert "PTT only" in result.get("notes", "")
+
+
+@pytest.mark.asyncio
+async def test_radio_tx_digital_does_not_retune_when_frequency_not_set():
+    """Digital TX should not call set_frequency when task omits explicit frequency."""
+    from types import SimpleNamespace
+    from radioshaq.specialized.radio_tx import RadioTransmissionAgent
+
+    rig_manager = MagicMock()
+    rig_manager.set_frequency = AsyncMock(return_value=None)
+    digital_modes = MagicMock()
+    digital_modes.set_modem = AsyncMock(return_value=None)
+    digital_modes.transmit_text = AsyncMock(return_value=None)
+
+    config = SimpleNamespace(
+        radio=SimpleNamespace(
+            tx_allowed_bands_only=False,
+            restricted_bands_region="FCC",
+            sdr_tx_enabled=False,
+        ),
+    )
+    agent = RadioTransmissionAgent(
+        rig_manager=rig_manager,
+        digital_modes=digital_modes,
+        config=config,
+    )
+    task = {
+        "transmission_type": "digital",
+        "message": "CQ TEST",
+        "digital_mode": "PSK31",
+        # frequency intentionally omitted -> execute() resolves 0.0
+    }
+    result = await agent.execute(task)
+    assert result.get("success") is True
+    rig_manager.set_frequency.assert_not_awaited()
+    digital_modes.set_modem.assert_awaited_once_with("PSK31")
+    digital_modes.transmit_text.assert_awaited_once_with("CQ TEST")
