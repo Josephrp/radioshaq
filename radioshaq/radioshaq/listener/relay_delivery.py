@@ -41,12 +41,18 @@ async def run_relay_delivery_worker(
                 text = t.get("transcript_text") or ""
                 source = t.get("source_callsign") or "UNKNOWN"
                 dest = t.get("destination_callsign")
-                mode = t.get("mode") or "FM"
+                band = extra.get("band") or extra.get("relay_from_band") or "unknown"
+                text = t.get("transcript_text") or ""
+                source = t.get("source_callsign") or "UNKNOWN"
+                dest = t.get("destination_callsign")
                 freq = t.get("frequency_hz") or 0.0
-                if not freq and band:
-                    plan = BAND_PLANS.get(band)
-                    if plan:
+                plan = BAND_PLANS.get(band)
+                if plan:
+                    if not freq:
                         freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
+                    mode = (plan.modes or ["FM"])[0]
+                else:
+                    mode = t.get("mode") or "FM"
 
                 queue = get_injection_queue()
                 queue.inject_message(
