@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { connectMetricsWebSocket } from '../../services/radioshaqApi';
 import type { AudioMetrics } from '../../types/audio';
+
+const RECONNECT_DELAY_MS = 2000;
+const MAX_RECONNECT_DELAY_MS = 15000;
 
 interface VADVisualizerProps {
   sessionId: string;
@@ -10,20 +13,48 @@ interface VADVisualizerProps {
 export function VADVisualizer({ sessionId }: VADVisualizerProps) {
   const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [connected, setConnected] = useState(false);
+  const reconnectDelay = useRef(RECONNECT_DELAY_MS);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const ws = connectMetricsWebSocket(sessionId);
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => setConnected(false);
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as AudioMetrics;
-        setMetrics(data);
-      } catch {
-        // ignore
-      }
+    let ws: WebSocket;
+    let mounted = true;
+
+    const connect = () => {
+      ws = connectMetricsWebSocket(sessionId);
+      ws.onopen = () => {
+        if (mounted) {
+          setConnected(true);
+          reconnectDelay.current = RECONNECT_DELAY_MS;
+        }
+      };
+      ws.onclose = () => {
+        if (mounted) setConnected(false);
+        if (!mounted) return;
+        timeoutRef.current = setTimeout(() => {
+          reconnectDelay.current = Math.min(
+            reconnectDelay.current * 1.5,
+            MAX_RECONNECT_DELAY_MS
+          );
+          connect();
+        }, reconnectDelay.current);
+      };
+      ws.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data) as AudioMetrics;
+          if (mounted) setMetrics(data);
+        } catch {
+          // ignore
+        }
+      };
     };
-    return () => ws.close();
+
+    connect();
+    return () => {
+      mounted = false;
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      ws.close();
+    };
   }, [sessionId]);
 
   return (

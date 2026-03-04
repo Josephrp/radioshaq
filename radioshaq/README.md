@@ -75,6 +75,10 @@ uv run python scripts/demo/run_demo.py
 
 The script gets its own token from `POST /auth/token` (subject `demo-op1`, role `field`) and then injects on 40m, relays to 2m, and polls `/transcripts`. No manual auth needed. See [scripts/demo/README.md](scripts/demo/README.md) and [docs/demo-two-local-one-remote.md](docs/demo-two-local-one-remote.md).
 
+## Monitoring
+
+**Prometheus:** `GET /metrics` (no auth) exposes uptime, callsign count, and optional GPU gauges (when `nvidia-smi` is available). Optional: `uv sync --extra metrics` for full prometheus-client support. See [Monitoring](https://memyself.github.io/monorepo/monitoring/) in the docs.
+
 ## Development
 
 ```bash

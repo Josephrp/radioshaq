@@ -122,6 +122,11 @@ voice_tx = [
     "pydub>=0.25.1",
 ]
 
+# Prometheus /metrics endpoint
+metrics = [
+    "prometheus-client>=0.21",
+]
+
 # Voice RX: audio capture + preprocessing + VAD + ASR
 voice_rx = [
     "sounddevice>=0.4.6",

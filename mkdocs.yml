@@ -73,5 +73,5 @@ nav:
   - Quick Start: quick-start.md
   - Radio Usage: radio-usage.md
   - Configuration: configuration.md
+  - Monitoring: monitoring.md
   - API Reference: api-reference.md
-  - Legacy: legacy/index.md

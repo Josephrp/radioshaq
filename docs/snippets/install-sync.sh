@@ -1,2 +1,2 @@
 # From radioshaq/ directory
-uv sync --extra dev --extra test
+uv sync --all-extras

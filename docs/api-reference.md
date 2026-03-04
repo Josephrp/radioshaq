@@ -9,13 +9,14 @@ The RadioShaq API is a FastAPI application. All protected endpoints require a **
 | Area | Prefix | Purpose |
 |------|--------|---------|
 | Health | `/health`, `/health/ready` | Liveness and readiness (DB, orchestrator) |
+| Metrics | `/metrics` | Prometheus scrape (uptime, callsigns, optional GPU). See [Monitoring](monitoring.md). |
 | Auth | `/auth/token`, `/auth/refresh`, `/auth/me` | Issue token, refresh, current user |
 | Messages | `/messages/process`, `/messages/whitelist-request`, `/messages/from-audio`, `/messages/inject-and-store` | Orchestration and whitelist flow |
 | Relay | `/messages/relay` | Band translation (e.g. 40m → 2m) |
 | Callsigns | `/callsigns`, `/callsigns/register`, `/callsigns/register-from-audio`, `/callsigns/registered/{callsign}` | Registered callsigns and registration |
 | Audio | `/api/v1/config/audio`, `/api/v1/audio/devices`, `/api/v1/audio/pending`, approve/reject | Audio config and pending response queue |
 | Transcripts | `/transcripts`, `/transcripts/{id}`, `/transcripts/{id}/play` | Search and play transcripts |
-| Radio | `/radio/propagation`, `/radio/bands`, `/radio/send-tts` | Propagation, band list, send TTS |
+| Radio | `/radio/status`, `/radio/propagation`, `/radio/bands`, `/radio/send-tts` | Radio connected?, propagation, band list, send TTS |
 | Inject | `/inject/message` | Demo: push message into RX injection queue |
 | Internal | `/internal/bus/inbound` | MessageBus inbound (e.g. Lambda) |
 
