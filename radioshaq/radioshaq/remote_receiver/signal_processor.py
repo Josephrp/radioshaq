@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from receiver.radio_interface import SignalSample
+from radioshaq.remote_receiver.radio_interface import SignalSample
 
 
 def is_interesting(sample: SignalSample, threshold_db: float = -90.0) -> bool:

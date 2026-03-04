@@ -2,6 +2,8 @@
 
 This guide gets the RadioShaq API running on your machine in a few minutes. By the end you’ll have a local API that can run the REACT orchestrator (message processing), use the database for transcripts and callsigns, and serve the OpenAPI docs. No radio is required for this path—you can add a rig and voice pipeline later using [Configuration](configuration.md) and [Radio Usage](radio-usage.md).
 
+**(Optional) Interactive setup:** Run `radioshaq setup` from the `radioshaq/` directory to be guided through mode, database (Docker or URL), JWT, LLM, and optional radio/memory/field settings. It writes `.env` and `config.yaml` to the project root and can start Docker Postgres and run migrations. See [Configuration](configuration.md#interactive-setup). Alternatively, follow the steps below or use the PowerShell script (see [Interactive Setup Plan](interactive-setup-plan.md)).
+
 ---
 
 ## What you need
@@ -14,7 +16,7 @@ This guide gets the RadioShaq API running on your machine in a few minutes. By t
 
 ## Step 1: Clone and enter the app
 
-From the monorepo root, go into the RadioShaq app directory:
+From the RadioShaq root, go into the RadioShaq app directory:
 
 ```text
 cd radioshaq

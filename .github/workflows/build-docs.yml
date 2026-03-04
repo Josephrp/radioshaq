@@ -40,7 +40,7 @@ jobs:
       - name: Export OpenAPI
         run: uv run --directory radioshaq python scripts/export_openapi.py
       - name: Build MkDocs
-        run: mkdocs build
+        run: mkdocs build -f .github/mkdocs.yml
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

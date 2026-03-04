@@ -24,6 +24,7 @@ from radioshaq.specialized.whitelist_agent import WhitelistAgent
 from radioshaq.vendor.nanobot.tools.registry import ToolRegistry
 from radioshaq.specialized.radio_tools import SendAudioOverRadioTool
 from radioshaq.specialized.whitelist_tools import ListRegisteredCallsignsTool, RegisterCallsignTool
+from radioshaq.specialized.memory_tools import RecallMemoryTool, ReflectMemoryTool
 from radioshaq.callsign import get_callsign_repository
 
 
@@ -308,6 +309,13 @@ def create_tool_registry(config: Config, db: Any = None) -> ToolRegistry:
         logger.debug("Registered whitelist tools: list_registered_callsigns, register_callsign")
     except Exception as e:
         logger.warning("Could not register whitelist tools: %s", e)
+    if getattr(config, "memory", None) and getattr(config.memory, "enabled", False):
+        try:
+            registry.register(RecallMemoryTool(config))
+            registry.register(ReflectMemoryTool(config))
+            logger.debug("Registered memory tools: recall_memory, reflect_memory")
+        except Exception as e:
+            logger.warning("Could not register memory tools: %s", e)
     return registry
 
 
@@ -334,6 +342,7 @@ def create_orchestrator(
     config: Config,
     db: Any = None,
     message_bus: Any = None,
+    memory_manager: Any = None,
     max_iterations: int = 20,
     middleware_pipeline: Any = None,
     tool_registry: Any = None,
@@ -342,6 +351,7 @@ def create_orchestrator(
     """Build REACTOrchestrator with Judge, PromptLoader, AgentRegistry, and optional middleware.
     Optionally store message_bus for future bridge use.
     When tool_registry and llm_client are provided, REASONING runs the LLM tool-calling loop.
+    When memory_manager is provided, orchestrator loads/persists memory and retains to Hindsight per callsign.
     """
     judge = create_judge(config)
     agent_registry = create_agent_registry(config, db)
@@ -367,7 +377,9 @@ def create_orchestrator(
         middleware_pipeline=middleware_pipeline,
         tool_registry=tool_registry,
         llm_client=llm_client,
+        memory_manager=memory_manager,
     )
+    setattr(orchestrator, "_config", config)
     if message_bus is not None:
         setattr(orchestrator, "_message_bus", message_bus)
     return orchestrator

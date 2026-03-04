@@ -3356,6 +3356,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyrtlsdr"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/07/e0/4011cab0c7d1f886c2851e1d683fc807130eb7a90d48a4e2dabfde50b0e0/pyrtlsdr-0.4.0.tar.gz", hash = "sha256:67f10775b8b56be9d64fb932881795c2a896425f1efbc78cca6ea8b734c46cde", size = 37623, upload-time = "2026-03-01T21:47:43.685Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9e/e2/ee05a0e985e1175be2ed451dcdd525fc4901bbe891399056d56fd9ab47c4/pyrtlsdr-0.4.0-py3-none-any.whl", hash = "sha256:964dc69e261f608f617db0e48c5d92e8d8c975f1c1c3c1d8add8d8012b72bd14", size = 31484, upload-time = "2026-03-01T21:47:41.541Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.0.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3443,6 +3452,15 @@ sdist = { url = "https://files.pythonhosted.org/packages/f0/26/19cadc79a718c5edb
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/1b/a298b06749107c305e1fe0f814c6c74aea7b2f1e10989cb30f544a1b3253/python_dotenv-1.2.1-py3-none-any.whl", hash = "sha256:b81ee9561e9ca4004139c6cbba3a238c32b03e4894671e181b671e8cb8425d61", size = 21230, upload-time = "2025-10-26T15:12:09.109Z" },
 ]
+
+[[package]]
+name = "python-hackrf"
+version = "1.5.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/0b/4b/d58fcffe466f2d161c7d8389d330a8a872999bf2e3115ce5cf7c140af79a/python_hackrf-1.5.0.1.tar.gz", hash = "sha256:a17d9e326b883970c0042140569f3be33f4131abc8d669aa3c375ded5d7fa9c2", size = 37987, upload-time = "2025-11-21T20:35:55.425Z" }
 
 [[package]]
 name = "python-jose"
@@ -3616,8 +3634,14 @@ dev = [
     { name = "pytest-mock" },
     { name = "ruff" },
 ]
+hackrf = [
+    { name = "python-hackrf" },
+]
 metrics = [
     { name = "prometheus-client" },
+]
+sdr = [
+    { name = "pyrtlsdr" },
 ]
 test = [
     { name = "factory-boy" },
@@ -3684,6 +3708,7 @@ requires-dist = [
     { name = "pydantic-settings", specifier = ">=2.13" },
     { name = "pydub", marker = "extra == 'voice-tx'", specifier = ">=0.25.1" },
     { name = "pyjwt", specifier = ">=2.11" },
+    { name = "pyrtlsdr", marker = "extra == 'sdr'", specifier = ">=0.4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.3" },
@@ -3694,6 +3719,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.15" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "python-dotenv", specifier = ">=1.2" },
+    { name = "python-hackrf", marker = "extra == 'hackrf'", specifier = ">=1.5" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5" },
     { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "python-telegram-bot", specifier = ">=22" },
@@ -3719,7 +3745,7 @@ requires-dist = [
     { name = "webrtcvad-wheels", marker = "extra == 'voice-rx'", specifier = ">=2.0.11" },
     { name = "websockets", specifier = ">=16" },
 ]
-provides-extras = ["dev", "test", "radio", "audio", "voice-tx", "metrics", "voice-rx"]
+provides-extras = ["dev", "test", "sdr", "hackrf", "radio", "audio", "voice-tx", "metrics", "voice-rx"]
 
 [[package]]
 name = "referencing"

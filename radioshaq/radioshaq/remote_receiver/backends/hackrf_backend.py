@@ -9,8 +9,8 @@ from typing import AsyncIterator
 import numpy as np
 from loguru import logger
 
-from receiver.backends.base import SDRBackend
-from receiver.radio_interface import SignalSample
+from radioshaq.remote_receiver.backends.base import SDRBackend
+from radioshaq.remote_receiver.radio_interface import SignalSample
 
 
 class HackRFBackend(SDRBackend):
@@ -32,6 +32,7 @@ class HackRFBackend(SDRBackend):
         """Open HackRF device by index or serial."""
         try:
             from hackrf import HackRF
+
             if self.serial_number:
                 self._device = HackRF(serial_number=self.serial_number)
             else:
@@ -63,7 +64,6 @@ class HackRFBackend(SDRBackend):
         while loop.time() < end:
             if self._device:
                 try:
-                    # python_hackrf: read_samples returns numpy array (complex or I/Q)
                     samples = await loop.run_in_executor(
                         None,
                         lambda: self._device.read_samples(num_samples),

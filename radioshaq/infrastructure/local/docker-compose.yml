@@ -128,6 +128,39 @@ services:
     profiles:
       - tools  # Only start with: docker-compose --profile tools up
 
+  # ==========================================
+  # Hindsight (semantic memory; optional)
+  # Start with: docker-compose --profile hindsight up -d hindsight
+  # RadioShaq: set RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL=http://localhost:8888
+  # Hindsight uses the same Postgres as RadioShaq (same instance, schema "hindsight") and the same LLM config.
+  # ==========================================
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: radioshaq-hindsight
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8888:8888"   # API
+      - "9999:9999"   # Control Plane UI
+    environment:
+      # Use RadioShaq's configured LLM (same .env as the app)
+      - HINDSIGHT_API_LLM_PROVIDER=${RADIOSHAQ_LLM__PROVIDER:-${HINDSIGHT_API_LLM_PROVIDER:-openai}}
+      - HINDSIGHT_API_LLM_MODEL=${RADIOSHAQ_LLM__MODEL:-${HINDSIGHT_API_LLM_MODEL:-gpt-4o-mini}}
+      # API key: first non-empty of RadioShaq keys, then generic keys
+      - HINDSIGHT_API_LLM_API_KEY=${RADIOSHAQ_LLM__OPENAI_API_KEY:-${OPENAI_API_KEY:-${RADIOSHAQ_LLM__MISTRAL_API_KEY:-${MISTRAL_API_KEY:-${RADIOSHAQ_LLM__ANTHROPIC_API_KEY:-${ANTHROPIC_API_KEY:-${RADIOSHAQ_LLM__CUSTOM_API_KEY:-${HINDSIGHT_API_LLM_API_KEY:-}}}}}}}}
+      # Custom base URL (e.g. OpenAI-compatible or Mistral endpoint)
+      - HINDSIGHT_API_LLM_BASE_URL=${RADIOSHAQ_LLM__CUSTOM_API_BASE:-${HINDSIGHT_API_LLM_BASE_URL:-}}
+      # Same Postgres as RadioShaq (postgres service, db radioshaq; pgvector in postgres/init/02-pgvector.sql)
+      - HINDSIGHT_API_DATABASE_URL=${HINDSIGHT_API_DATABASE_URL:-postgresql://radioshaq:radioshaq@postgres:5432/radioshaq}
+      - HINDSIGHT_API_DATABASE_SCHEMA=${HINDSIGHT_API_DATABASE_SCHEMA:-hindsight}
+      - HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP=${HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP:-true}
+    networks:
+      - radioshaq-network
+    profiles:
+      - hindsight
+
 # ==========================================
 # Volumes
 # ==========================================

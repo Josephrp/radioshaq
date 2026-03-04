@@ -6,9 +6,9 @@ import os
 
 import pytest
 
-from receiver.radio_interface import SDRInterface, create_sdr_from_env
-from receiver.backends.rtlsdr_backend import RtlSdrBackend
-from receiver.backends.hackrf_backend import HackRFBackend
+from radioshaq.remote_receiver.radio_interface import SDRInterface, create_sdr_from_env
+from radioshaq.remote_receiver.backends.rtlsdr_backend import RtlSdrBackend
+from radioshaq.remote_receiver.backends.hackrf_backend import HackRFBackend
 
 
 def test_create_sdr_from_env_default_is_rtlsdr():

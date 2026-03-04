@@ -55,6 +55,11 @@ module.exports = {
         // Bridge configuration
         BRIDGE_ENABLED: 'true',
         BRIDGE_PORT: '3001',
+        // Memory (per-callsign; optional Hindsight)
+        RADIOSHAQ_MEMORY__ENABLED: 'true',
+        RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL: 'http://localhost:8888',
+        RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED: 'true',
+        RADIOSHAQ_MEMORY__SUMMARY_TIMEZONE: 'America/New_York',
         // PM2 specific
         PM2_LOG_DATE_FORMAT: 'YYYY-MM-DD HH:mm:ss.SSS',
       },
@@ -71,6 +76,8 @@ module.exports = {
         JWT_SECRET: 'test-secret',
         RADIO_ENABLED: 'false',
         BRIDGE_ENABLED: 'false',
+        RADIOSHAQ_MEMORY__ENABLED: 'true',
+        RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED: 'false',
       },
       
       // Production-like local environment
@@ -84,6 +91,9 @@ module.exports = {
         JWT_SECRET: process.env.JWT_SECRET || '',
         RADIO_ENABLED: process.env.RADIO_ENABLED || 'false',
         BRIDGE_ENABLED: process.env.BRIDGE_ENABLED || 'true',
+        RADIOSHAQ_MEMORY__ENABLED: process.env.RADIOSHAQ_MEMORY__ENABLED || 'true',
+        RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL: process.env.RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL || 'http://localhost:8888',
+        RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED: process.env.RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED || 'true',
       },
       
       // Logging

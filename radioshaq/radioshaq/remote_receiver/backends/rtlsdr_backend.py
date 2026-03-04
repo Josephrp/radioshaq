@@ -9,8 +9,8 @@ from typing import AsyncIterator
 import numpy as np
 from loguru import logger
 
-from receiver.backends.base import SDRBackend
-from receiver.radio_interface import SignalSample
+from radioshaq.remote_receiver.backends.base import SDRBackend
+from radioshaq.remote_receiver.radio_interface import SignalSample
 
 
 class RtlSdrBackend(SDRBackend):
@@ -26,6 +26,7 @@ class RtlSdrBackend(SDRBackend):
         """Open RTL-SDR device."""
         try:
             import rtlsdr
+
             self._rtl = rtlsdr.RtlSdr(self.device_index)
             self._rtl.sample_rate = self.sample_rate
             logger.info("RTL-SDR initialized (device_index=%s)", self.device_index)

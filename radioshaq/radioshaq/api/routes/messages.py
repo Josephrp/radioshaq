@@ -54,7 +54,12 @@ async def process_message(
     request_text = body.get("message", body.get("text", ""))
     if not request_text:
         raise HTTPException(status_code=400, detail="message or text required")
-    result = await orchestrator.process_request(request=request_text)
+    callsign = body.get("sender_id") or body.get("callsign")
+    if callsign is None and user:
+        callsign = getattr(user, "station_id", None) or getattr(user, "sub", None)
+    if callsign is not None:
+        callsign = str(callsign).strip().upper() or None
+    result = await orchestrator.process_request(request=request_text, callsign=callsign)
     response: dict[str, Any] = {
         "success": result.success,
         "message": result.message,
@@ -151,7 +156,7 @@ async def whitelist_request(
     if callsign:
         orchestrator_input += f" Stated callsign: {callsign}."
 
-    result = await orchestrator.process_request(request=orchestrator_input)
+    result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
     message_for_user = result.message
 
     approved_from_agent = None

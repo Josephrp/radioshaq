@@ -100,6 +100,17 @@ test = [
     "freezegun>=1.5",
 ]
 
+# Remote receiver (SDR): RTL-SDR / HackRF for listen-only stations
+sdr = [
+    "pyrtlsdr>=0.4",
+]
+hackrf = [
+    "python-hackrf>=1.5",
+]
+
+# Optional: Hindsight semantic memory. Requires urllib3>=2 (conflicts with boto3 urllib3<2).
+# Install manually if needed: pip install hindsight-client>=0.4
+
 radio = [
     # Optional ham radio dependencies (require system libraries)
     # "pyhamlib",  # Requires hamlib system library
@@ -138,6 +149,7 @@ voice_rx = [
 
 [project.scripts]
 radioshaq = "radioshaq.cli:app"
+run-receiver = "radioshaq.remote_receiver.server:main"
 alembic-upgrade = "radioshaq.scripts.alembic_runner:main_upgrade"
 alembic-upgrade-sql = "radioshaq.scripts.alembic_runner:main_upgrade_sql"
 alembic-current = "radioshaq.scripts.alembic_runner:main_current"
@@ -154,6 +166,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["radioshaq"]
+# Include top-level prompts. Web UI: CI copies web-interface/dist → radioshaq/web_ui before build.
+force-include = { "prompts" = "prompts" }
 
 [tool.hatch.build]
 include = [
