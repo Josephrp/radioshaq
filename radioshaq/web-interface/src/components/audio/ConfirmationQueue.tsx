@@ -12,15 +12,17 @@ interface ConfirmationQueueProps {
 export function ConfirmationQueue({ pending, onRefresh, loading }: ConfirmationQueueProps) {
   const [rejecting, setRejecting] = React.useState<string | null>(null);
   const [approving, setApproving] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(null);
 
   const handleApprove = async (id: string) => {
     setApproving(id);
+    setError(null);
     try {
       await approvePendingResponse(id);
       onRefresh();
     } catch (e) {
       console.error('Failed to approve:', e);
-      alert(e instanceof Error ? e.message : 'Failed to approve response');
+      setError(e instanceof Error ? e.message : 'Failed to approve response');
     } finally {
       setApproving(null);
     }
@@ -28,12 +30,13 @@ export function ConfirmationQueue({ pending, onRefresh, loading }: ConfirmationQ
 
   const handleReject = async (id: string) => {
     setRejecting(id);
+    setError(null);
     try {
       await rejectPendingResponse(id);
       onRefresh();
     } catch (e) {
       console.error('Failed to reject:', e);
-      alert(e instanceof Error ? e.message : 'Failed to reject response');
+      setError(e instanceof Error ? e.message : 'Failed to reject response');
     } finally {
       setRejecting(null);
     }
@@ -45,6 +48,11 @@ export function ConfirmationQueue({ pending, onRefresh, loading }: ConfirmationQ
   return (
     <div className="confirmation-queue">
       <h3>Pending responses ({pending.length})</h3>
+      {error && (
+        <div className="confirmation-queue-error" role="alert">
+          {error}
+        </div>
+      )}
       <ul>
         {pending.map((p) => (
           <li key={p.id} data-status={p.status}>

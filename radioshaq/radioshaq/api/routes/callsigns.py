@@ -121,6 +121,7 @@ async def register_from_audio(
             _validate_callsign(callsign)
         else:
             # First token that looks like a callsign
+            normalized = None
             for part in transcript.replace(",", " ").split():
                 part = part.strip().upper()
                 if part and CALLSIGN_PATTERN.match(part):
