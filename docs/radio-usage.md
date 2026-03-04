@@ -80,6 +80,7 @@ Use case: **Voice RX** with `response_mode: auto_respond` (or confirm_first). Fo
 
 - **First contact + chat:** Use **POST /messages/process** with `message` and `sender_id` (or `callsign`). Enable memory in config so the station loads context and first-contact hint when there’s no prior history.
 - **Whitelist:** Use **POST /messages/whitelist-request** with text or audio; optionally send `callsign` in the body. Enable the bus consumer if replies go through the MessageBus.
+- **MessageBus radio replies:** Control whether outbound bus replies transmit and whether they use TTS with `radio.radio_reply_tx_enabled` and `radio.radio_reply_use_tts`.
 - **Radio-style call-out:** Set `radio.station_callsign` and optionally `radio.response_radio_format_enabled: true` so replies are wrapped as “STATION de CALLSIGN … Over.” See [Configuration](configuration.md) and the user-flow investigation in the repo for details.
 
 ---
@@ -162,7 +163,7 @@ For SDR-based transmit (e.g. HackRF):
 | FT-450D portable | `radio.enabled: true`, `radio.rig_model: 127`, `radio.port: COM4` (or your tty) |
 | FT-817 | `radio.rig_model: 120`, `radio.port: <your port>` |
 | RTL-SDR receiver | `radioshaq run-receiver` with `JWT_SECRET`, `STATION_ID`, `HQ_URL`, `RTLSDR_INDEX` |
-| Voice TX | `radio.audio_output_device` = device to rig; optional `radio.voice_use_tts: true` |
+| Voice TX | `radio.audio_output_device` = device to rig; optional `radio.voice_use_tts: true`; for MessageBus replies also set `radio.radio_reply_use_tts` |
 | Voice RX | `radio.audio_input_enabled: true` + `audio.*` (input_device, VAD, ASR, response_mode, trigger_phrases) |
 | HackRF TX | `radio.sdr_tx_enabled: true`, `radio.sdr_tx_backend: hackrf`; optional `tx_audit_log_path` |
 

@@ -249,6 +249,10 @@ class RadioConfig(BaseModel):
     receiver_upload_skip_bus: bool = Field(default=False, description="If True, receiver upload does not publish to MessageBus")
     inject_skip_bus: bool = Field(default=False, description="If True, inject API does not publish to MessageBus")
     radio_reply_tx_enabled: bool = Field(default=True, description="If True, outbound radio handler transmits replies on band; False = listen-only")
+    radio_reply_use_tts: bool = Field(
+        default=True,
+        description="If True, outbound radio replies generated from MessageBus set use_tts=True. Set False for non-TTS reply TX.",
+    )
 
     # Relay: optional inject/TX on target band and scheduled delivery worker
     relay_inject_target_band: bool = Field(default=False, description="Inject relayed message to target band RX queue when deliver_at is immediate")

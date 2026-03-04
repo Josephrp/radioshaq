@@ -363,21 +363,43 @@ def _run_quick_prompts() -> tuple[str, str, Optional[str]]:
     return mode, DB_CHOICE_SKIP, None
 
 
-def _prompt_radio_audio() -> tuple[bool, int, str, bool]:
-    """Prompt for radio (enabled, rig model, port) and audio_input_enabled. Returns (radio_enabled, rig_model, port, audio_input_enabled)."""
+def _prompt_radio_audio() -> tuple[bool, int, str, bool, bool, bool]:
+    """Prompt for radio setup and reply behavior.
+
+    Returns:
+      (radio_enabled, rig_model, port, audio_input_enabled, radio_reply_tx_enabled, radio_reply_use_tts)
+    """
     radio_enabled = typer.confirm("Enable radio (CAT/rig)?", default=False)
     rig_model = 1
     port = "/dev/ttyUSB0"
     if os.name == "nt":
         port = "COM1"
+    radio_reply_tx_enabled = True
+    radio_reply_use_tts = True
     if radio_enabled:
         try:
             rig_model = int(typer.prompt("Hamlib rig model number", default="1"))
         except ValueError:
             rig_model = 1
         port = typer.prompt("Radio port", default=port)
+        radio_reply_tx_enabled = typer.confirm(
+            "Enable outbound radio replies from MessageBus (radio_rx -> radio_tx)?",
+            default=True,
+        )
+        if radio_reply_tx_enabled:
+            radio_reply_use_tts = typer.confirm(
+                "Use TTS for outbound radio replies?",
+                default=True,
+            )
     audio_input = typer.confirm("Enable voice_rx / audio input pipeline?", default=False)
-    return radio_enabled, rig_model, port, audio_input
+    return (
+        radio_enabled,
+        rig_model,
+        port,
+        audio_input,
+        radio_reply_tx_enabled,
+        radio_reply_use_tts,
+    )
 
 
 def _prompt_memory() -> tuple[bool, Optional[str]]:
@@ -520,6 +542,8 @@ def run_setup(
     custom_api_base: Optional[str] = None,
     hindsight_url: Optional[str] = None,
     memory_enabled: Optional[bool] = None,
+    radio_reply_tx_enabled: Optional[bool] = None,
+    radio_reply_use_tts: Optional[bool] = None,
     llm_overrides: Optional[str] = None,
 ) -> int:
     """Run setup: non-interactive writes .env + config.yaml; interactive will prompt (Phase 2+).
@@ -569,6 +593,10 @@ def run_setup(
                 config.memory.enabled = memory_enabled
             if hindsight_url and hindsight_url.strip():
                 config.memory.hindsight_base_url = hindsight_url.strip()
+            if radio_reply_tx_enabled is not None:
+                config.radio.radio_reply_tx_enabled = radio_reply_tx_enabled
+            if radio_reply_use_tts is not None:
+                config.radio.radio_reply_use_tts = radio_reply_use_tts
             if llm_overrides and llm_overrides.strip():
                 try:
                     parsed = json.loads(llm_overrides.strip())
@@ -643,11 +671,20 @@ def run_setup(
 
     # Phase 6: radio, audio, memory, field/HQ (full interactive only)
     if not quick:
-        radio_enabled, rig_model, radio_port, audio_input = _prompt_radio_audio()
+        (
+            radio_enabled,
+            rig_model,
+            radio_port,
+            audio_input,
+            reply_tx_enabled,
+            reply_use_tts,
+        ) = _prompt_radio_audio()
         config.radio.enabled = radio_enabled
         config.radio.rig_model = rig_model
         config.radio.port = radio_port
         config.radio.audio_input_enabled = audio_input
+        config.radio.radio_reply_tx_enabled = reply_tx_enabled
+        config.radio.radio_reply_use_tts = reply_use_tts
         memory_enabled, hindsight_url = _prompt_memory()
         config.memory.enabled = memory_enabled
         if hindsight_url:

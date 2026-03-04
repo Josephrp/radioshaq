@@ -60,7 +60,7 @@ class RadioTransmissionAgent(SpecializedAgent):
         message = task.get("message", "")
         mode = task.get("mode", "FM")
         audio_path = task.get("audio_path")
-        use_tts = task.get("use_tts", False)
+        use_tts = task.get("use_tts") if "use_tts" in task else None
 
         await self.emit_progress(
             upstream_callback,
@@ -125,7 +125,7 @@ class RadioTransmissionAgent(SpecializedAgent):
         mode: str,
         *,
         audio_path: str | Path | None = None,
-        use_tts: bool = False,
+        use_tts: bool | None = None,
     ) -> dict[str, Any]:
         """Voice transmission: CAT (PTT + audio) or SDR (tone) when use_sdr/sdr_transmitter."""
         use_sdr = getattr(
@@ -187,7 +187,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                     "notes": f"Audio file not found: {play_path}",
                 }
-        elif (use_tts or voice_use_tts) and message:
+        elif (((use_tts is True) or (use_tts is None and voice_use_tts)) and message):
             try:
                 from radioshaq.audio.tts import text_to_speech_elevenlabs
                 import tempfile

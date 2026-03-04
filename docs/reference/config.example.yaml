@@ -92,6 +92,8 @@ radio:
   max_power_watts: 100.0
   audio_output_device: null
   voice_use_tts: false
+  radio_reply_tx_enabled: true
+  radio_reply_use_tts: true
   tx_audit_log_path: null
   tx_allowed_bands_only: true
   restricted_bands_region: FCC   # FCC | CEPT

@@ -243,3 +243,36 @@ async def test_radio_tx_compliance_rejects_restricted_frequency():
     result = await agent.execute(task)
     assert result.get("success") is False
     assert "not allowed" in result.get("notes", "").lower() or "restricted" in result.get("notes", "").lower()
+
+
+@pytest.mark.asyncio
+async def test_radio_tx_explicit_use_tts_false_overrides_voice_use_tts_true():
+    """Explicit task use_tts=False must disable TTS even when config.voice_use_tts=True."""
+    from types import SimpleNamespace
+    from radioshaq.specialized.radio_tx import RadioTransmissionAgent
+
+    rig_manager = MagicMock()
+    rig_manager.set_frequency = AsyncMock(return_value=None)
+    rig_manager.set_mode = AsyncMock(return_value=None)
+    rig_manager.set_ptt = AsyncMock(return_value=None)
+
+    config = SimpleNamespace(
+        radio=SimpleNamespace(
+            tx_allowed_bands_only=False,
+            voice_use_tts=True,
+            sdr_tx_enabled=False,
+            audio_output_device=None,
+            tx_audit_log_path=None,
+        ),
+    )
+    agent = RadioTransmissionAgent(rig_manager=rig_manager, config=config)
+    task = {
+        "transmission_type": "voice",
+        "frequency": 145_550_000.0,
+        "message": "should not synthesize",
+        "mode": "FM",
+        "use_tts": False,
+    }
+    result = await agent.execute(task)
+    assert result.get("success") is True
+    assert "PTT only" in result.get("notes", "")
