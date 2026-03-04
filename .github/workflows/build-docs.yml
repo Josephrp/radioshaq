@@ -36,7 +36,9 @@ jobs:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v5
       - name: Install doc dependencies
-        run: pip install -r docs/requirements.txt
+        run: pip install --no-cache-dir -r docs/requirements.txt
+      - name: MkDocs version
+        run: mkdocs --version
       - name: Install radioshaq (for OpenAPI export)
         run: uv sync --directory radioshaq
       - name: Export OpenAPI
