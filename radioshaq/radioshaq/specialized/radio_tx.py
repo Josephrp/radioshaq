@@ -56,7 +56,7 @@ class RadioTransmissionAgent(SpecializedAgent):
         # Accept both "frequency" and "frequency_hz" task keys for compatibility.
         frequency = task.get("frequency")
         if frequency is None:
-            frequency = task.get("frequency_hz", 0.0)
+            frequency = task.get("frequency_hz") or 0.0
         message = task.get("message", "")
         mode = task.get("mode")
         audio_path = task.get("audio_path")

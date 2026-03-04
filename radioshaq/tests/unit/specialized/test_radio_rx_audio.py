@@ -505,3 +505,66 @@ async def test_send_response_honors_radio_reply_use_tts_config() -> None:
     task = response_agent.execute.await_args.args[0]
     assert task["transmission_type"] == "voice"
     assert task["use_tts"] is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_manual_approve_failed_send_expires_pending() -> None:
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    agent._send_response = AsyncMock(return_value=False)
+    agent.emit_result = AsyncMock()
+
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack fail",
+    )
+
+    agent._monitoring = True
+    watcher = asyncio.create_task(agent._confirmation_watcher(None))
+    await asyncio.sleep(0.05)
+    try:
+        result = await agent._action_approve_response(
+            {"pending_id": pending.id, "operator": "op"}
+        )
+        assert result["success"] is True
+        pending_after = await agent._confirmation_manager.get_pending(pending.id)
+        assert pending_after is not None
+        assert pending_after.status.value == "expired"
+        agent.emit_result.assert_not_awaited()
+    finally:
+        agent._monitoring = False
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+
+@pytest.mark.asyncio
+async def test_confirm_first_timeout_expiry_uses_mark_expired_notifications() -> None:
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_FIRST,
+    )
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    observed_statuses: list[str] = []
+
+    async def on_change(pending):
+        observed_statuses.append(pending.status.value)
+
+    agent._confirmation_manager.add_callback(on_change)
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    await agent._handle_pending_timeouts()
+
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "expired"
+    assert "expired" in observed_statuses

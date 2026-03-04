@@ -311,6 +311,39 @@ async def test_radio_tx_voice_without_explicit_frequency_or_mode_keeps_rig_setti
 
 
 @pytest.mark.asyncio
+async def test_radio_tx_voice_with_frequency_hz_none_normalizes_to_zero() -> None:
+    """When frequency_hz is explicitly None, execute() should normalize it to 0.0."""
+    from types import SimpleNamespace
+    from radioshaq.specialized.radio_tx import RadioTransmissionAgent
+
+    rig_manager = MagicMock()
+    rig_manager.set_frequency = AsyncMock(return_value=None)
+    rig_manager.set_mode = AsyncMock(return_value=None)
+    rig_manager.set_ptt = AsyncMock(return_value=None)
+
+    config = SimpleNamespace(
+        radio=SimpleNamespace(
+            tx_allowed_bands_only=False,
+            voice_use_tts=False,
+            sdr_tx_enabled=False,
+            audio_output_device=None,
+            tx_audit_log_path=None,
+        ),
+    )
+    agent = RadioTransmissionAgent(rig_manager=rig_manager, config=config)
+    task = {
+        "transmission_type": "voice",
+        "frequency_hz": None,
+        "message": "normalize none",
+    }
+
+    result = await agent.execute(task)
+    assert result.get("success") is True
+    assert result.get("frequency") == 0.0
+    rig_manager.set_frequency.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_radio_tx_digital_does_not_retune_when_frequency_not_set():
     """Digital TX should not call set_frequency when task omits explicit frequency."""
     from types import SimpleNamespace

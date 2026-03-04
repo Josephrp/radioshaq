@@ -170,6 +170,7 @@ class ConfirmationManager:
             if not pending or pending.status not in (
                 PendingResponseStatus.PENDING,
                 PendingResponseStatus.SENDING,
+                PendingResponseStatus.APPROVED,
             ):
                 return None
             pending.status = PendingResponseStatus.EXPIRED
@@ -447,7 +448,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         """Expire or auto-send timed-out pending responses based on response_mode."""
         now = datetime.now(timezone.utc)
         pending_list = await self._confirmation_manager.list_pending(
-            skip_auto_expire=self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT
+            skip_auto_expire=True
         )
         if not pending_list:
             return
@@ -478,19 +479,22 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     ) -> None:
         async def on_change(pending: PendingResponse) -> None:
             if pending.status == PendingResponseStatus.APPROVED:
-                await self._send_response(
+                sent = await self._send_response(
                     pending.proposed_message,
                     frequency_hz=pending.frequency_hz,
                     mode=pending.mode,
                 )
-                await self.emit_result(
-                    upstream_callback,
-                    {
-                        "type": "response_sent_confirmed",
-                        "pending_id": pending.id,
-                        "response": pending.proposed_message,
-                    },
-                )
+                if sent:
+                    await self.emit_result(
+                        upstream_callback,
+                        {
+                            "type": "response_sent_confirmed",
+                            "pending_id": pending.id,
+                            "response": pending.proposed_message,
+                        },
+                    )
+                else:
+                    await self._confirmation_manager.mark_expired(pending.id)
 
         self._confirmation_manager.add_callback(on_change)
         while self._monitoring:
