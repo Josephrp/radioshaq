@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { connectMetricsWebSocket } from '../../services/radioshaqApi';
 import type { AudioMetrics } from '../../types/audio';
 

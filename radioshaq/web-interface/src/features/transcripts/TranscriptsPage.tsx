@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { searchTranscripts, playTranscript, type TranscriptItem } from '../../services/radioshaqApi';
 
 export function TranscriptsPage() {
@@ -49,7 +49,8 @@ export function TranscriptsPage() {
     }
   };
 
-  const idOf = (t: TranscriptItem) => t.id ?? (t as Record<string, unknown>).transcript_id ?? 0;
+  const idOf = (t: TranscriptItem): number =>
+    Number(t.id ?? (t as Record<string, unknown>).transcript_id ?? 0);
 
   return (
     <div className="transcripts-page">

@@ -2,7 +2,7 @@
 name = "radioshaq"
 version = "0.1.0"
 description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception System"
-readme = "README.md"
+readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
@@ -161,7 +161,8 @@ Repository = "https://github.com/radioshaq/radioshaq"
 Issues = "https://github.com/radioshaq/radioshaq/issues"
 
 [build-system]
-requires = ["hatchling"]
+# Pin hatchling<1.27 so metadata is 2.3 (PyPI/twine reject 2.4)
+requires = ["hatchling<1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

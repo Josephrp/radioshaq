@@ -1,4 +1,3 @@
-import React from 'react';
 import { ResponseMode } from '../../types/audio';
 
 interface ResponseModeSelectorProps {

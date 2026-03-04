@@ -7,13 +7,6 @@ export function getApiBase(): string {
   return API_BASE;
 }
 
-function getHeaders(): HeadersInit {
-  const token = import.meta.env.VITE_RADIOSHAQ_TOKEN;
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
-  if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-  return headers;
-}
-
 /** Optional: set token at runtime (e.g. after login) so API calls use it. */
 let runtimeToken: string | null = null;
 export function setApiToken(token: string | null) {

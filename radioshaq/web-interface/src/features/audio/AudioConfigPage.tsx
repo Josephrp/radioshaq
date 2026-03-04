@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AudioActivationMode, ResponseMode } from '../../types/audio';
 import { ResponseModeSelector } from '../../components/audio/ResponseModeSelector';
 import { ConfirmationQueue } from '../../components/audio/ConfirmationQueue';
