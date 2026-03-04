@@ -140,9 +140,14 @@ class ConfirmationManager:
         async with self._lock:
             return self._pending.get(pending_id)
 
-    async def list_pending(self, *, include_expired: bool = False) -> list[PendingResponse]:
+    async def list_pending(
+        self,
+        *,
+        skip_auto_expire: bool = False,
+    ) -> list[PendingResponse]:
+        """Return pending items; optionally skip inline auto-expire side effects."""
         async with self._lock:
-            if include_expired:
+            if skip_auto_expire:
                 return [
                     pending for pending in self._pending.values()
                     if pending.status == PendingResponseStatus.PENDING
@@ -442,7 +447,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         """Expire or auto-send timed-out pending responses based on response_mode."""
         now = datetime.now(timezone.utc)
         pending_list = await self._confirmation_manager.list_pending(
-            include_expired=self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT
+            skip_auto_expire=self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT
         )
         if not pending_list:
             return
@@ -544,11 +549,15 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     ) -> bool:
         if not self.response_agent:
             return False
-        # Responses to radio are always sent as audio (TTS) on radio out.
+        use_tts = (
+            getattr(self._radio_config, "radio_reply_use_tts", True)
+            if self._radio_config is not None
+            else True
+        )
         task = {
             "transmission_type": "voice",
             "message": message,
-            "use_tts": True,
+            "use_tts": use_tts,
         }
         if frequency_hz is not None and frequency_hz > 0:
             task["frequency"] = frequency_hz
@@ -620,6 +629,14 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "pending_id required"}
         pending = await self._confirmation_manager.reject(pending_id, operator, notes)
         if not pending:
+            existing = await self._confirmation_manager.get_pending(pending_id)
+            if existing is not None:
+                return {
+                    "error": (
+                        "Pending response is already in state: "
+                        f"{existing.status.value}"
+                    ),
+                }
             return {"error": "Pending response not found"}
         return {"success": True, "pending": pending.model_dump()}
 

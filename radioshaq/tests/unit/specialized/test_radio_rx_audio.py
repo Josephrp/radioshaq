@@ -466,3 +466,42 @@ async def test_approve_response_reports_existing_non_pending_state() -> None:
         {"pending_id": pending.id, "operator": "op"}
     )
     assert result["error"] == "Pending response is already in state: sending"
+
+
+@pytest.mark.asyncio
+async def test_reject_response_reports_existing_non_pending_state() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+
+    claimed = await agent._confirmation_manager.claim_for_sending(pending.id)
+    assert claimed is not None
+
+    result = await agent._action_reject_response(
+        {"pending_id": pending.id, "operator": "op"}
+    )
+    assert result["error"] == "Pending response is already in state: sending"
+
+
+@pytest.mark.asyncio
+async def test_send_response_honors_radio_reply_use_tts_config() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    radio_config = MagicMock()
+    radio_config.radio_reply_use_tts = False
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        response_agent=response_agent,
+        radio_config=radio_config,
+    )
+
+    sent = await agent._send_response("Ack no tts")
+    assert sent is True
+    response_agent.execute.assert_awaited_once()
+    task = response_agent.execute.await_args.args[0]
+    assert task["transmission_type"] == "voice"
+    assert task["use_tts"] is False
