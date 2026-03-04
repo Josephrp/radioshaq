@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
 import subprocess
 import time
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import typer
@@ -33,6 +34,9 @@ DB_CHOICE_SKIP = "skip"
 COMPOSE_PATH = "infrastructure/local/docker-compose.yml"
 ALEMBIC_INI = "infrastructure/local/alembic.ini"
 POSTGRES_PORT_DEFAULT = 5434
+
+# Roles that can have per-role LLM overrides (orchestrator, judge, whitelist, daily_summary)
+DEFAULT_LLM_OVERRIDE_ROLES = ("orchestrator", "judge", "whitelist", "daily_summary")
 
 
 def resolve_project_root(config_dir: Optional[Path] = None) -> Path:
@@ -282,21 +286,33 @@ def _prompt_jwt_secret() -> str:
     return secret
 
 
-def _prompt_llm() -> tuple[str, Optional[str]]:
-    """Prompt for LLM provider and optional API key. Returns (provider, api_key_or_none)."""
+def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
+    """Prompt for LLM provider, model, optional custom API base, and optional API key. Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none)."""
     provider = typer.prompt(
-        "LLM provider (mistral / openai / anthropic)",
+        "LLM provider (mistral / openai / anthropic / custom)",
         default="mistral",
         show_default=True,
     ).strip().lower() or "mistral"
-    if provider not in ("mistral", "openai", "anthropic"):
+    if provider not in ("mistral", "openai", "anthropic", "custom"):
         provider = "mistral"
+    model: Optional[str] = typer.prompt(
+        "LLM model (e.g. mistral-large-latest, ollama/llama2)",
+        default="mistral-large-latest" if provider != "custom" else "ollama/llama2",
+        show_default=True,
+    ).strip() or None
+    custom_base: Optional[str] = None
+    if provider == "custom":
+        custom_base = typer.prompt(
+            "Custom API base URL (e.g. http://localhost:11434 for Ollama)",
+            default="http://localhost:11434",
+            show_default=True,
+        ).strip() or None
     key = typer.prompt(
         "LLM API key (optional; press Enter to skip and set later in .env)",
         default="",
         show_default=False,
     ).strip() or None
-    return provider, key
+    return provider, key, model, custom_base
 
 
 def _run_interactive_prompts_core(
@@ -305,8 +321,8 @@ def _run_interactive_prompts_core(
     has_config: bool,
     force: bool,
     reconfigure: bool,
-) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], bool, bool]:
-    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, merge_env, merge_config)."""
+) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], bool, bool]:
+    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config)."""
     base_config: Optional[Config] = None
     merge_env = False
     merge_config = False
@@ -326,7 +342,7 @@ def _run_interactive_prompts_core(
     mode = _prompt_mode()
     db_choice, db_choice_url = _prompt_database()
     jwt_secret = _prompt_jwt_secret()
-    llm_provider, llm_key = _prompt_llm()
+    llm_provider, llm_key, llm_model, custom_api_base = _prompt_llm()
 
     if db_choice == DB_CHOICE_SKIP:
         db_url: Optional[str] = None
@@ -335,7 +351,7 @@ def _run_interactive_prompts_core(
     else:
         db_url = db_choice_url
 
-    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, merge_env, merge_config
+    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config
 
 
 def _run_quick_prompts() -> tuple[str, str, Optional[str]]:
@@ -393,8 +409,57 @@ def _prompt_field_hq(mode_val: str) -> tuple[Optional[str], Optional[str], Optio
     return station_id, hq_base_url, hq_auth_token, hq_host, hq_port
 
 
-def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str]]:
-    """Reconfigure: prompt which sections to change, then prompt only those. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key)."""
+def _prompt_station_callsign_trigger() -> tuple[Optional[str], list[str]]:
+    """Prompt for station callsign and trigger phrases. Returns (station_callsign, trigger_phrases)."""
+    station_callsign = typer.prompt(
+        "Station callsign (this station's ham callsign, e.g. K5ABC or leave blank)",
+        default="",
+    ).strip() or None
+    trigger_input = typer.prompt(
+        "Trigger phrases for voice (comma-separated; phrases that activate processing)",
+        default="radioshaq, field station",
+    ).strip()
+    trigger_phrases = [p.strip() for p in trigger_input.split(",") if p.strip()]
+    if not trigger_phrases:
+        trigger_phrases = ["radioshaq", "field station"]
+    return station_callsign, trigger_phrases
+
+
+def _prompt_llm_overrides() -> dict[str, Any]:
+    """Prompt for per-role LLM overrides (orchestrator, judge, whitelist, daily_summary). Returns dict for config.llm_overrides."""
+    if not typer.confirm(
+        "Configure per-role LLM overrides? (e.g. different model for judge or whitelist)",
+        default=False,
+    ):
+        return {}
+    overrides: dict[str, Any] = {}
+    for role in DEFAULT_LLM_OVERRIDE_ROLES:
+        if not typer.confirm(f"Override LLM for role '{role}'?", default=False):
+            continue
+        provider = typer.prompt(
+            f"  [{role}] LLM provider (mistral / openai / anthropic / custom)",
+            default="mistral",
+        ).strip().lower() or "mistral"
+        if provider not in ("mistral", "openai", "anthropic", "custom"):
+            provider = "mistral"
+        model = typer.prompt(
+            f"  [{role}] Model (e.g. mistral-large-latest, ollama/llama2)",
+            default="mistral-large-latest" if provider != "custom" else "ollama/llama2",
+        ).strip() or ("mistral-large-latest" if provider != "custom" else "ollama/llama2")
+        entry: dict[str, Any] = {"provider": provider, "model": model}
+        if provider == "custom":
+            custom_base = typer.prompt(
+                f"  [{role}] Custom API base URL",
+                default="http://localhost:11434",
+            ).strip()
+            if custom_base:
+                entry["custom_api_base"] = custom_base
+        overrides[role] = entry
+    return overrides
+
+
+def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str]]:
+    """Reconfigure: prompt which sections to change. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base)."""
     config = existing_config
     mode_val = config.mode.value
     db_choice = DB_CHOICE_URL
@@ -404,11 +469,13 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
         jwt_secret = DEFAULT_JWT_SECRET
     llm_provider = config.llm.provider.value
     llm_key: Optional[str] = None
+    llm_model_val: Optional[str] = getattr(config.llm, "model", None)
+    custom_api_base_val: Optional[str] = getattr(config.llm, "custom_api_base", None)
 
-    sections = ["mode", "database", "jwt", "llm", "done"]
+    sections = ["mode", "database", "jwt", "llm", "memory", "overrides", "done"]
     while True:
         choice = typer.prompt(
-            "What to change? (mode / database / jwt / llm / done)",
+            "What to change? (mode / database / jwt / llm / memory / overrides / done)",
             default="done",
         ).strip().lower() or "done"
         if choice == "done":
@@ -424,9 +491,17 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
         elif choice == "jwt":
             jwt_secret = _prompt_jwt_secret()
         elif choice == "llm":
-            llm_provider, llm_key = _prompt_llm()
+            llm_provider, llm_key, llm_model_val, custom_api_base_val = _prompt_llm()
+        elif choice == "memory":
+            memory_enabled, hindsight_url = _prompt_memory()
+            config.memory.enabled = memory_enabled
+            if hindsight_url:
+                config.memory.hindsight_base_url = hindsight_url
+        elif choice == "overrides":
+            overrides = _prompt_llm_overrides()
+            config.llm_overrides = overrides if overrides else None
 
-    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key
+    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val
 
 
 def run_setup(
@@ -438,6 +513,14 @@ def run_setup(
     force: bool = False,
     mode: Optional[str] = None,
     db_url: Optional[str] = None,
+    station_callsign: Optional[str] = None,
+    trigger_phrases: Optional[list[str]] = None,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
+    custom_api_base: Optional[str] = None,
+    hindsight_url: Optional[str] = None,
+    memory_enabled: Optional[bool] = None,
+    llm_overrides: Optional[str] = None,
 ) -> int:
     """Run setup: non-interactive writes .env + config.yaml; interactive will prompt (Phase 2+).
     Returns exit code (0 = success).
@@ -467,6 +550,33 @@ def run_setup(
             if db_url_val:
                 url_async = db_url_val.replace("postgresql://", "postgresql+asyncpg://")
                 config.database.postgres_url = url_async
+            if station_callsign and station_callsign.strip():
+                cs = station_callsign.strip().upper()
+                config.field.callsign = cs
+                config.radio.packet_callsign = cs
+                config.radio.station_callsign = cs
+            if trigger_phrases:
+                config.audio.trigger_phrases = [p.strip() for p in trigger_phrases if p and str(p).strip()]
+                if config.audio.trigger_phrases:
+                    config.audio.audio_activation_phrase = config.audio.trigger_phrases[0]
+            if llm_provider and llm_provider.strip().lower() in ("mistral", "openai", "anthropic", "custom"):
+                config.llm.provider = LLMProvider(llm_provider.strip().lower())
+            if llm_model and llm_model.strip():
+                config.llm.model = llm_model.strip()
+            if custom_api_base and custom_api_base.strip():
+                config.llm.custom_api_base = custom_api_base.strip()
+            if memory_enabled is not None:
+                config.memory.enabled = memory_enabled
+            if hindsight_url and hindsight_url.strip():
+                config.memory.hindsight_base_url = hindsight_url.strip()
+            if llm_overrides and llm_overrides.strip():
+                try:
+                    parsed = json.loads(llm_overrides.strip())
+                    if isinstance(parsed, dict) and parsed:
+                        config.llm_overrides = parsed
+                except (json.JSONDecodeError, TypeError) as e:
+                    typer.echo(f"Invalid --llm-overrides JSON: {e}", err=True)
+                    return 1
             config_path = project_root / CONFIG_FILENAME
             env_path = project_root / ENV_FILENAME
             # Optionally skip overwriting if files exist and not force
@@ -475,11 +585,13 @@ def run_setup(
             if write_config:
                 save_config(config, config_path)
             if write_env_file:
+                env_llm = llm_provider if (llm_provider and str(llm_provider).strip()) else (getattr(config.llm, "provider", None) and str(config.llm.provider.value))
                 write_env(
                     project_root,
                     mode=mode_val,
                     db_url=db_url_val or DEFAULT_POSTGRES_URL.replace("+asyncpg", ""),
                     merge=False,
+                    llm_provider=env_llm,
                 )
             return 0
         except OSError as e:
@@ -497,6 +609,8 @@ def run_setup(
         jwt_secret = DEFAULT_JWT_SECRET
         llm_provider = "mistral"
         llm_key = None
+        llm_model = None
+        custom_api_base = None
         merge_env = False
         merge_config = False
         base_config = None
@@ -505,11 +619,13 @@ def run_setup(
             existing = load_config(project_root / CONFIG_FILENAME)
         except Exception:
             existing = Config()
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key = _run_reconfigure_prompts(project_root, existing)
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val = _run_reconfigure_prompts(project_root, existing)
         merge_env = True
         merge_config = True
+        llm_model = llm_model_val
+        custom_api_base = custom_api_base_val
     else:
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, merge_env, merge_config = _run_interactive_prompts_core(
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config = _run_interactive_prompts_core(
             project_root, has_dotenv, has_config, force, reconfigure
         )
 
@@ -520,6 +636,10 @@ def run_setup(
         config.database.postgres_url = url_async
     config.jwt.secret_key = jwt_secret
     config.llm.provider = LLMProvider(llm_provider)
+    if llm_model and str(llm_model).strip():
+        config.llm.model = llm_model.strip()
+    if custom_api_base and str(custom_api_base).strip():
+        config.llm.custom_api_base = custom_api_base.strip()
 
     # Phase 6: radio, audio, memory, field/HQ (full interactive only)
     if not quick:
@@ -543,6 +663,18 @@ def run_setup(
             config.hq.host = hq_host
         if hq_port is not None:
             config.hq.port = hq_port
+        station_callsign, trigger_phrases = _prompt_station_callsign_trigger()
+        if station_callsign is not None:
+            cs = station_callsign.upper()
+            config.field.callsign = cs
+            config.radio.packet_callsign = cs
+            config.radio.station_callsign = cs
+        if trigger_phrases:
+            config.audio.trigger_phrases = trigger_phrases
+            config.audio.audio_activation_phrase = trigger_phrases[0]
+        overrides = _prompt_llm_overrides()
+        if overrides:
+            config.llm_overrides = overrides
 
     # Save config file without secrets (they go in .env only)
     config.jwt.secret_key = "(set via RADIOSHAQ_JWT__SECRET_KEY)"
@@ -608,6 +740,8 @@ def run_setup(
         typer.echo("Run in another terminal: radioshaq token")
         typer.echo("Then append the output to .env: RADIOSHAQ_TOKEN=<paste token>")
 
-    typer.echo("Setup complete. Start API: radioshaq run-api")
+    typer.echo("Setup complete.")
+    typer.echo("Start dependencies + API: radioshaq launch docker  (or radioshaq launch docker --hindsight)")
+    typer.echo("Then start API: radioshaq run-api  (or: radioshaq launch pm2 / radioshaq launch pm2 --hindsight)")
     typer.echo("See docs/quick-start.md and docs/configuration.md")
     return 0

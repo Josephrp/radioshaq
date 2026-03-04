@@ -52,7 +52,16 @@ class ListRegisteredCallsignsTool:
         registered = await self.repository.list_registered()
         if limit is not None and limit > 0:
             registered = registered[:limit]
-        return json.dumps({"registered": [r.get("callsign", r) for r in registered], "count": len(registered)})
+        # Include preferred_bands and last_band for each callsign (relay planning)
+        out = [
+            {
+                "callsign": r.get("callsign", r),
+                "last_band": r.get("last_band"),
+                "preferred_bands": r.get("preferred_bands") or [],
+            }
+            for r in registered
+        ]
+        return json.dumps({"registered": out, "count": len(out)})
 
 
 class RegisterCallsignTool:

@@ -80,6 +80,76 @@ export async function listAudioDevices(): Promise<{ input_devices: { index: numb
   return res.json();
 }
 
+// ----- Config (LLM, memory, overrides) -----
+export interface LlmConfigResponse {
+  provider?: string;
+  model?: string;
+  custom_api_base?: string | null;
+  temperature?: number;
+  max_tokens?: number;
+}
+export interface MemoryConfigResponse {
+  enabled?: boolean;
+  hindsight_base_url?: string;
+  hindsight_enabled?: boolean;
+  hindsight_embedding_model?: string | null;
+  recent_messages_limit?: number;
+  daily_summary_days?: number;
+  summary_timezone?: string;
+}
+export interface ConfigOverridesResponse {
+  llm_overrides?: Record<string, Record<string, unknown>>;
+  memory_overrides?: Record<string, Record<string, unknown>>;
+}
+
+export async function getConfigLlm(): Promise<LlmConfigResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/llm`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch LLM config');
+  return res.json();
+}
+
+export async function updateConfigLlm(patch: Partial<LlmConfigResponse>): Promise<LlmConfigResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/llm`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error('Failed to update LLM config');
+  return res.json();
+}
+
+export async function getConfigMemory(): Promise<MemoryConfigResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/memory`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch memory config');
+  return res.json();
+}
+
+export async function updateConfigMemory(patch: Partial<MemoryConfigResponse>): Promise<MemoryConfigResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/memory`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error('Failed to update memory config');
+  return res.json();
+}
+
+export async function getConfigOverrides(): Promise<ConfigOverridesResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/overrides`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to fetch config overrides');
+  return res.json();
+}
+
+export async function updateConfigOverrides(patch: Partial<ConfigOverridesResponse>): Promise<ConfigOverridesResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/config/overrides`, {
+    method: 'PATCH',
+    headers: authHeaders(),
+    body: JSON.stringify(patch),
+  });
+  if (!res.ok) throw new Error('Failed to update config overrides');
+  return res.json();
+}
+
 export async function listPendingResponses(): Promise<{ pending_responses: PendingResponse[]; count: number }> {
   const res = await fetch(`${API_BASE}/api/v1/audio/pending`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to fetch pending');
@@ -255,13 +325,14 @@ export interface TranscriptItem {
   extra_data?: Record<string, unknown>;
   created_at?: string;
 }
-export async function searchTranscripts(params?: { callsign?: string; band?: string; mode?: string; since?: string; limit?: number }): Promise<{ transcripts: TranscriptItem[]; count: number }> {
+export async function searchTranscripts(params?: { callsign?: string; band?: string; mode?: string; since?: string; limit?: number; destination_only?: boolean }): Promise<{ transcripts: TranscriptItem[]; count: number }> {
   const search = new URLSearchParams();
   if (params?.callsign) search.set('callsign', params.callsign);
   if (params?.band) search.set('band', params.band);
   if (params?.mode) search.set('mode', params.mode);
   if (params?.since) search.set('since', params.since);
   if (params?.limit != null) search.set('limit', String(params.limit));
+  if (params?.destination_only === true) search.set('destination_only', 'true');
   const res = await fetch(`${API_BASE}/transcripts?${search}`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to search transcripts');
   return res.json();

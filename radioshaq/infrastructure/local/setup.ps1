@@ -113,7 +113,7 @@ pm2:
     Write-Host "Config already exists"
 }
 
-# 5. Setup Docker services (if Docker is available) – Postgres on port 5434
+# 5. Setup Docker services (if Docker is available) – Postgres on port 5434, optional Hindsight
 if ($dockerVersion) {
     Write-Host "`nSetting up Docker services..." -ForegroundColor Yellow
     $composeCmd = "docker compose"
@@ -121,9 +121,18 @@ if ($dockerVersion) {
     if ($LASTEXITCODE -ne 0) {
         $composeCmd = "docker-compose"
     }
+    $startHindsight = $false
+    if (-not $env:CI) {
+        $resp = Read-Host "Start Hindsight (semantic memory) in Docker too? [y/N]"
+        if ($resp -match '^[yY]') { $startHindsight = $true }
+    }
     Write-Host "Starting PostgreSQL (port 5434)..."
     Push-Location infrastructure\local
-    & $composeCmd up -d postgres
+    if ($startHindsight) {
+        & $composeCmd --profile hindsight up -d postgres hindsight
+    } else {
+        & $composeCmd up -d postgres
+    }
     Pop-Location
 
     Write-Host "Waiting for PostgreSQL at 127.0.0.1:5434..."
@@ -204,8 +213,13 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Set API keys: `$env:MISTRAL_API_KEY = 'your_key'"
-Write-Host "  2. Start API:    uv run python -m radioshaq.api.server"
-Write-Host "     or with PM2: pm2 start ecosystem.config.js --only radioshaq-api"
+Write-Host "  2. Start dependencies + API (CLI):"
+Write-Host "       radioshaq launch docker              # Postgres only"
+Write-Host "       radioshaq launch docker --hindsight # Postgres + Hindsight"
+Write-Host "       radioshaq launch pm2                # Docker Postgres + PM2 API"
+Write-Host "       radioshaq launch pm2 --hindsight    # + Hindsight via PM2"
+Write-Host "     Or manually: uv run python -m radioshaq.api.server"
+Write-Host "     Or PM2:      pm2 start infrastructure/local/ecosystem.config.js --only radioshaq-api"
 Write-Host "  3. Run tests:   uv run pytest tests/unit tests/integration -v"
 Write-Host "  4. API docs:    http://localhost:8000/docs"
 Write-Host ""

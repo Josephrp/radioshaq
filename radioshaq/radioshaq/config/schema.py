@@ -229,6 +229,32 @@ class RadioConfig(BaseModel):
     tx_allowed_bands_only: bool = Field(default=True, description="Only allow TX in band_plan bands")
     restricted_bands_region: str = Field(default="FCC", description="Region for restricted bands (FCC, CEPT)")
 
+    # Multi-band listening (Project 1)
+    default_band: str | None = Field(default=None, description="Default band when listen_bands not set (e.g. 40m, 2m)")
+    listen_bands: list[str] | None = Field(
+        default=None,
+        description="Bands to monitor (e.g. [40m, 2m]). None = use default_band only.",
+    )
+    listener_enabled: bool = Field(default=False, description="Run background band listener when listen_bands or default_band set")
+    listener_cycle_seconds: float = Field(default=30.0, ge=5.0, le=300.0, description="Seconds per band when round-robining (single receiver)")
+    listener_concurrent_bands: bool = Field(
+        default=True,
+        description="If True, run one monitor task per band in parallel; use False for single physical receiver.",
+    )
+    receiver_upload_store: bool = Field(default=False, description="Persist receiver upload as transcript with band")
+    receiver_upload_inject: bool = Field(default=False, description="Inject receiver upload into RX path after store")
+
+    # Orchestrator default: publish every received message to MessageBus (set True to bypass)
+    listener_skip_bus: bool = Field(default=False, description="If True, band listener does not publish to MessageBus")
+    receiver_upload_skip_bus: bool = Field(default=False, description="If True, receiver upload does not publish to MessageBus")
+    inject_skip_bus: bool = Field(default=False, description="If True, inject API does not publish to MessageBus")
+    radio_reply_tx_enabled: bool = Field(default=True, description="If True, outbound radio handler transmits replies on band; False = listen-only")
+
+    # Relay: optional inject/TX on target band and scheduled delivery worker
+    relay_inject_target_band: bool = Field(default=False, description="Inject relayed message to target band RX queue when deliver_at is immediate")
+    relay_tx_target_band: bool = Field(default=False, description="Transmit relayed message on target band via radio_tx when delivering")
+    relay_scheduled_delivery_enabled: bool = Field(default=False, description="Run background worker to deliver transcripts with deliver_at <= now")
+
     # Callsign whitelist: static list merged with DB registered_callsigns
     allowed_callsigns: list[str] | None = Field(
         default=None,
@@ -247,6 +273,21 @@ class RadioConfig(BaseModel):
         out = [x.strip().upper() for x in v if isinstance(x, str) and x.strip()]
         return out if out else None
 
+    @field_validator("default_band", mode="before")
+    @classmethod
+    def normalize_default_band(cls, v: str | None) -> str | None:
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return None
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("listen_bands", mode="before")
+    @classmethod
+    def normalize_listen_bands(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        out = [x.strip() for x in v if isinstance(x, str) and x.strip()]
+        return out if out else None
+
     # SDR TX (HackRF) – off by default
     sdr_tx_enabled: bool = Field(default=False)
     sdr_tx_backend: str = Field(default="hackrf")
@@ -259,6 +300,47 @@ class RadioConfig(BaseModel):
     audio_input_enabled: bool = Field(default=False)
     audio_output_enabled: bool = Field(default=False)
     audio_monitoring_enabled: bool = Field(default=False)
+    voice_listener_enabled: bool = Field(
+        default=True,
+        description="When True and audio_input_enabled, run voice listener in background to capture rig audio and publish to message queue.",
+    )
+    voice_listener_cycle_seconds: float = Field(
+        default=3600.0,
+        ge=60.0,
+        le=86400.0,
+        description="Duration (seconds) per voice monitor cycle before re-invoking; default 3600.",
+    )
+    voice_store_transcript: bool = Field(
+        default=False,
+        description="When True and voice listener publishes to bus, also store a transcript with metadata band, source=voice_listener for GET /transcripts and relay.",
+    )
+    voice_store_min_length: int = Field(
+        default=0,
+        ge=0,
+        description="Min transcript length to store when voice_store_transcript is True; 0 = no filter.",
+    )
+    voice_store_keywords: list[str] | None = Field(
+        default=None,
+        description="When set, only store voice segments containing at least one of these (case-insensitive). None = no keyword filter.",
+    )
+    band_listener_store: bool = Field(
+        default=True,
+        description="When True and storage is set, store each band-listener message as transcript; False = inject/bus only.",
+    )
+    band_listener_store_min_length: int = Field(
+        default=0,
+        ge=0,
+        description="Min message length to store from band listener; 0 = no filter.",
+    )
+    transcript_retention_days: int = Field(
+        default=0,
+        ge=0,
+        description="If > 0, retention job should delete transcripts older than this many days. 0 = no automatic delete.",
+    )
+    relay_store_only_relayed: bool = Field(
+        default=False,
+        description="When True, relay stores only the relayed (target band) transcript; source row is not stored.",
+    )
 
     # Response formatting for radio (exit prompt / call-out)
     station_callsign: str | None = Field(
@@ -283,9 +365,18 @@ class MemoryConfig(BaseModel):
     enabled: bool = Field(default=True)
     hindsight_base_url: str = Field(default="http://localhost:8888")
     hindsight_enabled: bool = Field(default=True)
+    hindsight_embedding_model: str | None = Field(
+        default=None,
+        description="Optional embedding model for Hindsight (if the Hindsight service supports it). Embeddings run inside Hindsight, not in radioshaq.",
+    )
     recent_messages_limit: int = Field(default=40)
     daily_summary_days: int = Field(default=7)
     summary_timezone: str = Field(default="America/New_York")
+    memory_retention_days: int = Field(
+        default=0,
+        ge=0,
+        description="If > 0, retention job should delete memory_messages older than this many days. 0 = no automatic delete.",
+    )
 
 
 class AudioConfig(BaseModel):
@@ -339,18 +430,24 @@ class AudioConfig(BaseModel):
     response_delay_ms: int = Field(default=500, ge=0, le=5000)
     response_cooldown_seconds: float = Field(default=5.0, ge=1.0, le=60.0)
 
-    # Trigger filtering
+    # Trigger filtering (voice_rx: only process when a trigger phrase is detected)
     trigger_enabled: bool = Field(default=True)
-    trigger_phrases: list[str] = Field(default_factory=lambda: ["radioshaq", "field station"])
+    trigger_phrases: list[str] = Field(
+        default_factory=lambda: ["radioshaq", "field station"],
+        description="Phrases that activate voice processing (e.g. 'radioshaq', 'field station').",
+    )
     trigger_match_mode: TriggerMatchMode = Field(default=TriggerMatchMode.CONTAINS)
-    trigger_callsign: str | None = Field(default=None)
+    trigger_callsign: str | None = Field(
+        default=None,
+        description="Optional: only process when this callsign is mentioned in the transcript.",
+    )
     trigger_min_confidence: float = Field(default=0.7, ge=0.0, le=1.0)
 
     # Optional audio activation: require phrase before processing
     audio_activation_enabled: bool = Field(default=False)
     audio_activation_phrase: str = Field(
         default="radioshaq",
-        description="Phrase that must be heard before processing (when audio_activation_enabled).",
+        description="Phrase that must be heard before processing (when audio_activation_enabled). Often same as first trigger_phrase.",
     )
     audio_activation_mode: AudioActivationMode = Field(
         default=AudioActivationMode.SESSION,
@@ -361,6 +458,16 @@ class AudioConfig(BaseModel):
     ptt_coordination_enabled: bool = Field(default=True)
     ptt_cooldown_ms: int = Field(default=500, ge=100, le=2000)
     break_in_enabled: bool = Field(default=True)
+
+    # Message bus: publish transcribed voice segments to MessageBus (default capture path)
+    voice_publish_to_bus: bool = Field(
+        default=True,
+        description="When True, publish each transcribed voice segment (after trigger filter) to MessageBus so the orchestrator processes it.",
+    )
+    voice_source_callsign_default: str | None = Field(
+        default=None,
+        description="Default sender_id for voice segments when not parsed from transcript (e.g. 'VOICE'). None = use 'UNKNOWN'.",
+    )
 
 
 class PendingResponse(BaseModel):
@@ -423,7 +530,10 @@ class FieldConfig(BaseModel):
         default="FIELD-01",
         description="Unique identifier for this field station",
     )
-    callsign: str | None = Field(default=None)
+    callsign: str | None = Field(
+        default=None,
+        description="This station's ham radio callsign (e.g. K5ABC). Used for identification and packet/voice.",
+    )
     
     # HQ connection
     hq_base_url: str = Field(default="https://hq.radioshaq.example.com")
@@ -512,6 +622,16 @@ class Config(BaseSettings):
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
+
+    # Per-role overrides: keys e.g. orchestrator, judge, whitelist, daily_summary, memory
+    llm_overrides: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional per-role LLM overrides; missing fields fall back to llm.",
+    )
+    memory_overrides: dict[str, Any] | None = Field(
+        default=None,
+        description="Optional per-role memory/Hindsight overrides; missing fields fall back to memory.",
+    )
     
     # Mode-specific configs
     field: FieldConfig = Field(default_factory=FieldConfig)

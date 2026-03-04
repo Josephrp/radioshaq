@@ -209,3 +209,115 @@ async def test_audio_activation_per_message_confirm_first_reset() -> None:
     assert agent._audio_activated is False
     pending = await agent._confirmation_manager.list_pending()
     assert len(pending) == 1
+
+
+@pytest.mark.asyncio
+async def test_voice_store_min_length_skips_short_transcript() -> None:
+    """When voice_store_transcript and voice_store_min_length=10, short transcript is not stored."""
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    radio_config = MagicMock()
+    radio_config.voice_store_transcript = True
+    radio_config.voice_store_min_length = 10
+    radio_config.voice_store_keywords = None
+    storage = MagicMock(_db=MagicMock())
+    storage.store = AsyncMock(return_value=1)
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        radio_config=radio_config,
+        transcript_storage=storage,
+    )
+    agent._monitoring = True
+    agent._current_band = "40m"
+    agent._current_frequency = 7.1e6
+    agent._current_mode = "SSB"
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "short"
+            await agent._on_segment_ready(segment)
+    assert storage.store.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_voice_store_min_length_stores_long_enough_transcript() -> None:
+    """When voice_store_min_length=10, transcript of length >= 10 is stored."""
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    radio_config = MagicMock()
+    radio_config.voice_store_transcript = True
+    radio_config.voice_store_min_length = 10
+    radio_config.voice_store_keywords = None
+    storage = MagicMock(_db=MagicMock())
+    storage.store = AsyncMock(return_value=1)
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        radio_config=radio_config,
+        transcript_storage=storage,
+    )
+    agent._monitoring = True
+    agent._current_band = "40m"
+    agent._current_frequency = 7.1e6
+    agent._current_mode = "SSB"
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "this is long enough"
+            await agent._on_segment_ready(segment)
+    assert storage.store.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_voice_store_keywords_skips_when_no_match() -> None:
+    """When voice_store_keywords is set, transcript without keyword is not stored."""
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    radio_config = MagicMock()
+    radio_config.voice_store_transcript = True
+    radio_config.voice_store_min_length = 0
+    radio_config.voice_store_keywords = ["relay", "copy"]
+    storage = MagicMock(_db=MagicMock())
+    storage.store = AsyncMock(return_value=1)
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        radio_config=radio_config,
+        transcript_storage=storage,
+    )
+    agent._monitoring = True
+    agent._current_band = "40m"
+    agent._current_frequency = 7.1e6
+    agent._current_mode = "SSB"
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "hello world nothing special"
+            await agent._on_segment_ready(segment)
+    assert storage.store.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_voice_store_keywords_stores_when_match() -> None:
+    """When voice_store_keywords is set, transcript containing keyword is stored."""
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    radio_config = MagicMock()
+    radio_config.voice_store_transcript = True
+    radio_config.voice_store_min_length = 0
+    radio_config.voice_store_keywords = ["relay"]
+    storage = MagicMock(_db=MagicMock())
+    storage.store = AsyncMock(return_value=1)
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        radio_config=radio_config,
+        transcript_storage=storage,
+    )
+    agent._monitoring = True
+    agent._current_band = "40m"
+    agent._current_frequency = 7.1e6
+    agent._current_mode = "SSB"
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "please relay this to 2m"
+            await agent._on_segment_ready(segment)
+    assert storage.store.await_count == 1

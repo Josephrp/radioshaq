@@ -46,7 +46,8 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets:
-      base_path: [.., ../radioshaq]
+      # Resolved from cwd (run mkdocs from repo root). docs/ and radioshaq/ for snippet includes.
+      base_path: [docs, ., radioshaq]
       check_paths: true
   - pymdownx.superfences
   - pymdownx.tabbed:

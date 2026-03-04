@@ -14,6 +14,22 @@ metrics_router = APIRouter()
 # Uptime start (process start time)
 _start_time = time.monotonic()
 
+# Optional counters for listener and relay delivery (updated by band_listener and relay_delivery)
+_listener_messages_by_band: dict[str, int] = {}
+_relay_deliveries_total: int = 0
+
+
+def increment_listener_messages(band: str) -> None:
+    """Increment messages-received count for the given band (called from band_listener)."""
+    global _listener_messages_by_band
+    _listener_messages_by_band[band] = _listener_messages_by_band.get(band, 0) + 1
+
+
+def increment_relay_deliveries() -> None:
+    """Increment relay deliveries count (called from relay_delivery worker)."""
+    global _relay_deliveries_total
+    _relay_deliveries_total += 1
+
 
 def _uptime_seconds() -> float:
     return time.monotonic() - _start_time
@@ -85,6 +101,13 @@ def _render_prometheus_with_client(request: Request, callsign_count: int) -> str
     g_callsigns = Gauge("radioshaq_callsigns_registered_total", "Number of registered (whitelisted) callsigns", registry=registry)
     g_callsigns.set(callsign_count)
 
+    if _listener_messages_by_band:
+        g_listener = Gauge("radioshaq_listener_messages_total", "Messages received by band listener", ["band"], registry=registry)
+        for band, count in _listener_messages_by_band.items():
+            g_listener.labels(band=band).set(count)
+    g_relay = Gauge("radioshaq_relay_deliveries_total", "Relay deliveries completed by worker", registry=registry)
+    g_relay.set(_relay_deliveries_total)
+
     gpu_metrics = _get_gpu_metrics()
     if gpu_metrics:
         g_util = Gauge("radioshaq_gpu_utilization_percent", "GPU utilization (0-100)", ["gpu_index", "gpu_name"], registry=registry)
@@ -108,7 +131,12 @@ def _render_prometheus_fallback(callsign_count: int) -> str:
         f"radioshaq_uptime_seconds {_uptime_seconds():.2f}",
         "# TYPE radioshaq_callsigns_registered_total gauge",
         f"radioshaq_callsigns_registered_total {callsign_count}",
+        "# TYPE radioshaq_relay_deliveries_total gauge",
+        f"radioshaq_relay_deliveries_total {_relay_deliveries_total}",
     ]
+    for band, count in _listener_messages_by_band.items():
+        lines.append("# TYPE radioshaq_listener_messages_total gauge")
+        lines.append(f'radioshaq_listener_messages_total{{band="{band}"}} {count}')
     for g in _get_gpu_metrics():
         idx = g.get("index", 0)
         name = (g.get("name") or "gpu").replace(" ", "_")[:32]

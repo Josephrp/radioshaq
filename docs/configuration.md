@@ -1,6 +1,6 @@
 # Configuration
 
-RadioShaq is configured via a single **Pydantic Settings** model (`radioshaq.config.schema.Config`). You can use **environment variables**, an optional **YAML/JSON file**, or both. Environment variables override file values, so you can keep secrets in env and the rest in a file. This page explains how configuration is loaded, how to go from zero to a running station, and documents every option.
+RadioShaq is configured via a single **Pydantic Settings** model (`radioshaq.config.schema.Config`). You can use **environment variables**, an optional **YAML/JSON file**, or both. Environment variables override file values, so you can keep secrets in env and the rest in a file. You can also **view or overlay** LLM, memory, and per-role overrides via the **web Settings** page and the **`/api/v1/config/*`** endpoints (see [Per-role and per-subagent overrides](#per-role-and-per-subagent-overrides)); use **`radioshaq config show`** to print config from file. This page explains how configuration is loaded, how to go from zero to a running station, and documents every option.
 
 ---
 
@@ -23,10 +23,10 @@ Env wins over the file; the file wins over defaults. Use env for secrets and dep
 
 ## Example files
 
-Two reference files in the `radioshaq/` directory provide exhaustive listings of every option:
+Two reference files (synced from `radioshaq/` into the docs by CI) provide exhaustive listings of every option:
 
-- **[.env.example](../radioshaq/.env.example)** — Every environment variable: `RADIOSHAQ_*` (and `__` for nested keys), plus `DATABASE_URL` / `POSTGRES_*` (for Alembic), `MISTRAL_API_KEY`, `ELEVENLABS_API_KEY`, `RADIOSHAQ_BUS_CONSUMER_ENABLED`, `API_HOST`, `API_PORT`, and other runtime variables. Copy to `.env` and set values as needed.
-- **[config.example.yaml](../radioshaq/config.example.yaml)** — Full YAML configuration mirroring the schema (core, database, jwt, llm, memory, radio, audio, field, hq, pm2). Copy to `config.yaml` in the same directory (or set the path via your app’s config path). Env vars override file values.
+- **[.env.example](reference/.env.example)** — Every environment variable: `RADIOSHAQ_*` (and `__` for nested keys), plus `DATABASE_URL` / `POSTGRES_*` (for Alembic), `MISTRAL_API_KEY`, `ELEVENLABS_API_KEY`, `RADIOSHAQ_BUS_CONSUMER_ENABLED`, `API_HOST`, `API_PORT`, and other runtime variables. Copy to `.env` in `radioshaq/` and set values as needed.
+- **[config.example.yaml](reference/config.example.yaml)** — Full YAML configuration mirroring the schema (core, database, jwt, llm, memory, radio, audio, field, hq, pm2). Copy to `config.yaml` in `radioshaq/` (or set the path via your app’s config path). Env vars override file values.
 
 Use these as the single source of truth for option names and env var spelling.
 
@@ -34,12 +34,15 @@ Use these as the single source of truth for option names and env var spelling.
 
 Run **`radioshaq setup`** from the `radioshaq/` directory (project root) to create or update `.env` and `config.yaml` via prompts:
 
-- **First-time:** Prompts for mode, database (Docker / URL / skip), JWT secret, LLM provider and API key (optional), then optional radio, memory, and field/HQ settings. Writes to project root by default; use `--config-dir` to override.
-- **Reconfigure:** `radioshaq setup --reconfigure` loads existing config and lets you change only selected sections (mode, database, jwt, llm).
+- **First-time:** Prompts for mode, database (Docker / URL / skip), JWT secret, LLM provider and API key (optional), then optional radio, memory, field/HQ, **station callsign**, and **trigger phrases** (voice activation). Writes to project root by default; use `--config-dir` to override.
+- **Reconfigure:** `radioshaq setup --reconfigure` loads existing config and lets you change selected sections (mode, database, jwt, llm, memory, overrides).
 - **Quick:** `radioshaq setup --quick` asks only for mode and “Use Docker for Postgres?” then uses defaults and can start Docker and run migrations.
-- **CI / no-input:** `radioshaq setup --no-input --mode field [--db-url ...]` writes default files with no prompts; use in scripts or CI.
+- **CI / no-input:** `radioshaq setup --no-input --mode field [--db-url ...] [--station-callsign K5ABC] [--trigger-phrases "radioshaq, field station"] [--llm-provider mistral] [--llm-model mistral-large-latest] [--custom-api-base http://localhost:11434] [--hindsight-url http://localhost:8888] [--memory-enabled] [--llm-overrides '{"whitelist":{"provider":"custom","model":"ollama/llama2","custom_api_base":"http://localhost:11434"}}']` writes default files with no prompts; use in scripts or CI. **Per-role LLM:** use `--llm-overrides` with a JSON object mapping role names (`orchestrator`, `judge`, `whitelist`, `daily_summary`) to partial LLM config (e.g. `provider`, `model`, `custom_api_base`).
+- **Per-role LLM (interactive):** In full setup or when using **reconfigure** and choosing **overrides**, you can configure per-role LLM overrides (orchestrator, judge, whitelist, daily_summary). Each override can set a different provider, model, and (for custom) API base; API keys remain in env. Use **reconfigure** → **overrides** to add or change them later.
+- **Config show:** `radioshaq config show [--section llm|memory|overrides] [--config-dir PATH]` prints LLM, memory, and per-role overrides from `config.yaml` (API keys redacted).
+- **Launch (dev):** After setup, start dependencies and the API with **`radioshaq launch docker`** (Postgres only), **`radioshaq launch docker --hindsight`** (Postgres + Hindsight), **`radioshaq launch pm2`** (Docker Postgres + PM2 API), or **`radioshaq launch pm2 --hindsight`**. These commands work on Windows, Linux, and macOS.
 
-See [.env.example](../radioshaq/.env.example) and [config.example.yaml](../radioshaq/config.example.yaml) for all options. The full design is in [Interactive Setup Plan](interactive-setup-plan.md).
+See [.env.example](reference/.env.example) and [config.example.yaml](reference/config.example.yaml) for all options. The full design is in the Interactive Setup Plan document (in `docs-archive/interactive-setup-plan.md`).
 
 ---
 
@@ -47,14 +50,14 @@ See [.env.example](../radioshaq/.env.example) and [config.example.yaml](../radio
 
 To **set up** and **operate** a RadioShaq station you typically:
 
-1. **Install** — Clone the repo, install dependencies (e.g. `uv sync --extra dev --extra test` in `radioshaq/`), and ensure Python 3.11+, optional Docker for Postgres, optional Node for PM2.
-2. **Database** — Run PostgreSQL (e.g. Docker on port 5434), set `RADIOSHAQ_DATABASE__POSTGRES_URL` (or use the default), run migrations (`alembic upgrade head` from `radioshaq/` or `python radioshaq/infrastructure/local/run_alembic.py upgrade head` from repo root).
+1. **Install** — Clone the repo, install dependencies (e.g. `uv sync --extra dev --extra test` in `radioshaq/`), and ensure Python 3.11+, optional Docker for Postgres, optional Node for PM2. **Full automated setup:** Run `.\infrastructure\local\setup.ps1` (Windows) or `./infrastructure/local/setup.sh` (Linux/macOS) from `radioshaq/` to install deps, create config, start Docker Postgres (optional Hindsight), run migrations, and install PM2.
+2. **Database** — Run PostgreSQL (e.g. Docker on port 5434), set `RADIOSHAQ_DATABASE__POSTGRES_URL` (or use the default), run migrations (`alembic upgrade head` from `radioshaq/` or `python radioshaq/infrastructure/local/run_alembic.py upgrade head` from repo root). **Launch CLI:** From `radioshaq/`, run `radioshaq launch docker` to start Postgres only, or `radioshaq launch docker --hindsight` to start Postgres and Hindsight; then run migrations if needed.
 3. **Auth** — Set `RADIOSHAQ_JWT__SECRET_KEY` to a secure value in production. Optionally adjust token expiry (`RADIOSHAQ_JWT__FIELD_TOKEN_EXPIRE_HOURS`, etc.).
-4. **LLM** — Set provider and model (e.g. `RADIOSHAQ_LLM__PROVIDER=mistral`, `RADIOSHAQ_LLM__MODEL=mistral-large-latest`) and the corresponding API key (e.g. `RADIOSHAQ_LLM__MISTRAL_API_KEY` or your provider’s env name).
+4. **LLM** — Set provider and model (e.g. `RADIOSHAQ_LLM__PROVIDER=mistral`, `RADIOSHAQ_LLM__MODEL=mistral-large-latest`) and the corresponding API key. For a **local/custom** endpoint (e.g. Ollama), set `RADIOSHAQ_LLM__PROVIDER=custom`, `RADIOSHAQ_LLM__MODEL=ollama/llama2`, and `RADIOSHAQ_LLM__CUSTOM_API_BASE=http://localhost:11434`.
 5. **Mode** — Set `RADIOSHAQ_MODE=field` (or `hq`, `receiver`) so the app knows whether it’s a field station, HQ, or receiver.
 6. **Radio (optional)** — To attach a rig: set `RADIOSHAQ_RADIO__ENABLED=true`, `RADIOSHAQ_RADIO__RIG_MODEL` (Hamlib model ID), and `RADIOSHAQ_RADIO__PORT` (e.g. `COM3` or `/dev/ttyUSB0`). Optionally enable FLDIGI, packet, or SDR TX and set their options.
 7. **Audio / voice (optional)** — For the voice_rx pipeline (listen or respond on air): set `RADIOSHAQ_RADIO__AUDIO_INPUT_ENABLED=true` and configure `audio.*` (input device, VAD, ASR, response_mode, trigger_phrases).
-8. **Run** — Start the API (`uv run python -m radioshaq.api.server` from `radioshaq/`). Optionally enable the MessageBus consumer with `RADIOSHAQ_BUS_CONSUMER_ENABLED=1`.
+8. **Run** — Start the API (`uv run python -m radioshaq.api.server` or `radioshaq run-api` from `radioshaq/`). Or use **`radioshaq launch pm2`** to start Docker Postgres (if available) and the API under PM2; add **`--hindsight`** to also run the Hindsight API (or run Hindsight in Docker with `radioshaq launch docker --hindsight`). Optionally enable the MessageBus consumer with `RADIOSHAQ_BUS_CONSUMER_ENABLED=1`.
 9. **Operate** — Call `POST /messages/process` with a Bearer JWT and a `message` (or `text`) body; or use the web UI / voice pipeline to interact with the agent.
 
 The rest of this page fills in every option by section.
@@ -93,10 +96,11 @@ PostgreSQL (with optional PostGIS) is the primary store for transcripts, callsig
 **Migrations:** From `radioshaq/` with env set: `uv run alembic upgrade head`. From repo root:
 
 ```bash
---8<-- "docs/snippets/migrate-up.sh"
+# From repo root
+python radioshaq/infrastructure/local/run_alembic.py upgrade head
 ```
 
-See [Quick Start](quick-start.md) and [Legacy](legacy/index.md) for credentials and troubleshooting.
+See [Quick Start](quick-start.md) for credentials and troubleshooting.
 
 ---
 
@@ -117,16 +121,16 @@ API endpoints expect a Bearer JWT. Tokens are issued by `POST /auth/token` (subj
 
 ## LLM
 
-The orchestrator and judge use an LLM for reasoning and evaluation. Set the provider, model, and the matching API key.
+The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`); the client passes `api_base` to LiteLLM so custom endpoints work without code changes.
 
 | Option | Env var | Default | Description |
 |--------|---------|---------|-------------|
 | `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`. |
-| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`). |
+| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`). |
 | `llm.mistral_api_key` | `RADIOSHAQ_LLM__MISTRAL_API_KEY` | `null` | Mistral API key (or set `MISTRAL_API_KEY` if your code reads it). |
 | `llm.openai_api_key` | `RADIOSHAQ_LLM__OPENAI_API_KEY` | `null` | OpenAI API key. |
 | `llm.anthropic_api_key` | `RADIOSHAQ_LLM__ANTHROPIC_API_KEY` | `null` | Anthropic API key. |
-| `llm.custom_api_base` | `RADIOSHAQ_LLM__CUSTOM_API_BASE` | `null` | Custom provider base URL. |
+| `llm.custom_api_base` | `RADIOSHAQ_LLM__CUSTOM_API_BASE` | `null` | **Custom provider base URL** (e.g. `http://localhost:11434` for Ollama). Passed to LiteLLM. |
 | `llm.custom_api_key` | `RADIOSHAQ_LLM__CUSTOM_API_KEY` | `null` | Custom provider API key. |
 | `llm.temperature` | `RADIOSHAQ_LLM__TEMPERATURE` | `0.1` | Sampling temperature (0–2). |
 | `llm.max_tokens` | `RADIOSHAQ_LLM__MAX_TOKENS` | `4096` | Max tokens per response. |
@@ -138,16 +142,48 @@ The orchestrator and judge use an LLM for reasoning and evaluation. Set the prov
 
 ## Memory
 
-Per-callsign memory: core blocks, recent messages, daily summaries, and optional [Hindsight](https://github.com/radioshaq/hindsight) integration for embeddings and recall.
+Per-callsign memory: core blocks, recent messages, daily summaries, and optional [Hindsight](https://github.com/radioshaq/hindsight) integration for **semantic recall/reflect**. Embeddings run **inside Hindsight**; RadioShaq does not call an embedding API. Optional `hindsight_embedding_model` is passed to Hindsight if the service supports it.
 
 | Option | Env var | Default | Description |
 |--------|---------|---------|-------------|
 | `memory.enabled` | `RADIOSHAQ_MEMORY__ENABLED` | `true` | Enable memory system (recall/reflect tools, context). |
 | `memory.hindsight_base_url` | `RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL` | `http://localhost:8888` | Hindsight API base URL. |
-| `memory.hindsight_enabled` | `RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED` | `true` | Use Hindsight for embeddings and semantic recall. |
+| `memory.hindsight_enabled` | `RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED` | `true` | Use Hindsight for semantic recall/reflect. |
+| `memory.hindsight_embedding_model` | `RADIOSHAQ_MEMORY__HINDSIGHT_EMBEDDING_MODEL` | `null` | Optional embedding model for Hindsight (if supported). |
 | `memory.recent_messages_limit` | `RADIOSHAQ_MEMORY__RECENT_MESSAGES_LIMIT` | `40` | Max recent messages included in context. |
 | `memory.daily_summary_days` | `RADIOSHAQ_MEMORY__DAILY_SUMMARY_DAYS` | `7` | Days of daily summaries to include. |
 | `memory.summary_timezone` | `RADIOSHAQ_MEMORY__SUMMARY_TIMEZONE` | `America/New_York` | Timezone for daily summary windows. |
+
+---
+
+## Per-role and per-subagent overrides
+
+You can override **LLM** and **memory** settings per “role” or per **specialized agent**. Missing fields fall back to the global `llm` / `memory` config.
+
+| Option | Description |
+|--------|-------------|
+| `llm_overrides` | Optional map: role or agent name → partial `LLMConfig`. Keys: `orchestrator`, `judge`, `whitelist`, `daily_summary`, or **any agent name** (e.g. `whitelist`, `gis`, `radio_tx`, `scheduler`). Only the **whitelist** agent uses an LLM today; other agent keys apply when/if that agent gets an LLM. |
+| `memory_overrides` | Optional map: role → partial `MemoryConfig`. Keys: e.g. `orchestrator`, `memory`. |
+
+**Example** (in `config.yaml`):
+
+```yaml
+llm_overrides:
+  whitelist:                      # WhitelistAgent (per-subagent)
+    provider: custom
+    model: ollama/llama2
+    custom_api_base: "http://localhost:11434"
+  daily_summary:
+    model: mistral-small-latest
+memory_overrides:
+  memory:
+    hindsight_base_url: "http://hindsight-alt:8888"
+```
+
+**Where to change at runtime:**
+
+- **Web UI** — **Settings** page: view/edit LLM, memory, and overrides (runtime overlay; does not persist to file).
+- **API** — `GET`/`PATCH` `/api/v1/config/llm`, `/api/v1/config/memory`, `/api/v1/config/overrides` (see [API Reference](api-reference.md)); PATCH is runtime-only unless you add file persistence.
 
 ---
 
@@ -191,6 +227,18 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.audio_input_enabled` | `RADIOSHAQ_RADIO__AUDIO_INPUT_ENABLED` | `false` | Enable voice_rx pipeline (capture from rig). |
 | `radio.audio_output_enabled` | `RADIOSHAQ_RADIO__AUDIO_OUTPUT_ENABLED` | `false` | Enable audio output to rig. |
 | `radio.audio_monitoring_enabled` | `RADIOSHAQ_RADIO__AUDIO_MONITORING_ENABLED` | `false` | Enable monitoring path. |
+| `radio.voice_listener_enabled` | `RADIOSHAQ_RADIO__VOICE_LISTENER_ENABLED` | `true` | When true and audio_input_enabled, run voice listener so rig audio is captured, transcribed, and published to the message queue (default capture path for orchestrator/relay). |
+| `radio.voice_listener_cycle_seconds` | `RADIOSHAQ_RADIO__VOICE_LISTENER_CYCLE_SECONDS` | `3600.0` | Duration (seconds) per voice monitor cycle; clamped 60–86400. |
+| `radio.voice_store_transcript` | `RADIOSHAQ_RADIO__VOICE_STORE_TRANSCRIPT` | `false` | When true, store each voice segment as a transcript (metadata band, source=voice_listener) for GET /transcripts and relay. |
+| `radio.default_band` | `RADIOSHAQ_RADIO__DEFAULT_BAND` | `null` | Default band when listen_bands is not set (e.g. `40m`, `2m`). |
+| `radio.listen_bands` | (list in YAML) | `null` | Bands to monitor (e.g. `[40m, 2m]`). If null, only default_band is used when set. |
+| `radio.listener_enabled` | `RADIOSHAQ_RADIO__LISTENER_ENABLED` | `false` | Run the background band listener when bands are configured. |
+| `radio.listener_cycle_seconds` | `RADIOSHAQ_RADIO__LISTENER_CYCLE_SECONDS` | `30.0` | Seconds per band in round-robin mode (single receiver). Clamped 5–300. |
+| `radio.listener_concurrent_bands` | `RADIOSHAQ_RADIO__LISTENER_CONCURRENT_BANDS` | `true` | If true, one monitor task per band in parallel; if false, single receiver round-robin. |
+| `radio.relay_inject_target_band` | `RADIOSHAQ_RADIO__RELAY_INJECT_TARGET_BAND` | `false` | When relaying (no deliver_at), inject the relayed message into the target band RX queue. |
+| `radio.relay_tx_target_band` | `RADIOSHAQ_RADIO__RELAY_TX_TARGET_BAND` | `false` | When relaying (no deliver_at), transmit the relayed message on the target band via radio_tx. |
+
+**Relay:** Relay is **store-only by default**. Recipients get messages by **polling** `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. When `relay_inject_target_band` or `relay_tx_target_band` is enabled, they apply to both the API and the orchestrator relay tool.
 
 ---
 
@@ -310,6 +358,6 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 - **API host/port** — The server uses `API_HOST` / `API_PORT` or **`RADIOSHAQ_API_HOST`** / **`RADIOSHAQ_API_PORT`** when starting uvicorn (default from `hq.host` and `hq.port`).
 - **CLI** — Scripts that call the API use **`RADIOSHAQ_API`** (base URL, default `http://localhost:8000`) and **`RADIOSHAQ_TOKEN`** (Bearer token).
 - **TTS** — When `radio.voice_use_tts` is true, ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
-- **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](../radioshaq/.env.example)).
+- **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](reference/.env.example)).
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

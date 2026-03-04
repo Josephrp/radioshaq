@@ -6,6 +6,7 @@ codex/
 mistral-vibe-main/
 nanobot-main/
 ancient-docs/
+docs-archive/
 
 # Docs build output (MkDocs: mkdocs build → site/)
 site/

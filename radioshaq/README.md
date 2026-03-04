@@ -28,25 +28,32 @@ radioshaq setup
 # Or non-interactive: radioshaq setup --no-input --mode field
 ```
 
-**Full automated setup (Windows):** `.\infrastructure\local\setup.ps1` installs deps, creates config, starts Docker Postgres on port 5434, runs migrations, installs PM2 if Node is present.
+**Full automated setup:** Run one script from the `radioshaq/` directory: Windows — `.\infrastructure\local\setup.ps1`; Linux/macOS — `./infrastructure/local/setup.sh` (or `bash infrastructure/local/setup.sh`). Each installs deps, creates config, starts Docker Postgres on port 5434 (optional Hindsight), runs migrations, and installs PM2 if Node is present.
 
 See the [documentation site](https://Josephrp.github.io/RadioShaq/) (Quick Start, Configuration) or **[docs/install.md](docs/install.md)** for the full install guide (prerequisites, DB, PM2, troubleshooting).
 
 ## Quick Start
 
 ```bash
-# 1. Start PostgreSQL (Docker, port 5434)
-cd infrastructure/local && docker compose up -d postgres && cd ../..
+# 1. Start PostgreSQL (Docker, port 5434) — or use launch CLI
+radioshaq launch docker
+# With Hindsight (semantic memory): radioshaq launch docker --hindsight
+
+# Or manually: cd infrastructure/local && docker compose up -d postgres && cd ../..
 
 # 2. Run migrations (use the runner script to avoid path issues on Windows)
 python infrastructure/local/run_alembic.py upgrade head
 
 # 3. Start API
 uv run python -m radioshaq.api.server
+# Or: radioshaq launch pm2  (starts Docker Postgres if needed, then PM2 API)
+# Or with Hindsight: radioshaq launch pm2 --hindsight
 # API: http://localhost:8000/docs — open http://localhost:8000/ for the web UI (when using the PyPI package with bundled frontend)
 ```
 
 See [Configuration](https://Josephrp.github.io/RadioShaq/configuration/) or [docs/database.md](docs/database.md) for DATABASE_URL and migration commands (including the `run_alembic.py` script).
+
+**Launch (dev):** From the project root, `radioshaq launch docker` starts Postgres; `radioshaq launch docker --hindsight` adds Hindsight. Use `radioshaq launch pm2` to start Docker Postgres (if available) and the API via PM2; add `--hindsight` to also run Hindsight under PM2 (requires `pip install hindsight-all`). Configurations that need upstreams (e.g. API → Postgres, API → Hindsight) are satisfied by starting Postgres and optionally Hindsight before the API.
 
 **Memory (per-callsign):** Run the memory migration (`uv run alembic upgrade head`) to create memory tables. Optional [Hindsight](https://hindsight.vectorize.io/) for semantic memory: set `RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL` and install `hindsight-client` if needed; or set `RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED=false` for PostgreSQL-only memory. See [../MEMORY_SYSTEM.md](../MEMORY_SYSTEM.md) and [../MEMORY_IMPLEMENTATION_PLAN.md](../MEMORY_IMPLEMENTATION_PLAN.md).
 
@@ -79,7 +86,7 @@ With the API running, in a second terminal:
 uv run python scripts/demo/run_demo.py
 ```
 
-The script gets its own token from `POST /auth/token` (subject `demo-op1`, role `field`) and then injects on 40m, relays to 2m, and polls `/transcripts`. No manual auth needed. See [scripts/demo/README.md](scripts/demo/README.md) and [docs/demo-two-local-one-remote.md](docs/demo-two-local-one-remote.md).
+The script gets its own token from `POST /auth/token` (subject `demo-op1`, role `field`) and then injects on 40m, relays to 2m, and polls `/transcripts`. No manual auth needed. To poll **your messages** on a band (messages where you are the destination), use `GET /transcripts?callsign=<your_callsign>&destination_only=true&band=<band>`; omit `band` to get messages across all bands. See [scripts/demo/README.md](scripts/demo/README.md) and [docs/demo-two-local-one-remote.md](docs/demo-two-local-one-remote.md).
 
 ## Monitoring
 

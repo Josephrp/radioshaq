@@ -42,10 +42,19 @@ def _get_base_url(config: MemoryConfig | None = None) -> str:
 
 
 def _get_client(config: MemoryConfig | None = None):
-    """Lazy-import and create Hindsight client."""
+    """Lazy-import and create Hindsight client. Uses hindsight_base_url and optional hindsight_embedding_model from config."""
     try:
         from hindsight_client import Hindsight
-        return Hindsight(base_url=_get_base_url(config))
+        kwargs: dict[str, str] = {"base_url": _get_base_url(config)}
+        embedding_model = getattr(config, "hindsight_embedding_model", None) if config else None
+        if embedding_model and isinstance(embedding_model, str) and embedding_model.strip():
+            # Pass through if Hindsight client supports it (API may vary)
+            kwargs["embedding_model"] = embedding_model.strip()
+        try:
+            return Hindsight(**kwargs)
+        except TypeError:
+            kwargs.pop("embedding_model", None)
+            return Hindsight(**kwargs)
     except ImportError:
         return None
 

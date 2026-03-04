@@ -55,6 +55,7 @@ Agents are created at startup from configuration (e.g. rig enabled/disabled, FLD
 Besides agents, the orchestrator can call **tools** during the REACT loop (when a tool registry and LLM client are provided). These are invoked by the LLM as part of reasoning (e.g. “use the send_audio tool on 40 m”). Registered tools include:
 
 - **send_audio_over_radio** — Send audio (file or TTS) on a specified band/mode, subject to band allowlist and compliance. Uses the same radio stack as the radio_tx agent (CAT, optional SDR TX).
+- **relay_message_between_bands** — Relay a message from one band to another (e.g. 40m → 2m). The message is stored; the recipient polls for it via `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. Optional site config can enable inject or TX on the target band.
 - **list_registered_callsigns** — Return the list of registered callsigns from the callsign repository.
 - **register_callsign** — Register a callsign (and optional metadata) in the repository for whitelist/relay gating.
 
@@ -90,12 +91,12 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
 
 ## Capabilities at a glance
 
-- **Voice** — Transmit and receive voice via CAT rig (and optional TTS). Receive path: capture → VAD → ASR → trigger filter → listen-only / confirm-first / auto-respond.
+- **Voice** — Transmit and receive voice via CAT rig (and optional TTS). When `radio.audio_input_enabled` and the voice listener are enabled, rig audio is the default capture path: capture → VAD → ASR → MessageBus → orchestrator (and optional relay). Optionally store voice segments as transcripts (`voice_store_transcript`) for GET /transcripts and relay. Receive path supports listen-only, confirm-first, or auto-respond.
 - **Digital modes** — FLDIGI integration for digital modulation when `radio.fldigi_enabled` is true.
 - **Packet radio** — KISS TNC for packet when `radio.packet_enabled` is true.
 - **SDR TX** — Optional HackRF transmit when `radio.sdr_tx_enabled` is true; band and compliance checks apply.
 - **Callsign whitelist** — Static list plus DB-backed registration; optional “registry required” for relay/store.
-- **Transcripts, relay, inject** — Store transcripts, relay traffic between bands, and inject test audio for demos and integration.
+- **Transcripts, relay, inject** — Store transcripts; relay between bands via the orchestrator tool `relay_message_between_bands` or `POST /messages/relay`. Delivery is poll-based by default (recipient uses `GET /transcripts?callsign=...&destination_only=true&band=...`); optional config can enable inject or TX on the target band. Inject test audio for demos; when multiple bands are monitored, inject is band-accurate.
 - **Compliance** — TX audit log, band allowlist, and region-based restricted bands (e.g. FCC, CEPT) to keep operations within regulations.
 
 ---
@@ -111,6 +112,7 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
   - List transcripts: `radioshaq transcripts list`. 
   - Health: `radioshaq health`. 
   - Start API: `radioshaq run-api`.
+  - **Launch (dev):** `radioshaq launch docker` (start Postgres), `radioshaq launch docker --hindsight` (Postgres + Hindsight), `radioshaq launch pm2` (Postgres + API via PM2), `radioshaq launch pm2 --hindsight` (same + Hindsight). Same commands on Windows, Linux, and macOS.
 
 ---
 

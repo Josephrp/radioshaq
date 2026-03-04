@@ -14,6 +14,12 @@ auth:
 
 radio:
   default_band: 40m
+  # listen_bands: [40m, 2m]   # Bands to monitor; omit to use default_band only
+  listener_enabled: false
+  listener_cycle_seconds: 30
+  listener_concurrent_bands: true   # false = single receiver, round-robin
+  receiver_upload_store: false
+  receiver_upload_inject: false
   cat_enabled: false
   audio_input_enabled: false
   audio_output_enabled: false

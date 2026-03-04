@@ -12,8 +12,9 @@ The RadioShaq API is a FastAPI application. All protected endpoints require a **
 | Metrics | `/metrics` | Prometheus scrape (uptime, callsigns, optional GPU). See [Monitoring](monitoring.md). |
 | Auth | `/auth/token`, `/auth/refresh`, `/auth/me` | Issue token, refresh, current user |
 | Messages | `/messages/process`, `/messages/whitelist-request`, `/messages/from-audio`, `/messages/inject-and-store` | Orchestration and whitelist flow |
-| Relay | `/messages/relay` | Band translation (e.g. 40m → 2m) |
+| Relay | `/messages/relay` | Band translation (e.g. 40m → 2m). Stores source + relayed transcripts; optional inject/TX when config enables. Recipients **poll** `GET /transcripts?callsign=<callsign>&destination_only=true&band=<band>` to retrieve relayed messages. |
 | Callsigns | `/callsigns`, `/callsigns/register`, `/callsigns/register-from-audio`, `/callsigns/registered/{callsign}` | Registered callsigns and registration |
+| **Config** | `/api/v1/config/llm`, `/api/v1/config/memory`, `/api/v1/config/overrides` | LLM, memory (Hindsight), and per-role overrides (GET/PATCH; keys redacted). See [Configuration](configuration.md#per-role-and-per-subagent-overrides). |
 | Audio | `/api/v1/config/audio`, `/api/v1/audio/devices`, `/api/v1/audio/pending`, approve/reject | Audio config and pending response queue |
 | Transcripts | `/transcripts`, `/transcripts/{id}`, `/transcripts/{id}/play` | Search and play transcripts |
 | Radio | `/radio/status`, `/radio/propagation`, `/radio/bands`, `/radio/send-tts` | Radio connected?, propagation, band list, send TTS |
