@@ -50,7 +50,7 @@ async def get_blocks(
         raise HTTPException(status_code=403, detail="Callsign does not match token")
     try:
         blocks = await memory_manager.get_core_blocks(_normalize_callsign(callsign))
-    except SQLAlchemyError:
+    except (SQLAlchemyError, OSError):
         raise HTTPException(
             status_code=503,
             detail="Memory service not available",
@@ -77,7 +77,7 @@ async def update_block(
         success, message = await memory_manager.update_block(
             _normalize_callsign(callsign), block_type, content
         )
-    except SQLAlchemyError:
+    except (SQLAlchemyError, OSError):
         raise HTTPException(status_code=503, detail="Memory service not available")
     if not success:
         raise HTTPException(status_code=400, detail=message)
@@ -103,7 +103,7 @@ async def append_block(
         success, message = await memory_manager.append_to_block(
             _normalize_callsign(callsign), block_type, content
         )
-    except SQLAlchemyError:
+    except (SQLAlchemyError, OSError):
         raise HTTPException(status_code=503, detail="Memory service not available")
     if not success:
         raise HTTPException(status_code=400, detail=message)
@@ -125,7 +125,7 @@ async def get_summaries(
         summaries = await memory_manager.load_daily_summaries(
             _normalize_callsign(callsign), days=days
         )
-    except SQLAlchemyError:
+    except (SQLAlchemyError, OSError):
         raise HTTPException(
             status_code=503,
             detail="Memory service not available",
