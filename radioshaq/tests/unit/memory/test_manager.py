@@ -87,3 +87,12 @@ async def test_manager_invalid_block_type(memory_manager: MemoryManager) -> None
     success, msg = await memory_manager.update_block("TESTCALL", "invalid_type", "x")
     assert success is False
     assert "Invalid" in msg
+
+
+@pytest.mark.asyncio
+async def test_manager_delete_messages_older_than_future_cutoff_returns_zero(memory_manager: MemoryManager) -> None:
+    """delete_messages_older_than with a cutoff in the future deletes nothing and returns 0."""
+    from datetime import datetime, timedelta, timezone
+    future = datetime.now(timezone.utc) + timedelta(days=365)
+    n = await memory_manager.delete_messages_older_than(future, limit=10_000)
+    assert n == 0

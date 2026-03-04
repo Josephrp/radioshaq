@@ -7,6 +7,7 @@ const nav = [
   { to: '/messages', label: 'Messages' },
   { to: '/transcripts', label: 'Transcripts' },
   { to: '/radio', label: 'Radio' },
+  { to: '/settings', label: 'Settings' },
 ];
 
 export function Layout() {

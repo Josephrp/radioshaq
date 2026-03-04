@@ -177,12 +177,18 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         capture_service: Any = None,
         stream_processor: Any = None,
         response_agent: Any = None,
+        message_bus: Any = None,
+        radio_config: Any = None,
+        transcript_storage: Any = None,
     ) -> None:
         self.config = config
         self.rig_manager = rig_manager
         self.capture_service = capture_service
         self.stream_processor = stream_processor
         self.response_agent = response_agent
+        self._message_bus = message_bus
+        self._radio_config = radio_config
+        self._transcript_storage = transcript_storage
         self._monitoring = False
         self._audio_activated = False  # Reset when monitoring starts/stops if audio_activation_enabled
         self._trigger_filter = TriggerFilter(config)
@@ -191,6 +197,10 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         self._cooldown_lock = asyncio.Lock()
         self._confirmation_task: asyncio.Task[None] | None = None
         self._whisper_model: Any = None
+        # Current monitor context for bus metadata (set in _action_monitor)
+        self._current_frequency: float | None = None
+        self._current_band: str | None = None
+        self._current_mode: str = "FM"
 
         if self.stream_processor:
             self.stream_processor.set_segment_callback(self._on_segment_ready)
@@ -231,6 +241,19 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             await self.rig_manager.set_frequency(frequency)
             await self.rig_manager.set_mode(mode)
 
+        # Set context for message bus metadata (band, frequency, mode)
+        self._current_frequency = float(frequency) if frequency is not None else None
+        self._current_mode = mode or "FM"
+        if self._current_frequency and self._current_frequency > 0:
+            from radioshaq.radio.bands import get_band_for_frequency
+            self._current_band = get_band_for_frequency(self._current_frequency)
+        else:
+            rc = self._radio_config
+            self._current_band = (
+                getattr(rc, "default_band", None)
+                or (getattr(rc, "listen_bands", None) or [None])[0]
+            )
+
         self._monitoring = True
         self._confirmation_task = asyncio.create_task(
             self._confirmation_watcher(upstream_callback)
@@ -245,6 +268,8 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         finally:
             self._monitoring = False
             self._audio_activated = False
+            self._current_frequency = None
+            self._current_band = None
             await self.capture_service.stop()
             if self._confirmation_task and not self._confirmation_task.done():
                 self._confirmation_task.cancel()
@@ -290,6 +315,52 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         confidence = getattr(segment, "transcript_confidence", None) or 0.8
         if not self._trigger_filter.check(transcript, confidence):
             return
+
+        # Optionally store voice transcript (band, source=voice_listener) for GET /transcripts and relay
+        if getattr(self._radio_config, "voice_store_transcript", False) and self._transcript_storage and getattr(self._transcript_storage, "_db", None):
+            min_len = getattr(self._radio_config, "voice_store_min_length", 0) or 0
+            keywords = getattr(self._radio_config, "voice_store_keywords", None) or []
+            stripped = transcript.strip()
+            if min_len > 0 and len(stripped) < min_len:
+                pass  # skip store: too short
+            elif keywords and not any(k.lower() in stripped.lower() for k in keywords if k):
+                pass  # skip store: no keyword match
+            else:
+                try:
+                    import uuid
+                    source = (getattr(self.config, "voice_source_callsign_default", None) or "UNKNOWN").strip().upper()
+                    session_id = f"voice-{self._current_band or 'unknown'}-{uuid.uuid4().hex[:8]}"
+                    await self._transcript_storage.store(
+                        session_id=session_id,
+                        source_callsign=source,
+                        frequency_hz=self._current_frequency or 0.0,
+                        mode=self._current_mode,
+                        transcript_text=transcript,
+                        destination_callsign=None,
+                        metadata={"band": self._current_band or "unknown", "source": "voice_listener"},
+                    )
+                except Exception as e:
+                    logger.warning("Voice transcript store failed: %s", e)
+
+        # Publish to MessageBus so orchestrator can process (default capture path)
+        if getattr(self.config, "voice_publish_to_bus", True) and self._message_bus and hasattr(self._message_bus, "publish_inbound"):
+            try:
+                from radioshaq.orchestrator.radio_ingestion import radio_received_to_inbound
+                source = (getattr(self.config, "voice_source_callsign_default", None) or "UNKNOWN").strip().upper()
+                inbound = radio_received_to_inbound(
+                    text=transcript,
+                    band=self._current_band,
+                    frequency_hz=self._current_frequency or 0.0,
+                    source_callsign=source,
+                    destination_callsign=None,
+                    mode=self._current_mode,
+                )
+                ok = await self._message_bus.publish_inbound(inbound)
+                if not ok:
+                    logger.debug("Voice segment dropped (bus full)")
+            except Exception as e:
+                logger.warning("Voice publish_inbound failed: %s", e)
+
         response_text = await self._generate_response_text(transcript)
         if self.config.response_mode == ResponseMode.LISTEN_ONLY:
             self._maybe_reset_activation_per_message()

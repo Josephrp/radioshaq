@@ -48,15 +48,17 @@ class LLMClient:
         self,
         model: str = "mistral/mistral-large-latest",
         api_key: str | None = None,
+        api_base: str | None = None,
         temperature: float = 0.1,
         max_tokens: int = 4096,
     ):
         # Ensure litellm format: provider/model (e.g. mistral/mistral-large-latest)
-        if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/")):
+        if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
             self.model = f"mistral/{model}"
         else:
             self.model = model
         self.api_key = api_key
+        self.api_base = api_base
         self.temperature = temperature
         self.max_tokens = max_tokens
 
@@ -75,14 +77,17 @@ class LLMClient:
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
         api_key = self.api_key or os.environ.get("MISTRAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
 
+        kwargs: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temp,
+            "max_tokens": max_tok,
+            "api_key": api_key,
+        }
+        if self.api_base is not None:
+            kwargs["api_base"] = self.api_base
         try:
-            completion = await litellm.acompletion(
-                model=self.model,
-                messages=messages,
-                temperature=temp,
-                max_tokens=max_tok,
-                api_key=api_key,
-            )
+            completion = await litellm.acompletion(**kwargs)
             choice = completion.choices[0] if completion.choices else None
             content = choice.message.content if choice and choice.message else ""
             return ChatResponse(
@@ -118,16 +123,19 @@ class LLMClient:
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
         api_key = self.api_key or os.environ.get("MISTRAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
 
+        kwargs_tools: dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto",
+            "temperature": temp,
+            "max_tokens": max_tok,
+            "api_key": api_key,
+        }
+        if self.api_base is not None:
+            kwargs_tools["api_base"] = self.api_base
         try:
-            completion = await litellm.acompletion(
-                model=self.model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=temp,
-                max_tokens=max_tok,
-                api_key=api_key,
-            )
+            completion = await litellm.acompletion(**kwargs_tools)
             choice = completion.choices[0] if completion.choices else None
             msg = choice.message if choice and choice.message else None
             content = (msg.content or "").strip() if msg else ""

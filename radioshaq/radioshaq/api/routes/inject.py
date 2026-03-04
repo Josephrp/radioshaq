@@ -29,6 +29,7 @@ class InjectMessageBody(BaseModel):
 
 @router.post("/message")
 async def inject_message(
+    request: Request,
     body: InjectMessageBody,
     user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -36,10 +37,12 @@ async def inject_message(
     Inject a message into the RX path for demo/testing.
 
     The message will be available to receivers (radio_rx / digital_modes)
-    when they poll the injection queue. Use for:
-    - User injection script (e.g. audio → text → this endpoint)
-    - Simulating one user emitting on a band for another to receive
+    when they poll the injection queue. Unless inject_skip_bus is True,
+    also publish to MessageBus so the orchestrator processes it.
     """
+    from radioshaq.api.dependencies import get_config
+    from radioshaq.orchestrator.radio_ingestion import radio_received_to_inbound
+
     queue = get_injection_queue()
     queue.inject_message(
         text=body.text,
@@ -51,6 +54,19 @@ async def inject_message(
         audio_path=body.audio_path,
         metadata=body.metadata,
     )
+    config = get_config(request)
+    if not getattr(config.radio, "inject_skip_bus", False):
+        bus = getattr(request.app.state, "message_bus", None)
+        if bus and hasattr(bus, "publish_inbound"):
+            inbound = radio_received_to_inbound(
+                text=body.text,
+                band=body.band,
+                frequency_hz=body.frequency_hz,
+                source_callsign=body.source_callsign,
+                destination_callsign=body.destination_callsign,
+                mode=body.mode,
+            )
+            await bus.publish_inbound(inbound)
     return {
         "ok": True,
         "message": "Injected",

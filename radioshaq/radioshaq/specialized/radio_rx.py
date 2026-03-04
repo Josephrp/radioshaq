@@ -41,11 +41,13 @@ class RadioReceptionAgent(SpecializedAgent):
         frequency = task.get("frequency", 0.0)
         duration_seconds = int(task.get("duration_seconds", 10))
         mode = task.get("mode", "FM")
+        band = task.get("band")
         return await self.monitor_frequency(
             frequency,
             duration_seconds,
             mode=mode,
             upstream_callback=upstream_callback,
+            band=band,
         )
 
     async def monitor_frequency(
@@ -54,8 +56,14 @@ class RadioReceptionAgent(SpecializedAgent):
         duration_seconds: int,
         mode: str = "FM",
         upstream_callback: Any = None,
+        band: str | None = None,
     ) -> dict[str, Any]:
-        """Monitor a frequency for incoming transmissions."""
+        """Monitor a frequency for incoming transmissions.
+
+        When band is provided and injection queue is used, only injected messages
+        matching that band (or with no band set) are accepted; others are re-put
+        for another consumer (band-accurate injection).
+        """
         received_messages: list[dict[str, Any]] = []
         loop = asyncio.get_running_loop()
         start = loop.time()
@@ -87,15 +95,21 @@ class RadioReceptionAgent(SpecializedAgent):
                 # Demo path: no FLDIGI; consume from injection queue (user injection script)
                 inj = injection_queue.receive_injected_nowait()
                 if inj:
-                    msg = {
-                        "message": inj.text,
-                        "mode": inj.mode,
-                        "frequency": inj.frequency_hz or frequency,
-                        "band": inj.band,
-                        "source_callsign": inj.source_callsign,
-                    }
-                    received_messages.append(msg)
-                    await self.emit_result(upstream_callback, msg)
+                    # Band-aware: if we're monitoring a specific band, only accept matching (or unset) band
+                    if band is not None and inj.band is not None and inj.band != band:
+                        if not injection_queue.put_back_nowait(inj):
+                            pass  # already logged in put_back_nowait
+                        inj = None
+                    if inj:
+                        msg = {
+                            "message": inj.text,
+                            "mode": inj.mode,
+                            "frequency": inj.frequency_hz or frequency,
+                            "band": inj.band,
+                            "source_callsign": inj.source_callsign,
+                        }
+                        received_messages.append(msg)
+                        await self.emit_result(upstream_callback, msg)
 
             await self.emit_progress(
                 upstream_callback,

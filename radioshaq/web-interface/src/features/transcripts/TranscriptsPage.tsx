@@ -7,6 +7,7 @@ export function TranscriptsPage() {
   const [error, setError] = useState<string | null>(null);
   const [callsign, setCallsign] = useState('');
   const [band, setBand] = useState('');
+  const [destinationOnly, setDestinationOnly] = useState(false);
   const [limit, setLimit] = useState(50);
   const [playingId, setPlayingId] = useState<number | null>(null);
 
@@ -17,6 +18,7 @@ export function TranscriptsPage() {
       const res = await searchTranscripts({
         callsign: callsign.trim() || undefined,
         band: band.trim() || undefined,
+        destination_only: destinationOnly,
         limit,
       });
       setTranscripts(res.transcripts ?? []);
@@ -35,7 +37,7 @@ export function TranscriptsPage() {
   useEffect(() => {
     const interval = setInterval(() => load(true), 10000);
     return () => clearInterval(interval);
-  }, [callsign, band, limit]);
+  }, [callsign, band, destinationOnly, limit]);
 
   const handlePlay = async (id: number) => {
     setError(null);
@@ -72,6 +74,14 @@ export function TranscriptsPage() {
           placeholder="Filter by band"
           style={{ padding: '0.4rem', width: 80 }}
         />
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <input
+            type="checkbox"
+            checked={destinationOnly}
+            onChange={(e) => setDestinationOnly(e.target.checked)}
+          />
+          Only messages for me
+        </label>
         <input
           type="number"
           value={limit}

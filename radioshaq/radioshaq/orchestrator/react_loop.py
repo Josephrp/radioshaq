@@ -100,6 +100,7 @@ class REACTOrchestrator:
         task_id: str | None = None,
         callsign: str | None = None,
         on_progress: Callable[[REACTState], Awaitable[None]] | None = None,
+        inbound_metadata: dict[str, Any] | None = None,
     ) -> REACTResult:
         """Run the REACT loop to process a request. If callsign and memory_manager are set, load memory context and persist/retain after success."""
         import asyncio
@@ -112,6 +113,26 @@ class REACTOrchestrator:
             original_request=request,
             max_iterations=self.max_iterations,
         )
+        state.context["inbound_metadata"] = inbound_metadata or {}
+
+        # Load whitelisted callsign bands (preferred_bands, last_band) for relay/context
+        callsign_repo = getattr(self, "_callsign_repository", None)
+        if callsign_repo is not None and hasattr(callsign_repo, "list_registered"):
+            try:
+                registered = await callsign_repo.list_registered()
+                state.context["whitelisted_callsign_bands"] = {
+                    (cs.get("callsign") or str(cs)): {
+                        "last_band": cs.get("last_band"),
+                        "preferred_bands": cs.get("preferred_bands") or [],
+                    }
+                    for cs in registered
+                    if cs.get("callsign")
+                }
+            except Exception as e:
+                logger.debug("Load whitelisted_callsign_bands failed: %s", e)
+                state.context["whitelisted_callsign_bands"] = {}
+        else:
+            state.context["whitelisted_callsign_bands"] = {}
 
         # Load memory context before loop when callsign and memory_manager are set
         if callsign and self.memory_manager:
@@ -156,7 +177,15 @@ class REACTOrchestrator:
                     logger.warning("Memory append_messages failed: %s", e)
                 try:
                     from radioshaq.memory.hindsight import retain_exchange
-                    await asyncio.to_thread(retain_exchange, callsign, request, state.final_response)
+                    from radioshaq.config.resolve import get_memory_config_for_role
+                    memory_config = getattr(self, "_config", None) and get_memory_config_for_role(self._config, "orchestrator")
+                    await asyncio.to_thread(
+                        retain_exchange,
+                        callsign,
+                        request,
+                        state.final_response,
+                        config=memory_config,
+                    )
                 except Exception as e:
                     logger.debug("Hindsight retain failed (non-fatal): %s", e)
             return REACTResult(
@@ -345,6 +374,41 @@ class REACTOrchestrator:
 
         return state
 
+    def _build_phase_context(self, state: REACTState) -> dict[str, str]:
+        """Build context dict for prompt loader: inbound_metadata_summary, callsign_bands_summary, and phase placeholders."""
+        ctx = state.context
+        inbound = ctx.get("inbound_metadata") or {}
+        if isinstance(inbound, dict) and inbound:
+            parts = [f"Band: {inbound.get('band', '')}", f"frequency_hz: {inbound.get('frequency_hz')}"]
+            if inbound.get("destination_callsign"):
+                parts.append(f"destination_callsign: {inbound['destination_callsign']}")
+            inbound_metadata_summary = "**Radio (radio_rx) inbound:** " + ", ".join(str(p) for p in parts) + "\n"
+        else:
+            inbound_metadata_summary = ""
+
+        bands = ctx.get("whitelisted_callsign_bands") or {}
+        if isinstance(bands, dict) and bands:
+            lines = [
+                f"{cs}: last_band={info.get('last_band') or '-'} preferred={info.get('preferred_bands') or []}"
+                for cs, info in bands.items()
+            ]
+            callsign_bands_summary = "**Callsign bands:** " + "; ".join(lines) + "\n"
+        else:
+            callsign_bands_summary = ""
+
+        return {
+            "current_phase": getattr(state, "phase", "REASONING") or "REASONING",
+            "task_id": state.task_id,
+            "iteration": str(state.iteration),
+            "max_iterations": str(self.max_iterations),
+            "runtime_context": "",
+            "inbound_metadata_summary": inbound_metadata_summary,
+            "callsign_bands_summary": callsign_bands_summary,
+            "active_tasks": "",
+            "completed_tasks": "",
+            "upstream_memories": "",
+        }
+
     def _inject_memory_into_system(self, state: REACTState, system_content: str) -> str:
         """Prepend memory context (core blocks, summaries, time) to system prompt when available."""
         prefix = state.context.get("memory_system_prefix", "").strip()
@@ -363,7 +427,7 @@ class REACTOrchestrator:
         )
 
     def _inject_agent_context(self, state: REACTState, task_dict: dict[str, Any]) -> None:
-        """Inject request-level context (callsign, original_request) into task_dict for agents that need it."""
+        """Inject request-level context (callsign, station_callsign, original_request) into task_dict for agents that need it."""
         ctx = state.context
         callsign = ctx.get("callsign")
         original = state.original_request or ""
@@ -371,6 +435,19 @@ class REACTOrchestrator:
 
         if not agent_name:
             return
+
+        config = getattr(self, "_config", None)
+        if config and agent_name == "whitelist" and not (task_dict.get("station_callsign") or "").strip():
+            # Inject this station's callsign so whitelist can identify in replies (e.g. "This is K5ABC. You're approved.")
+            field_cfg = getattr(config, "field", None)
+            radio_cfg = getattr(config, "radio", None)
+            station = (
+                (getattr(field_cfg, "callsign", None) if field_cfg else None)
+                or (getattr(radio_cfg, "station_callsign", None) if radio_cfg else None)
+                or (getattr(radio_cfg, "packet_callsign", None) if radio_cfg else None)
+            )
+            if station and str(station).strip():
+                task_dict["station_callsign"] = str(station).strip().upper()
 
         # Agents that use callsign: inject when payload doesn't already have it
         if callsign and isinstance(callsign, str) and callsign.strip():
@@ -401,7 +478,8 @@ class REACTOrchestrator:
             )
             try:
                 if self.prompt_loader:
-                    system_content = self.prompt_loader.load_for_phase("reasoning")
+                    phase_ctx = self._build_phase_context(state)
+                    system_content = self.prompt_loader.load_for_phase("reasoning", **phase_ctx)
             except Exception:
                 pass
             system_content = self._inject_memory_into_system(state, system_content)
@@ -447,7 +525,8 @@ class REACTOrchestrator:
                 )
                 try:
                     if self.prompt_loader:
-                        system_content = self.prompt_loader.load_for_phase("reasoning") or system_content
+                        phase_ctx = self._build_phase_context(state)
+                        system_content = self.prompt_loader.load_for_phase("reasoning", **phase_ctx) or system_content
                 except Exception:
                     pass
                 system_content = self._inject_memory_into_system(state, system_content)
@@ -635,7 +714,15 @@ class REACTOrchestrator:
         style = getattr(radio_cfg, "response_radio_format_style", "over") or "over"
         if style == "none":
             return
-        station = getattr(radio_cfg, "station_callsign", None) or getattr(radio_cfg, "packet_callsign", None)
+        # Prefer field.callsign (station identity from setup), then radio.station_callsign, then packet_callsign
+        field_cfg = getattr(config, "field", None)
+        station = (
+            (getattr(field_cfg, "callsign", None) if field_cfg else None)
+            or getattr(radio_cfg, "station_callsign", None)
+            or getattr(radio_cfg, "packet_callsign", None)
+        )
+        if station:
+            station = (station or "").strip().upper() or None
         caller = state.context.get("callsign")
         state.final_response = format_response_for_radio(
             state.final_response,

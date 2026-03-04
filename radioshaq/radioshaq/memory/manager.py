@@ -346,6 +346,28 @@ class MemoryManager:
             rows = result.fetchall()
         return [r[0] for r in rows]
 
+    async def delete_messages_older_than(
+        self, cutoff: datetime, *, limit: int = 10_000
+    ) -> int:
+        """Delete memory_messages rows with created_at < cutoff. Returns count deleted. Batch limited by limit."""
+        async with self.async_session() as session:
+            result = await session.execute(
+                text(
+                    """
+                    DELETE FROM memory_messages
+                    WHERE id IN (
+                        SELECT id FROM memory_messages
+                        WHERE created_at < :cutoff
+                        ORDER BY id
+                        LIMIT :limit
+                    )
+                    """
+                ),
+                {"cutoff": cutoff, "limit": limit},
+            )
+            await session.commit()
+            return result.rowcount or 0
+
     async def close(self) -> None:
         """Close database connections."""
         await self.engine.dispose()

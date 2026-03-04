@@ -120,6 +120,10 @@ module.exports = {
         HINDSIGHT_API_LLM_PROVIDER: process.env.HINDSIGHT_API_LLM_PROVIDER || 'openai',
         HINDSIGHT_API_LLM_API_KEY: process.env.HINDSIGHT_API_LLM_API_KEY || '',
         HINDSIGHT_API_LLM_MODEL: process.env.HINDSIGHT_API_LLM_MODEL || 'gpt-4o-mini',
+        // Same Postgres as RadioShaq when running on host (Docker Postgres on 5434)
+        HINDSIGHT_API_DATABASE_URL: process.env.HINDSIGHT_API_DATABASE_URL || 'postgresql://radioshaq:radioshaq@127.0.0.1:5434/radioshaq',
+        HINDSIGHT_API_DATABASE_SCHEMA: process.env.HINDSIGHT_API_DATABASE_SCHEMA || 'hindsight',
+        HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP: process.env.HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP || 'true',
       },
       log_file: path.join(logsDir, 'hindsight-api.log'),
       out_file: path.join(logsDir, 'hindsight-api-out.log'),

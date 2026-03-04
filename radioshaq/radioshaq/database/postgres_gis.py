@@ -6,7 +6,7 @@ and spatial queries using SQLAlchemy and PostGIS.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from geoalchemy2.functions import ST_DWithin, ST_GeogFromText
@@ -292,16 +292,20 @@ class PostGISManager:
         mode: str | None = None,
         since: str | None = None,  # ISO timestamp
         limit: int = 100,
+        band: str | None = None,
+        destination_only: bool = False,
     ) -> list[dict[str, Any]]:
         """Search transcripts by various criteria.
         
         Args:
-            callsign: Filter by source or destination callsign
+            callsign: Filter by source or destination callsign (or destination only if destination_only=True)
             frequency_min: Minimum frequency in Hz
             frequency_max: Maximum frequency in Hz
             mode: Filter by mode
             since: Filter by timestamp (ISO format)
             limit: Maximum results
+            band: Filter by band name (extra_data->>'band')
+            destination_only: If True and callsign set, only transcripts where destination_callsign == callsign
             
         Returns:
             List of transcript dicts
@@ -311,10 +315,13 @@ class PostGISManager:
             
             if callsign:
                 callsign_upper = callsign.upper()
-                query = query.where(
-                    (Transcript.source_callsign == callsign_upper)
-                    | (Transcript.destination_callsign == callsign_upper)
-                )
+                if destination_only:
+                    query = query.where(Transcript.destination_callsign == callsign_upper)
+                else:
+                    query = query.where(
+                        (Transcript.source_callsign == callsign_upper)
+                        | (Transcript.destination_callsign == callsign_upper)
+                    )
             
             if frequency_min is not None:
                 query = query.where(Transcript.frequency_hz >= frequency_min)
@@ -333,10 +340,68 @@ class PostGISManager:
                 if since_dt is not None:
                     query = query.where(Transcript.timestamp >= since_dt)
             
+            if band:
+                query = query.where(text("extra_data->>'band' = :band").bindparams(band=band))
+            
             query = query.order_by(Transcript.timestamp.desc()).limit(limit)
             
             result = await session.execute(query)
             return [row.to_dict() for row in result.scalars()]
+
+    async def delete_transcripts_older_than(
+        self,
+        cutoff: datetime,
+        *,
+        source: str | None = None,
+        limit: int = 10_000,
+    ) -> int:
+        """Delete transcript rows with timestamp < cutoff. Optionally filter by extra_data->>'source'.
+        Returns number of rows deleted. Batch size limited by limit."""
+        async with self.async_session() as session:
+            subq = (
+                select(Transcript.id)
+                .where(Transcript.timestamp < cutoff)
+                .order_by(Transcript.id)
+                .limit(limit)
+            )
+            if source is not None:
+                subq = subq.where(text("extra_data->>'source' = :source").bindparams(source=source))
+            stmt = delete(Transcript).where(Transcript.id.in_(subq))
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount or 0
+
+    async def search_pending_relay_deliveries(self, limit: int = 50) -> list[dict[str, Any]]:
+        """Return transcripts with deliver_at set, deliver_at <= now, and delivery_status != 'delivered'."""
+        async with self.async_session() as session:
+            # extra_data->>'deliver_at' present, (delivery_status is null or != 'delivered'), deliver_at <= now
+            query = (
+                select(Transcript)
+                .where(text("extra_data ? 'deliver_at'"))
+                .where(
+                    (text("extra_data->>'delivery_status' IS NULL"))
+                    | (text("extra_data->>'delivery_status' != 'delivered'"))
+                )
+                .where(text("(extra_data->>'deliver_at')::timestamptz <= now()"))
+                .order_by(text("(extra_data->>'deliver_at')::timestamptz ASC"))
+                .limit(limit)
+            )
+            result = await session.execute(query)
+            return [row.to_dict() for row in result.scalars()]
+
+    async def mark_transcript_delivery_done(self, transcript_id: int) -> bool:
+        """Set delivery_status to 'delivered' and delivered_at to now in extra_data. Returns True if updated."""
+        async with self.async_session() as session:
+            result = await session.execute(select(Transcript).where(Transcript.id == transcript_id))
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            extra = dict(row.extra_data or {})
+            extra["delivery_status"] = "delivered"
+            extra["delivered_at"] = datetime.now(timezone.utc).isoformat()
+            row.extra_data = extra
+            await session.commit()
+            return True
     
     async def store_coordination_event(
         self,
@@ -507,7 +572,12 @@ class PostGISManager:
             )
             return [row.to_dict() for row in result.scalars()]
 
-    async def register_callsign(self, callsign: str, source: str = "api") -> int:
+    async def register_callsign(
+        self,
+        callsign: str,
+        source: str = "api",
+        preferred_bands: list[str] | None = None,
+    ) -> int:
         """Register a callsign. If already present, return its id. Returns new or existing id."""
         normalized = callsign.strip().upper()
         if not normalized:
@@ -518,12 +588,53 @@ class PostGISManager:
             )
             row = existing.scalar_one_or_none()
             if row:
+                if preferred_bands is not None:
+                    row.preferred_bands = preferred_bands
+                    await session.commit()
                 return row.id
-            rec = RegisteredCallsign(callsign=normalized, source=source)
+            rec = RegisteredCallsign(
+                callsign=normalized,
+                source=source,
+                preferred_bands=preferred_bands,
+            )
             session.add(rec)
             await session.commit()
             await session.refresh(rec)
             return rec.id
+
+    async def update_callsign_last_band(self, callsign: str, band: str) -> bool:
+        """Set last_band for a registered callsign. Returns True if updated."""
+        normalized = callsign.strip().upper()
+        band = (band or "").strip() or None
+        if not normalized:
+            return False
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(RegisteredCallsign).where(RegisteredCallsign.callsign == normalized)
+            )
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            row.last_band = band
+            await session.commit()
+            return True
+
+    async def update_callsign_preferred_bands(self, callsign: str, preferred_bands: list[str]) -> bool:
+        """Set preferred_bands for a registered callsign. Returns True if updated."""
+        normalized = callsign.strip().upper()
+        if not normalized:
+            return False
+        bands = [b.strip() for b in preferred_bands if isinstance(b, str) and b.strip()]
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(RegisteredCallsign).where(RegisteredCallsign.callsign == normalized)
+            )
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            row.preferred_bands = bands if bands else None
+            await session.commit()
+            return True
 
     async def unregister_callsign(self, callsign: str) -> bool:
         """Remove a callsign from the registry. Returns True if a row was deleted."""

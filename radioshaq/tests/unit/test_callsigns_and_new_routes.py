@@ -162,6 +162,24 @@ def test_transcripts_search_with_auth_returns_200(
 
 
 @pytest.mark.unit
+def test_transcripts_search_accepts_band_and_destination_only(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """GET /transcripts with band and destination_only returns 200 and response shape."""
+    r = client.get(
+        "/transcripts",
+        headers=auth_headers,
+        params={"callsign": "W1XYZ", "band": "2m", "destination_only": "true"},
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert "transcripts" in data
+    assert "count" in data
+    assert isinstance(data["transcripts"], list)
+    assert isinstance(data["count"], int)
+
+
+@pytest.mark.unit
 def test_transcripts_get_by_id_no_db_returns_503(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
@@ -175,6 +193,51 @@ def test_transcripts_play_no_db_or_no_agent_returns_503_or_404(
 ) -> None:
     r = client.post("/transcripts/1/play", headers=auth_headers)
     assert r.status_code in (503, 404)
+
+
+# ----- Receiver upload -----
+
+
+@pytest.mark.unit
+def test_receiver_upload_requires_auth(client: TestClient) -> None:
+    """POST /receiver/upload without token returns 401."""
+    r = client.post(
+        "/receiver/upload",
+        json={
+            "station_id": "RECV1",
+            "operator_id": "op1",
+            "timestamp": "2026-03-04T12:00:00Z",
+            "frequency_hz": 7.15e6,
+            "signal_strength_db": -10.0,
+            "decoded_text": "test",
+            "mode": "FM",
+        },
+    )
+    assert r.status_code == 401
+
+
+@pytest.mark.unit
+def test_receiver_upload_with_auth_returns_200(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """POST /receiver/upload with auth returns 200 and status ok (store/inject depend on config)."""
+    r = client.post(
+        "/receiver/upload",
+        headers=auth_headers,
+        json={
+            "station_id": "RECV1",
+            "operator_id": "op1",
+            "timestamp": "2026-03-04T12:00:00Z",
+            "frequency_hz": 7.15e6,
+            "signal_strength_db": -10.0,
+            "decoded_text": "hello 40m",
+            "mode": "FM",
+        },
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data.get("status") == "ok"
+    assert data.get("received") == "RECV1"
 
 
 # ----- Radio send-tts (with auth) -----

@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.radio.bands import BAND_PLANS
 
 router = APIRouter()
 
@@ -22,6 +23,13 @@ class RegisterBody(BaseModel):
 
     callsign: str = Field(..., min_length=3, max_length=10)
     source: str = Field("api", description="api or audio")
+    preferred_bands: list[str] | None = Field(None, description="Preferred bands e.g. [40m, 2m]")
+
+
+class PatchCallsignBandsBody(BaseModel):
+    """Body for PATCH /callsigns/registered/{callsign}."""
+
+    preferred_bands: list[str] = Field(..., min_length=0, description="Preferred bands e.g. [40m, 2m]")
 
 
 def _normalize_callsign(callsign: str) -> str:
@@ -35,6 +43,19 @@ def _validate_callsign(callsign: str) -> None:
             status_code=400,
             detail="Callsign must be 3–7 alphanumeric chars, optional -digit (e.g. K5ABC or W1XYZ-1)",
         )
+
+
+def _validate_bands(bands: list[str]) -> list[str]:
+    """Validate band names against BAND_PLANS. Returns normalized list. Raises HTTPException if invalid."""
+    out = []
+    for b in bands:
+        s = (b or "").strip()
+        if not s:
+            continue
+        if s not in BAND_PLANS:
+            raise HTTPException(status_code=400, detail=f"Unknown band: {s}. Use e.g. 40m, 2m, 20m")
+        out.append(s)
+    return out
 
 
 @router.get("")
@@ -66,10 +87,13 @@ async def register_callsign(
     source = (body.source or "api").strip().lower()
     if source not in ("api", "audio"):
         source = "api"
+    preferred_bands = None
+    if body.preferred_bands:
+        preferred_bands = _validate_bands(body.preferred_bands)
     repo = getattr(request.app.state, "callsign_repository", None)
     if repo is not None:
         try:
-            row_id = await repo.register(normalized, source=source)
+            row_id = await repo.register(normalized, source=source, preferred_bands=preferred_bands)
             return {"ok": True, "callsign": normalized, "id": row_id}
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -77,7 +101,7 @@ async def register_callsign(
     if db is None:
         raise HTTPException(status_code=503, detail="Database not available")
     try:
-        row_id = await db.register_callsign(normalized, source=source)
+        row_id = await db.register_callsign(normalized, source=source, preferred_bands=preferred_bands)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return {"ok": True, "callsign": normalized, "id": row_id}
@@ -143,6 +167,32 @@ async def register_from_audio(
         return {"ok": True, "callsign": normalized, "id": row_id, "transcript": transcript[:500]}
     finally:
         Path(temp_path).unlink(missing_ok=True)
+
+
+@router.patch("/registered/{callsign:path}")
+async def patch_callsign_bands(
+    request: Request,
+    callsign: str,
+    body: PatchCallsignBandsBody,
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Set preferred_bands for a registered callsign. Band names must be in BAND_PLANS (e.g. 40m, 2m)."""
+    normalized = _normalize_callsign(callsign)
+    _validate_callsign(callsign)
+    bands = _validate_bands(body.preferred_bands)
+    repo = getattr(request.app.state, "callsign_repository", None)
+    if repo is not None:
+        updated = await repo.update_preferred_bands(normalized, bands)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Callsign not in registry")
+        return {"ok": True, "callsign": normalized, "preferred_bands": bands}
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "update_callsign_preferred_bands"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    updated = await db.update_callsign_preferred_bands(normalized, bands)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Callsign not in registry")
+    return {"ok": True, "callsign": normalized, "preferred_bands": bands}
 
 
 @router.delete("/registered/{callsign:path}")

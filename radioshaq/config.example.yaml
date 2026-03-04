@@ -59,14 +59,35 @@ llm:
 
 # -----------------------------------------------------------------------------
 # Memory (per-callsign memory, Hindsight, daily summaries)
+# Embeddings run inside the Hindsight service; radioshaq does not call an
+# embedding API. Optional hindsight_embedding_model is passed to Hindsight if supported.
 # -----------------------------------------------------------------------------
 memory:
   enabled: true
   hindsight_base_url: "http://localhost:8888"
   hindsight_enabled: true
+  hindsight_embedding_model: null   # Optional; if Hindsight supports it
   recent_messages_limit: 40
   daily_summary_days: 7
   summary_timezone: "America/New_York"
+
+# -----------------------------------------------------------------------------
+# Per-role / per-subagent overrides (optional). Missing fields fall back to llm / memory above.
+# LLM keys: orchestrator, judge, whitelist, daily_summary, or any specialized agent name
+# (e.g. whitelist, gis, radio_tx, scheduler). Only whitelist uses an LLM today; other
+# agent keys apply when/if that agent gets an LLM.
+# -----------------------------------------------------------------------------
+# llm_overrides:
+#   whitelist:                    # WhitelistAgent (only LLM-using subagent today)
+#     provider: custom
+#     model: ollama/llama2
+#     custom_api_base: "http://localhost:11434"
+#   daily_summary:
+#     model: mistral-small-latest
+#   # Future: gis, scheduler, etc. if they get an LLM
+# memory_overrides:
+#   memory:
+#     hindsight_base_url: "http://hindsight-alt:8888"
 
 # -----------------------------------------------------------------------------
 # Radio (CAT, FLDIGI, packet, SDR TX, voice)
@@ -143,25 +164,28 @@ audio:
   response_delay_ms: 500
   response_cooldown_seconds: 5.0
   trigger_enabled: true
-  trigger_phrases:
+  trigger_phrases:               # Phrases that activate voice processing (set via setup or YAML)
     - radioshaq
     - field station
   trigger_match_mode: contains   # exact | contains | starts_with | fuzzy
-  trigger_callsign: null
+  trigger_callsign: null         # Optional: only process when this callsign is in the transcript
   trigger_min_confidence: 0.7
   audio_activation_enabled: false
-  audio_activation_phrase: radioshaq
+  audio_activation_phrase: radioshaq   # Phrase required before processing when audio_activation_enabled
   audio_activation_mode: session  # session | per_message
   ptt_coordination_enabled: true
   ptt_cooldown_ms: 500
   break_in_enabled: true
+  # Voice → MessageBus (default capture path for orchestrator)
+  voice_publish_to_bus: true     # Publish transcribed voice segments to MessageBus
+  voice_source_callsign_default: null   # Sender for voice when not parsed (null = UNKNOWN)
 
 # -----------------------------------------------------------------------------
 # Field mode (when mode: field)
 # -----------------------------------------------------------------------------
 field:
   station_id: FIELD-01
-  callsign: null
+  callsign: null          # This station's ham callsign (e.g. K5ABC). Set via setup or RADIOSHAQ_FIELD__CALLSIGN
   hq_base_url: "https://hq.radioshaq.example.com"
   hq_ws_url: null                # derived from hq_base_url if not set
   hq_auth_token: null

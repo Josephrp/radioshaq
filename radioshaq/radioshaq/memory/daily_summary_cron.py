@@ -8,9 +8,10 @@ from zoneinfo import ZoneInfo
 
 from loguru import logger
 
+from radioshaq.config.resolve import get_llm_config_for_role
 from radioshaq.config.schema import Config
 from radioshaq.llm.client import LLMClient
-from radioshaq.orchestrator.factory import _llm_api_key, _llm_model_string
+from radioshaq.orchestrator.factory import _llm_api_key_from_llm_config, _llm_model_string_from_llm_config
 
 DEFAULT_TZ = ZoneInfo("America/New_York")
 SUMMARY_PROMPT = """You are summarizing a day's conversation between a ham radio operator and SHAKODS (an AI assistant for ham radio operations).
@@ -107,12 +108,13 @@ async def run_midnight_cron_loop(
     Background loop: sleep until next midnight, run daily summary job, repeat.
     """
     from radioshaq.memory.manager import MemoryManager
-    from radioshaq.orchestrator.factory import _llm_model_string, _llm_api_key
     from radioshaq.llm.client import LLMClient
 
-    model = _llm_model_string(config)
-    api_key = _llm_api_key(config)
-    llm = LLMClient(model=model, api_key=api_key, temperature=0.2, max_tokens=512)
+    llm_cfg = get_llm_config_for_role(config, "daily_summary")
+    model = _llm_model_string_from_llm_config(llm_cfg)
+    api_key = _llm_api_key_from_llm_config(llm_cfg)
+    api_base = getattr(llm_cfg, "custom_api_base", None)
+    llm = LLMClient(model=model, api_key=api_key, api_base=api_base, temperature=0.2, max_tokens=512)
 
     while True:
         now = datetime.now(timezone)

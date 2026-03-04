@@ -5,6 +5,7 @@ import { CallsignsPage } from './features/callsigns/CallsignsPage';
 import { MessagesPage } from './features/messages/MessagesPage';
 import { TranscriptsPage } from './features/transcripts/TranscriptsPage';
 import { RadioPage } from './features/radio/RadioPage';
+import { SettingsPage } from './features/settings/SettingsPage';
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
           <Route path="messages" element={<MessagesPage />} />
           <Route path="transcripts" element={<TranscriptsPage />} />
           <Route path="radio" element={<RadioPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>
     </BrowserRouter>

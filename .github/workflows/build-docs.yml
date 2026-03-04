@@ -29,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full history for git-revision-date-localized-plugin
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -39,6 +41,11 @@ jobs:
         run: uv sync --directory radioshaq
       - name: Export OpenAPI
         run: uv run --directory radioshaq python scripts/export_openapi.py
+      - name: Sync config examples into docs
+        run: |
+          mkdir -p docs/reference
+          cp radioshaq/.env.example docs/reference/.env.example
+          cp radioshaq/config.example.yaml docs/reference/config.example.yaml
       - name: Build MkDocs
         run: mkdocs build -f .github/mkdocs.yml
       - name: Upload GitHub Pages artifact

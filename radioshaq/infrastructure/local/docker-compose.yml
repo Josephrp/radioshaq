@@ -5,9 +5,12 @@
 # (or use default in config).
 #
 # Usage:
-#   docker-compose up -d postgres   # Start Postgres on 5434
-#   docker-compose down
-#   docker-compose logs postgres
+#   docker compose up -d postgres   # Start Postgres on 5434
+#   docker compose --profile hindsight up -d postgres hindsight   # Postgres + Hindsight (memory)
+#   radioshaq launch docker         # Same as first (from project root)
+#   radioshaq launch docker --hindsight   # Same as second
+#   docker compose down
+#   docker compose logs postgres
 
 services:
   # ==========================================

@@ -116,6 +116,8 @@ class RegisteredCallsign(Base):
         DateTime(timezone=True),
         server_default=func.now(),
     )
+    preferred_bands: Mapped[list | None] = mapped_column(JSON, nullable=True)  # e.g. ["40m", "2m"]
+    last_band: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
@@ -124,6 +126,8 @@ class RegisteredCallsign(Base):
             "callsign": self.callsign,
             "source": self.source,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "preferred_bands": self.preferred_bands,
+            "last_band": self.last_band,
         }
 
 

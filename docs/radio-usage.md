@@ -52,15 +52,15 @@ Use case: **Whitelist** entry point; optional TTS so the reply can be played ove
 
 ### Relay or coordination request
 
-Operator asks to relay a message or schedule a contact. The station may use tools (e.g. `send_audio_over_radio`) or delegate to the scheduler/gis agents.
+Operator asks to relay a message or schedule a contact. The station uses the **relay_message_between_bands** tool (or you can call **POST /messages/relay**). The message is stored; the recipient (e.g. W1ABC) polls `GET /transcripts?callsign=W1ABC&destination_only=true&band=40m` to retrieve it. Optional site config can enable inject or TX on the target band.
 
 | Turn | Speaker | Content |
 |------|--------|--------|
 | 1 | User (W2XYZ) | W2XYZ. Need a relay to 40 meters for W1ABC, message: “Net at 1900 UTC on 7.185.” |
 | 2 | Station | W2XYZ, copy. I’ll pass that to 40 meters for W1ABC: net at 1900 UTC on 7.185. Stand by. |
-| 3 | Station | Relay sent. Anything else? Over. |
+| 3 | Station | Relay sent. W1ABC can pick it up on transcripts. Anything else? Over. |
 
-Use case: **API / MessageBus** with `sender_id`; the planner may decompose into a radio_tx or relay task and the station confirms.
+Use case: **API / MessageBus** with `sender_id`; the orchestrator calls the relay tool (or you POST /messages/relay). Delivery is poll-based unless the site enables relay_inject_target_band or relay_tx_target_band.
 
 ---
 
