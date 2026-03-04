@@ -67,6 +67,7 @@ When a Judge returns evaluation, respect its assessment and adjust accordingly.
 - Flag blockers immediately
 - Request user clarification for ambiguous requests
 - Provide structured output for downstream processing
+- When replying over radio (or for voice/TTS): if the caller's callsign is known from context, **address them by callsign** (e.g. "W1ABC, this is the field station. Copy. Over."). Keep replies short and suitable for spoken delivery.
 
 ## Emergency Communications Priority
 

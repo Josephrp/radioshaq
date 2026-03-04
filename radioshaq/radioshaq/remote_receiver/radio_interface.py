@@ -6,7 +6,7 @@ import asyncio
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import AsyncIterator
+from typing import TYPE_CHECKING, AsyncIterator
 
 from loguru import logger
 
@@ -28,7 +28,7 @@ class SignalSample:
         return self.strength_db >= -90.0
 
 
-def create_sdr_from_env() -> "SDRInterface":
+def create_sdr_from_env() -> SDRInterface:
     """
     Build SDR from environment. SDR_TYPE=rtlsdr (default) or hackrf.
     RTL-SDR: RTLSDR_INDEX (default 0).
@@ -36,7 +36,8 @@ def create_sdr_from_env() -> "SDRInterface":
     """
     sdr_type = os.environ.get("SDR_TYPE", "rtlsdr").strip().lower()
     if sdr_type == "hackrf":
-        from receiver.backends.hackrf_backend import HackRFBackend
+        from radioshaq.remote_receiver.backends.hackrf_backend import HackRFBackend
+
         index = int(os.environ.get("HACKRF_INDEX", "0"))
         serial = os.environ.get("HACKRF_SERIAL") or None
         sample_rate = int(os.environ.get("HACKRF_SAMPLE_RATE", "10000000"))
@@ -46,7 +47,8 @@ def create_sdr_from_env() -> "SDRInterface":
             sample_rate=sample_rate,
         )
     else:
-        from receiver.backends.rtlsdr_backend import RtlSdrBackend
+        from radioshaq.remote_receiver.backends.rtlsdr_backend import RtlSdrBackend
+
         index = int(os.environ.get("RTLSDR_INDEX", "0"))
         sample_rate = int(os.environ.get("RTLSDR_SAMPLE_RATE", "2400000"))
         backend = RtlSdrBackend(device_index=index, sample_rate=sample_rate)
@@ -59,12 +61,17 @@ class SDRInterface:
     Use create_sdr_from_env() to build from environment.
     """
 
-    def __init__(self, backend: "SDRBackend | None" = None, device_index: int = 0, sample_rate: int = 2_400_000):
+    def __init__(
+        self,
+        backend: SDRBackend | None = None,
+        device_index: int = 0,
+        sample_rate: int = 2_400_000,
+    ):
         if backend is not None:
             self._backend = backend
         else:
-            # Legacy: no backend given, build RTL-SDR backend
-            from receiver.backends.rtlsdr_backend import RtlSdrBackend
+            from radioshaq.remote_receiver.backends.rtlsdr_backend import RtlSdrBackend
+
             self._backend = RtlSdrBackend(device_index=device_index, sample_rate=sample_rate)
 
     async def initialize(self) -> None:
@@ -98,7 +105,5 @@ class SDRInterface:
         await self._backend.close()
 
 
-# Type alias for backend protocol (avoid circular import at runtime)
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from receiver.backends.base import SDRBackend
+    from radioshaq.remote_receiver.backends.base import SDRBackend

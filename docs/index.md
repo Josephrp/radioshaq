@@ -70,7 +70,7 @@ RadioShaq can run in three **modes**, set by configuration (`mode: field | hq | 
 
 - **HQ** — Central coordination. The server listens for connections from field stations, can run the API and WebSocket for dashboards, and may manage field registration and coordination. HQ config includes host/port, WebSocket settings, and field-station limits.
 
-- **Receiver** — Listen-only. Intended for a remote receiver (e.g. RTL-SDR on a Pi) that streams audio or data to HQ or a field station. The main RadioShaq app is usually run as **field** or **hq**; the “receiver” role is often implemented by a separate service (e.g. `remote_receiver`) that forwards received data and uses the same auth (JWT, station ID).
+- **Receiver** — Listen-only. Intended for a remote receiver (e.g. RTL-SDR on a Pi) that streams audio or data to HQ or a field station. The main RadioShaq app is usually run as **field** or **hq**; the “receiver” role is often implemented by a separate service (e.g. `radioshaq.remote_receiver`) forwards SDR data to HQ via `POST /receiver/upload` (same JWT auth). Run with `radioshaq run-receiver`.
 
 So: you **set up** one or more field stations (and optionally an HQ and remote receivers), **configure** database, LLM, radio, and audio, then **operate** by sending messages to the API (e.g. `POST /messages/process`) or by using the voice pipeline (when enabled) so the agent can hear and respond over the air.
 
@@ -84,7 +84,7 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
 
 - **HQ** — Same app, `mode: hq`, often without a physical rig; used for aggregation and coordination.
 
-- **Remote receiver** — A separate receiver service (e.g. RTL-SDR) that sends audio or transcripts to the main app or HQ; not the same process as the RadioShaq API.
+- **Remote receiver** — Run `radioshaq run-receiver` (same package); SDR data is sent to the main app or HQ via `POST /receiver/upload`.
 
 ---
 
@@ -97,5 +97,21 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
 - **Callsign whitelist** — Static list plus DB-backed registration; optional “registry required” for relay/store.
 - **Transcripts, relay, inject** — Store transcripts, relay traffic between bands, and inject test audio for demos and integration.
 - **Compliance** — TX audit log, band allowlist, and region-based restricted bands (e.g. FCC, CEPT) to keep operations within regulations.
+
+---
+
+## CLI
+
+- **CLI reference (brief):** 
+
+  - Auth: `radioshaq token` (then set `RADIOSHAQ_TOKEN`).
+  - Send a message to the REACT loop: `radioshaq message process "your text"`. 
+  - Whitelist request: `radioshaq message whitelist-request "text"`. 
+  - Inject for demo: `radioshaq message inject "text"`. 
+  - List transcripts: `radioshaq transcripts list`. 
+  - Health: `radioshaq health`. 
+  - Start API: `radioshaq run-api`.
+
+---
 
 For hardware connection details (IC-7300, FT-450D, RTL-SDR, etc.), see [Radio Usage](radio-usage.md). For all configuration options and how to set them, see [Configuration](configuration.md).

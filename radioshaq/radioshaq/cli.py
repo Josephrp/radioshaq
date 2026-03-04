@@ -158,6 +158,18 @@ def run_api(
     )
 
 
+@app.command()
+def run_receiver(
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Bind host"),
+    port: int = typer.Option(8765, "--port", "-p", help="Bind port"),
+) -> None:
+    """Run the remote receiver service (SDR, JWT auth, HQ upload). Set JWT_SECRET, STATION_ID, HQ_URL."""
+    from radioshaq.remote_receiver.server import main
+    os.environ.setdefault("RECEIVER_HOST", host)
+    os.environ.setdefault("RECEIVER_PORT", str(port))
+    main()
+
+
 # -----------------------------------------------------------------------------
 # Callsigns group
 # -----------------------------------------------------------------------------
@@ -422,6 +434,82 @@ def radio_send_tts(
         body["mode"] = mode
     _api_post("/radio/send-tts", json=body, base_url=base_url)
     typer.echo("Sent TTS.")
+
+
+# -----------------------------------------------------------------------------
+# Setup (interactive / non-interactive)
+# -----------------------------------------------------------------------------
+
+
+@app.command("setup")
+def setup(
+    interactive: bool = typer.Option(
+        True,
+        "--interactive/--no-interactive",
+        help="Run with prompts (default). Use --no-interactive for CI.",
+    ),
+    no_input: bool = typer.Option(
+        False,
+        "--no-input/--input",
+        help="Non-interactive: use env/flags only, no prompts.",
+    ),
+    ci: bool = typer.Option(
+        False,
+        "--ci",
+        help="Same as --no-input (for CI/scripts).",
+    ),
+    quick: bool = typer.Option(
+        False,
+        "--quick/--full",
+        help="Minimal prompts (mode, Docker for DB?), then defaults.",
+    ),
+    reconfigure: bool = typer.Option(
+        False,
+        "--reconfigure/--fresh",
+        help="Update existing configuration (merge) instead of starting fresh.",
+    ),
+    config_dir: Optional[Path] = typer.Option(
+        None,
+        "--config-dir",
+        path_type=Path,
+        help="Directory for config.yaml and .env (default: project root).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Overwrite existing .env/config without asking.",
+    ),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        "-m",
+        help="Mode for --no-input: field | hq | receiver.",
+    ),
+    db_url: Optional[str] = typer.Option(
+        None,
+        "--db-url",
+        help="PostgreSQL URL for --no-input (e.g. postgresql://user:pass@host:5434/db).",
+    ),
+) -> None:
+    """Interactive setup: create .env and config.yaml in project root (or --config-dir).
+
+    By default writes to the directory containing pyproject.toml (project root).
+    Use --no-input or --ci with --mode and optionally --db-url for CI/scripts.
+    Use --quick for minimal prompts; --reconfigure to update only selected sections.
+    See docs/quick-start.md and docs/configuration.md.
+    """
+    from radioshaq.setup import run_setup
+    exit_code = run_setup(
+        interactive=interactive,
+        no_input=no_input or ci,
+        quick=quick,
+        reconfigure=reconfigure,
+        config_dir=config_dir,
+        force=force,
+        mode=mode,
+        db_url=db_url,
+    )
+    raise typer.Exit(exit_code)
 
 
 # -----------------------------------------------------------------------------

@@ -21,6 +21,28 @@ Env wins over the file; the file wins over defaults. Use env for secrets and dep
 
 ---
 
+## Example files
+
+Two reference files in the `radioshaq/` directory provide exhaustive listings of every option:
+
+- **[.env.example](../radioshaq/.env.example)** — Every environment variable: `RADIOSHAQ_*` (and `__` for nested keys), plus `DATABASE_URL` / `POSTGRES_*` (for Alembic), `MISTRAL_API_KEY`, `ELEVENLABS_API_KEY`, `RADIOSHAQ_BUS_CONSUMER_ENABLED`, `API_HOST`, `API_PORT`, and other runtime variables. Copy to `.env` and set values as needed.
+- **[config.example.yaml](../radioshaq/config.example.yaml)** — Full YAML configuration mirroring the schema (core, database, jwt, llm, memory, radio, audio, field, hq, pm2). Copy to `config.yaml` in the same directory (or set the path via your app’s config path). Env vars override file values.
+
+Use these as the single source of truth for option names and env var spelling.
+
+### Interactive setup
+
+Run **`radioshaq setup`** from the `radioshaq/` directory (project root) to create or update `.env` and `config.yaml` via prompts:
+
+- **First-time:** Prompts for mode, database (Docker / URL / skip), JWT secret, LLM provider and API key (optional), then optional radio, memory, and field/HQ settings. Writes to project root by default; use `--config-dir` to override.
+- **Reconfigure:** `radioshaq setup --reconfigure` loads existing config and lets you change only selected sections (mode, database, jwt, llm).
+- **Quick:** `radioshaq setup --quick` asks only for mode and “Use Docker for Postgres?” then uses defaults and can start Docker and run migrations.
+- **CI / no-input:** `radioshaq setup --no-input --mode field [--db-url ...]` writes default files with no prompts; use in scripts or CI.
+
+See [.env.example](../radioshaq/.env.example) and [config.example.yaml](../radioshaq/config.example.yaml) for all options. The full design is in [Interactive Setup Plan](interactive-setup-plan.md).
+
+---
+
 ## Setup to operate: the big picture
 
 To **set up** and **operate** a RadioShaq station you typically:
@@ -111,6 +133,21 @@ The orchestrator and judge use an LLM for reasoning and evaluation. Set the prov
 | `llm.timeout_seconds` | `RADIOSHAQ_LLM__TIMEOUT_SECONDS` | `60.0` | Request timeout. |
 | `llm.max_retries` | `RADIOSHAQ_LLM__MAX_RETRIES` | `3` | Retries on failure. |
 | `llm.retry_delay_seconds` | `RADIOSHAQ_LLM__RETRY_DELAY_SECONDS` | `1.0` | Delay between retries. |
+
+---
+
+## Memory
+
+Per-callsign memory: core blocks, recent messages, daily summaries, and optional [Hindsight](https://github.com/radioshaq/hindsight) integration for embeddings and recall.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `memory.enabled` | `RADIOSHAQ_MEMORY__ENABLED` | `true` | Enable memory system (recall/reflect tools, context). |
+| `memory.hindsight_base_url` | `RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL` | `http://localhost:8888` | Hindsight API base URL. |
+| `memory.hindsight_enabled` | `RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED` | `true` | Use Hindsight for embeddings and semantic recall. |
+| `memory.recent_messages_limit` | `RADIOSHAQ_MEMORY__RECENT_MESSAGES_LIMIT` | `40` | Max recent messages included in context. |
+| `memory.daily_summary_days` | `RADIOSHAQ_MEMORY__DAILY_SUMMARY_DAYS` | `7` | Days of daily summaries to include. |
+| `memory.summary_timezone` | `RADIOSHAQ_MEMORY__SUMMARY_TIMEZONE` | `America/New_York` | Timezone for daily summary windows. |
 
 ---
 
@@ -263,6 +300,7 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 | `pm2.log_date_format` | `RADIOSHAQ_PM2__LOG_DATE_FORMAT` | `YYYY-MM-DD HH:mm:ss Z` | Log date format. |
 | `pm2.merge_logs` | `RADIOSHAQ_PM2__MERGE_LOGS` | `false` | Merge logs. |
 | `pm2.env_file` | `RADIOSHAQ_PM2__ENV_FILE` | `.env` | Env file. |
+| `pm2.source_map_support` | `RADIOSHAQ_PM2__SOURCE_MAP_SUPPORT` | `true` | Enable source map support. |
 
 ---
 
@@ -270,5 +308,8 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 
 - **MessageBus consumer** — The API can run an inbound message consumer in the background so external systems can push work into the REACT loop. Set **`RADIOSHAQ_BUS_CONSUMER_ENABLED=1`** (or `true`/`yes`) to enable it. If not set, the consumer is disabled.
 - **API host/port** — The server uses `API_HOST` / `API_PORT` or **`RADIOSHAQ_API_HOST`** / **`RADIOSHAQ_API_PORT`** when starting uvicorn (default from `hq.host` and `hq.port`).
+- **CLI** — Scripts that call the API use **`RADIOSHAQ_API`** (base URL, default `http://localhost:8000`) and **`RADIOSHAQ_TOKEN`** (Bearer token).
+- **TTS** — When `radio.voice_use_tts` is true, ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
+- **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](../radioshaq/.env.example)).
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

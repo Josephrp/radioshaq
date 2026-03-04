@@ -83,6 +83,7 @@ class REACTOrchestrator:
         middleware_pipeline: Any = None,
         tool_registry: Any = None,
         llm_client: Any = None,
+        memory_manager: Any = None,
     ):
         self.judge = judge
         self.prompt_loader = prompt_loader
@@ -91,15 +92,19 @@ class REACTOrchestrator:
         self.middleware_pipeline = middleware_pipeline
         self.tool_registry = tool_registry
         self.llm_client = llm_client
+        self.memory_manager = memory_manager
 
     async def process_request(
         self,
         request: str,
         task_id: str | None = None,
+        callsign: str | None = None,
         on_progress: Callable[[REACTState], Awaitable[None]] | None = None,
     ) -> REACTResult:
-        """Run the REACT loop to process a request."""
+        """Run the REACT loop to process a request. If callsign and memory_manager are set, load memory context and persist/retain after success."""
+        import asyncio
         import uuid
+        from zoneinfo import ZoneInfo
 
         tid = task_id or str(uuid.uuid4())
         state = REACTState(
@@ -108,8 +113,52 @@ class REACTOrchestrator:
             max_iterations=self.max_iterations,
         )
 
+        # Load memory context before loop when callsign and memory_manager are set
+        if callsign and self.memory_manager:
+            try:
+                from radioshaq.memory import build_memory_context
+                mem_cfg = getattr(getattr(self, "_config", None), "memory", None)
+                recent_limit = getattr(mem_cfg, "recent_messages_limit", 40)
+                summary_days = getattr(mem_cfg, "daily_summary_days", 7)
+                tz_str = getattr(mem_cfg, "summary_timezone", "America/New_York")
+                tz = ZoneInfo(tz_str)
+                ctx = await build_memory_context(
+                    self.memory_manager,
+                    callsign,
+                    recent_limit=recent_limit,
+                    summary_days=summary_days,
+                    timezone=tz,
+                )
+                state.context["memory_system_prefix"] = ctx.get("system_prefix", "")
+                state.context["memory_messages"] = ctx.get("messages", [])
+                state.context["memory_metadata"] = ctx.get("metadata", {})
+                state.context["callsign"] = callsign
+                # Last N + current user message for middleware/judge
+                messages = list(ctx.get("messages", []))
+                messages.append({"role": "user", "content": request})
+                state.context["messages"] = messages
+            except Exception as e:
+                logger.warning("Memory context load failed: %s", e)
+
         try:
             state = await self._run_react_loop(state, on_progress)
+            # Persist and retain after success
+            if callsign and self.memory_manager and state.final_response is not None:
+                try:
+                    await self.memory_manager.append_messages(
+                        callsign,
+                        [
+                            ("user", request, None, None),
+                            ("assistant", state.final_response, None, None),
+                        ],
+                    )
+                except Exception as e:
+                    logger.warning("Memory append_messages failed: %s", e)
+                try:
+                    from radioshaq.memory.hindsight import retain_exchange
+                    await asyncio.to_thread(retain_exchange, callsign, request, state.final_response)
+                except Exception as e:
+                    logger.debug("Hindsight retain failed (non-fatal): %s", e)
             return REACTResult(
                 success=state.final_response is not None,
                 state=state,
@@ -296,6 +345,52 @@ class REACTOrchestrator:
 
         return state
 
+    def _inject_memory_into_system(self, state: REACTState, system_content: str) -> str:
+        """Prepend memory context (core blocks, summaries, time) to system prompt when available."""
+        prefix = state.context.get("memory_system_prefix", "").strip()
+        if not prefix:
+            return system_content
+        return f"{prefix}\n\n---\n\n{system_content}"
+
+    def _first_contact_hint(self, state: REACTState) -> str:
+        """Return a one-line hint when this appears to be first contact (no prior messages)."""
+        messages = state.context.get("memory_messages", [])
+        if messages:
+            return ""
+        return (
+            "[First contact: no prior conversation with this operator in context. "
+            "Respond with a brief welcome, identify as the station, and offer help (relay, info, whitelist).] "
+        )
+
+    def _inject_agent_context(self, state: REACTState, task_dict: dict[str, Any]) -> None:
+        """Inject request-level context (callsign, original_request) into task_dict for agents that need it."""
+        ctx = state.context
+        callsign = ctx.get("callsign")
+        original = state.original_request or ""
+        agent_name = (task_dict.get("agent") or "").strip() or None
+
+        if not agent_name:
+            return
+
+        # Agents that use callsign: inject when payload doesn't already have it
+        if callsign and isinstance(callsign, str) and callsign.strip():
+            cs = callsign.strip().upper()
+            if agent_name == "whitelist" and not (task_dict.get("callsign") or "").strip():
+                task_dict["callsign"] = cs
+            if agent_name == "gis_agent" and not (task_dict.get("callsign") or "").strip():
+                task_dict["callsign"] = cs
+            if agent_name == "scheduler" and not (task_dict.get("initiator_callsign") or "").strip():
+                task_dict["initiator_callsign"] = cs
+
+        # Whitelist: ensure it has request text (description or request_text or message)
+        if agent_name == "whitelist" and original:
+            has_text = (
+                (task_dict.get("request_text") or "").strip()
+                or (task_dict.get("message") or "").strip()
+            )
+            if not has_text:
+                task_dict["request_text"] = original
+
     async def _phase_reasoning(self, state: REACTState) -> None:
         """REASONING: Stage A plan/decompose via LLM; Stage B optional tool-calling. No short-circuit to COMMUNICATING."""
         # Stage A — Plan/Decompose: produce decomposed_tasks (when llm_client available)
@@ -309,7 +404,11 @@ class REACTOrchestrator:
                     system_content = self.prompt_loader.load_for_phase("reasoning")
             except Exception:
                 pass
+            system_content = self._inject_memory_into_system(state, system_content)
             user_content = state.original_request
+            first_contact = self._first_contact_hint(state)
+            if first_contact:
+                user_content = first_contact + user_content
             last_ev = state.context.get("last_evaluation")
             if last_ev:
                 missing = last_ev.get("missing_elements", []) if isinstance(last_ev, dict) else getattr(last_ev, "missing_elements", [])
@@ -351,10 +450,19 @@ class REACTOrchestrator:
                         system_content = self.prompt_loader.load_for_phase("reasoning") or system_content
                 except Exception:
                     pass
-                messages: list[dict[str, Any]] = [
-                    {"role": "system", "content": system_content},
-                    {"role": "user", "content": state.original_request},
+                system_content = self._inject_memory_into_system(state, system_content)
+                # Conversation history: last N turns so the LLM has context (first-contact handled via memory)
+                memory_messages = state.context.get("memory_messages", [])
+                max_history = 20
+                recent = memory_messages[-max_history:] if len(memory_messages) > max_history else memory_messages
+                chat_turns: list[dict[str, Any]] = [
+                    {"role": m.get("role", "user"), "content": (m.get("content") or "").strip() or "(empty)"}
+                    for m in recent
+                    if m.get("role") in ("user", "assistant")
                 ]
+                chat_turns.append({"role": "user", "content": state.original_request})
+                messages = [{"role": "system", "content": system_content}]
+                messages.extend(chat_turns)
                 tool_definitions = self.tool_registry.get_definitions()
                 max_tool_rounds = 10
                 last_content = ""
@@ -385,6 +493,8 @@ class REACTOrchestrator:
                             arguments_dict = json.loads(args_str)
                         except json.JSONDecodeError:
                             arguments_dict = {}
+                        if tc.name in ("recall_memory", "reflect_memory") and state.context.get("callsign"):
+                            arguments_dict = {**arguments_dict, "callsign": state.context["callsign"]}
                         try:
                             result = await self.tool_registry.execute(tc.name, arguments_dict)
                         except Exception as e:
@@ -434,6 +544,8 @@ class REACTOrchestrator:
                     "description": task.description,
                     "agent": task.agent,
                 }
+                # Inject request context for agents that need it (when planner omits from payload)
+                self._inject_agent_context(state, task_dict)
                 agent = self.agent_registry.get_agent_for_task(task_dict)
                 if agent:
                     try:
@@ -491,21 +603,45 @@ class REACTOrchestrator:
         state.phase = self._next_phase(state.phase)
 
     async def _phase_communicating(self, state: REACTState) -> None:
-        """COMMUNICATING: Set final_response from last_llm_reply, then completed_tasks, then fallback."""
+        """COMMUNICATING: Set final_response from last_llm_reply, then completed_tasks, then fallback. Optionally wrap in radio format."""
         if state.final_response is not None:
             return
         state.final_response = state.context.get("last_llm_reply")
         if state.final_response:
+            self._apply_radio_format(state)
             return
         for task in reversed(state.completed_tasks):
             if task.result and isinstance(task.result, dict):
                 msg = task.result.get("message_for_user") or task.result.get("reason")
                 if msg:
                     state.final_response = msg
+                    self._apply_radio_format(state)
                     return
         state.final_response = (
             f"Processed: {state.original_request[:100]}... "
             f"({len(state.completed_tasks)} completed)"
+        )
+        self._apply_radio_format(state)
+
+    def _apply_radio_format(self, state: REACTState) -> None:
+        """If config enables it, wrap final_response in radio format (call-out and sign-off)."""
+        config = getattr(self, "_config", None)
+        if not config or not getattr(getattr(config, "radio", None), "response_radio_format_enabled", False):
+            return
+        if not state.final_response:
+            return
+        from radioshaq.orchestrator.radio_format import format_response_for_radio
+        radio_cfg = config.radio
+        style = getattr(radio_cfg, "response_radio_format_style", "over") or "over"
+        if style == "none":
+            return
+        station = getattr(radio_cfg, "station_callsign", None) or getattr(radio_cfg, "packet_callsign", None)
+        caller = state.context.get("callsign")
+        state.final_response = format_response_for_radio(
+            state.final_response,
+            caller_callsign=caller,
+            station_callsign=station,
+            style=style,
         )
 
     async def _phase_tracking(self, state: REACTState) -> None:

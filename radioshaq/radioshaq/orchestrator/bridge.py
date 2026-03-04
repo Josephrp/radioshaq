@@ -11,6 +11,14 @@ from radioshaq.vendor.nanobot.bus.events import InboundMessage, OutboundMessage
 from radioshaq.vendor.nanobot.bus.queue import MessageBus
 
 
+def _resolve_callsign(message: InboundMessage) -> str | None:
+    """Resolve and normalize callsign from message (sender_id)."""
+    raw = getattr(message, "sender_id", None) or ""
+    if not raw or not str(raw).strip():
+        return None
+    return str(raw).strip().upper()
+
+
 async def process_inbound_message(
     bus: MessageBus,
     orchestrator: REACTOrchestrator,
@@ -19,7 +27,8 @@ async def process_inbound_message(
     """
     Process one inbound message: run REACT, then publish outbound reply to same channel/chat.
     """
-    result = await orchestrator.process_request(message.content)
+    callsign = _resolve_callsign(message)
+    result = await orchestrator.process_request(message.content, callsign=callsign)
     out = OutboundMessage(
         channel=message.channel,
         chat_id=message.chat_id,

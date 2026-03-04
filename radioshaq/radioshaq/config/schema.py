@@ -260,6 +260,33 @@ class RadioConfig(BaseModel):
     audio_output_enabled: bool = Field(default=False)
     audio_monitoring_enabled: bool = Field(default=False)
 
+    # Response formatting for radio (exit prompt / call-out)
+    station_callsign: str | None = Field(
+        default=None,
+        description="Station callsign for reply call-out (e.g. 'N0CALL'). Defaults to packet_callsign if not set.",
+    )
+    response_radio_format_enabled: bool = Field(
+        default=False,
+        description="Wrap final reply in radio format: [station] de [caller] [message] Over/K.",
+    )
+    response_radio_format_style: str = Field(
+        default="over",
+        description="Sign-off style: 'over' | 'prosign' (K) | 'none'.",
+    )
+
+
+class MemoryConfig(BaseModel):
+    """Per-callsign memory: core blocks, messages, daily summaries, Hindsight."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = Field(default=True)
+    hindsight_base_url: str = Field(default="http://localhost:8888")
+    hindsight_enabled: bool = Field(default=True)
+    recent_messages_limit: int = Field(default=40)
+    daily_summary_days: int = Field(default=7)
+    summary_timezone: str = Field(default="America/New_York")
+
 
 class AudioConfig(BaseModel):
     """Audio capture and processing configuration (voice_rx pipeline)."""
@@ -482,6 +509,7 @@ class Config(BaseSettings):
     jwt: JWTConfig = Field(default_factory=JWTConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     radio: RadioConfig = Field(default_factory=RadioConfig)
+    memory: MemoryConfig = Field(default_factory=MemoryConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
     
@@ -574,6 +602,7 @@ __all__ = [
     "AudioActivationMode",
     "AudioConfig",
     "Config",
+    "MemoryConfig",
     "DatabaseConfig",
     "FieldConfig",
     "HQConfig",

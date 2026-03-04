@@ -18,6 +18,7 @@ def env_overrides() -> dict[str, str]:
             "TEST_DATABASE_URL",
             "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
         ),
+        "RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED": "false",
     }
 
 
@@ -49,3 +50,28 @@ def auth_headers(client: Any) -> dict[str, str]:
     assert r.status_code == 200
     token = r.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def auth_headers_callsign(client: Any) -> dict[str, str]:
+    """Headers with JWT whose station_id matches a callsign for memory routes."""
+    r = client.post(
+        "/auth/token",
+        params={"subject": "mem-test", "role": "field", "station_id": "W1ABC"},
+    )
+    assert r.status_code == 200
+    token = r.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def memory_manager(env_overrides: dict[str, str]):
+    """MemoryManager with test DB URL. Caller must close or use as context."""
+    from radioshaq.memory import MemoryManager
+    url = env_overrides.get(
+        "RADIOSHAQ_DATABASE__POSTGRES_URL",
+        "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq_test",
+    )
+    mgr = MemoryManager(url)
+    yield mgr
+    await mgr.close()

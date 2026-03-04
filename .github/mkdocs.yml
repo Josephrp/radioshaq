@@ -1,11 +1,12 @@
 # RadioShaq documentation — MkDocs Material
-# Build: mkdocs build (from repo root). Deploy: GitHub Actions (upload-pages-artifact + deploy-pages).
+# Config lives in .github/; paths are relative to this file.
+# Build: mkdocs build -f .github/mkdocs.yml (from repo root). Deploy: GitHub Actions.
 site_name: RadioShaq
 site_description: Ham Radio AI Orchestration and Field-to-HQ Coordination
 site_url: https://josephrp.github.io/radioshaq/
 
-docs_dir: docs
-site_dir: site
+docs_dir: ../docs
+site_dir: ../site
 
 theme:
   name: material
@@ -45,7 +46,7 @@ markdown_extensions:
       pygments_lang_class: true
   - pymdownx.inlinehilite
   - pymdownx.snippets:
-      base_path: [., radioshaq]
+      base_path: [.., ../radioshaq]
       check_paths: true
   - pymdownx.superfences
   - pymdownx.tabbed:

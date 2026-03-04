@@ -10,9 +10,13 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from loguru import logger
 
-from receiver.auth import JWTReceiverAuth
-from receiver.hq_client import HQClient
-from receiver.radio_interface import SDRInterface, SignalSample, create_sdr_from_env
+from radioshaq.remote_receiver.auth import JWTReceiverAuth
+from radioshaq.remote_receiver.hq_client import HQClient
+from radioshaq.remote_receiver.radio_interface import (
+    SDRInterface,
+    SignalSample,
+    create_sdr_from_env,
+)
 
 
 class ReceiverService:
@@ -34,7 +38,7 @@ class ReceiverService:
         )
 
     @classmethod
-    def from_env(cls) -> "ReceiverService":
+    def from_env(cls) -> ReceiverService:
         """Build from environment."""
         secret = os.environ.get("JWT_SECRET", "")
         station_id = os.environ.get("STATION_ID", "RECEIVER")
@@ -141,3 +145,15 @@ async def websocket_stream(websocket: WebSocket):
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+def main() -> None:
+    """Entry point for `radioshaq run-receiver` (uvicorn)."""
+    import uvicorn
+    host = os.environ.get("RECEIVER_HOST", "0.0.0.0")
+    port = int(os.environ.get("RECEIVER_PORT", "8765"))
+    uvicorn.run(
+        "radioshaq.remote_receiver.server:app",
+        host=host,
+        port=port,
+    )

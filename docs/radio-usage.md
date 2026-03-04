@@ -8,9 +8,79 @@ RadioShaq can control real ham radios for voice, digital, and packet. This page 
 
 - **Station principale** — One PC running the API and orchestrator, with a single rig (e.g. IC-7300) for both TX and RX. Typical for a fixed shack or demo.
 - **Portable** — Laptop + radio (e.g. FT-450D, FT-817) in the field; same software, different rig model and port.
-- **Remote receiver** — A listen-only node (e.g. Raspberry Pi + RTL-SDR) that streams to HQ or a field station; runs a separate receiver service, not the main RadioShaq API.
+- **Remote receiver** — A listen-only node (e.g. Raspberry Pi + RTL-SDR) that streams to HQ or a field station; run with `radioshaq run-receiver` (same install as the main API).
 
 In all cases you configure **one rig per RadioShaq instance** (one `rig_model`, one `port`). Digital and packet are optional add-ons.
+
+---
+
+
+
+## Example conversations (transcripts)
+
+The following transcripts show what you can expect when operators interact with the station via the API or MessageBus (with `sender_id` / `callsign` set). Memory and first-contact logic are enabled so the station can welcome new callers and keep context across turns. Optional [radio-format](configuration.md#radio) wrapping can add call signs and “Over” / “K” to replies.
+
+### First contact and short radio chat
+
+Operator **W1ABC** sends messages via **POST /messages/process** with `sender_id: "W1ABC"`. No prior conversation; the station responds with a welcome and short, procedural replies.
+
+| Turn | Speaker | Content |
+|------|--------|--------|
+| 1 | User (W1ABC) | W1ABC calling the field station. Anyone copy? |
+| 2 | Station | W1ABC, this is the field station. Copy you. How can I help—relay, info, or something else? Over. |
+| 3 | User | Just checking in. Can you do a quick signal report? |
+| 4 | Station | I can’t measure your signal from here—I’m the station AI. If you have a human op nearby they can give you a report. I can relay messages or help with coordination. What do you need? Over. |
+| 5 | User | Okay, maybe later. 73. |
+| 6 | Station | 73 W1ABC. Standing by. Out. |
+
+Use case: **API or MessageBus** with `sender_id`/`callsign`; memory enabled. The station uses first-contact hint and conversation history so later turns stay on topic.
+
+---
+
+### Whitelist request (gated access)
+
+Operator **K5ABC** requests access to gated services (e.g. cross-band relay) via **POST /messages/whitelist-request** (text or audio). The orchestrator runs the whitelist flow; approved callers are registered and can use from-audio / inject-and-store.
+
+| Turn | Speaker | Content |
+|------|--------|--------|
+| 1 | User | Hi, I’m K5ABC. I’d like to use the cross-band relay. |
+| 2 | Station | You’re approved and whitelisted as K5ABC. You can use gated services like messaging between bands. |
+
+Use case: **Whitelist** entry point; optional TTS so the reply can be played over the air. The station evaluates the request and, if approved, registers the callsign.
+
+---
+
+### Relay or coordination request
+
+Operator asks to relay a message or schedule a contact. The station may use tools (e.g. `send_audio_over_radio`) or delegate to the scheduler/gis agents.
+
+| Turn | Speaker | Content |
+|------|--------|--------|
+| 1 | User (W2XYZ) | W2XYZ. Need a relay to 40 meters for W1ABC, message: “Net at 1900 UTC on 7.185.” |
+| 2 | Station | W2XYZ, copy. I’ll pass that to 40 meters for W1ABC: net at 1900 UTC on 7.185. Stand by. |
+| 3 | Station | Relay sent. Anything else? Over. |
+
+Use case: **API / MessageBus** with `sender_id`; the planner may decompose into a radio_tx or relay task and the station confirms.
+
+---
+
+### Voice RX (listen and fixed ack)
+
+When using the **voice RX** pipeline (audio in → ASR → trigger filter), the station only processes segments that match trigger phrases (and optionally `trigger_callsign`). The **reply** is currently a fixed acknowledgment, not an LLM-generated message.
+
+| Over the air (user) | Station (reply) |
+|---------------------|-----------------|
+| “Field station, N0CALL, this is K5ABC, how copy?” | “Acknowledged: Field station N0CALL this is K5ABC how copy… Standing by.” |
+
+Use case: **Voice RX** with `response_mode: auto_respond` (or confirm_first). For LLM-generated replies over the air, the voice RX path would need to call the orchestrator with the transcript and source callsign; that is not the default today.
+
+---
+
+### How to get these behaviors
+
+- **First contact + chat:** Use **POST /messages/process** with `message` and `sender_id` (or `callsign`). Enable memory in config so the station loads context and first-contact hint when there’s no prior history.
+- **Whitelist:** Use **POST /messages/whitelist-request** with text or audio; optionally send `callsign` in the body. Enable the bus consumer if replies go through the MessageBus.
+- **Radio-style call-out:** Set `radio.station_callsign` and optionally `radio.response_radio_format_enabled: true` so replies are wrapped as “STATION de CALLSIGN … Over.” See [Configuration](configuration.md) and the user-flow investigation in the repo for details.
 
 ---
 
@@ -43,13 +113,14 @@ Same RadioShaq app on a laptop, with a different rig and port.
 
 ## Remote receiver (RTL-SDR on Raspberry Pi)
 
-A **listen-only** station: no TX, only RX. The main RadioShaq app usually runs elsewhere (field or HQ). A separate **remote_receiver** service runs on the Pi and sends audio or transcripts to the main app.
+A **listen-only** station: no TX, only RX. The main RadioShaq app usually runs elsewhere (field or HQ). Run the bundled receiver service on the Pi; it sends audio or transcripts to HQ via `POST /receiver/upload`.
 
 - **Hardware:** Raspberry Pi, RTL-SDR USB dongle, antenna.
-- **Software:** Run the `remote_receiver` service (from the `remote_receiver` directory in the monorepo). Configure env: `JWT_SECRET`, `STATION_ID`, `HQ_URL`, and optionally `RTLSDR_INDEX`.
-- **Run:** e.g. `uv run uvicorn receiver.server:app --host 0.0.0.0 --port 8765` from the remote_receiver directory.
+- **Install:** `pip install radioshaq` (optionally `pip install radioshaq[sdr]` for RTL-SDR or `radioshaq[hackrf]` for HackRF).
+- **Config:** Set env: `JWT_SECRET`, `STATION_ID`, `HQ_URL`, and optionally `RTLSDR_INDEX` (or `HACKRF_INDEX`).
+- **Run:** `radioshaq run-receiver` or `run-receiver` (default: host 0.0.0.0, port 8765).
 
-The main RadioShaq API does not connect to the RTL-SDR directly; the receiver service does and forwards data.
+The main RadioShaq API does not connect to the RTL-SDR directly; the receiver service does and forwards data to HQ.
 
 ---
 
@@ -90,7 +161,7 @@ For SDR-based transmit (e.g. HackRF):
 | IC-7300 at home | `radio.enabled: true`, `radio.rig_model: 3073`, `radio.port: COM3` or `/dev/ttyUSB0` |
 | FT-450D portable | `radio.enabled: true`, `radio.rig_model: 127`, `radio.port: COM4` (or your tty) |
 | FT-817 | `radio.rig_model: 120`, `radio.port: <your port>` |
-| RTL-SDR receiver | Run `remote_receiver` with `JWT_SECRET`, `STATION_ID`, `HQ_URL`, `RTLSDR_INDEX` |
+| RTL-SDR receiver | `radioshaq run-receiver` with `JWT_SECRET`, `STATION_ID`, `HQ_URL`, `RTLSDR_INDEX` |
 | Voice TX | `radio.audio_output_device` = device to rig; optional `radio.voice_use_tts: true` |
 | Voice RX | `radio.audio_input_enabled: true` + `audio.*` (input_device, VAD, ASR, response_mode, trigger_phrases) |
 | HackRF TX | `radio.sdr_tx_enabled: true`, `radio.sdr_tx_backend: hackrf`; optional `tx_audit_log_path` |

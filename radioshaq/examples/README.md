@@ -2,7 +2,7 @@
 
 ## Config sample
 
-- **config_sample.yaml** – Example YAML configuration. Copy to `config.yaml` or set `RADIOSHAQ_CONFIG_PATH`. Environment variables override file values.
+- **config_sample.yaml** – Short example YAML (legacy). For an exhaustive reference of every option, use **config.example.yaml** in the project root (`radioshaq/config.example.yaml`). Copy to `config.yaml` or set your app’s config path. Environment variables override file values. See also **.env.example** in the project root for all environment variables.
 
 ## Quick API usage
 

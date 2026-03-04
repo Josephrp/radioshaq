@@ -1,11 +1,12 @@
 # RadioShaq
 
-Monorepo for RadioShaq: ham radio AI orchestration and remote SDR reception.
+RadioShaq for RadioShaq: ham radio AI orchestration and remote SDR reception.
+
+**PyPI long description:** [.github/PYPI_README.md](PYPI_README.md) is a user-facing README for the package (interactive setup, CLI, quick start). To use it as the PyPI project description, set `readme = "../.github/PYPI_README.md"` in `radioshaq/pyproject.toml` when building from the repo root, or copy its contents into `radioshaq/README.md` before publishing.
 
 **Published code in this repo:**
 
-- **[radioshaq/](radioshaq/)** — RadioShaq (formerly SHAKODS): AI-powered orchestrator for ham radio, emergency comms, and field–HQ coordination.
-- **[remote_receiver/](remote_receiver/)** — Remote SDR receiver station (RTL-SDR / HackRF) with JWT auth and HQ upload.
+- **[radioshaq/](radioshaq/)** — RadioShaq (formerly SHAKODS): AI-powered orchestrator for ham radio, emergency comms, and field–HQ coordination. Includes the **remote receiver** (SDR listen-only station) as `radioshaq.remote_receiver`; run with `radioshaq run-receiver`.
 
 The directories `codex/`, `mistral-vibe-main/`, and `nanobot-main/` are **reference-only** and are not part of the published codebase; they are listed in `.gitignore`.
 
@@ -37,18 +38,15 @@ Full install and usage: see the main app [README.md](radioshaq/README.md) in tha
 ## Project structure
 
 ```
-radioshaq/                   # Main RadioShaq application
+radioshaq/                   # Main RadioShaq application (single PyPI package)
 ├── radioshaq/               # Python package (API, radio, audio, orchestrator)
-├── web-interface/          # React frontend (Vite + TypeScript)
-├── tests/                  # pytest suite (unit + integration)
-├── infrastructure/         # Docker, PM2, AWS Lambda, Alembic
+│   └── remote_receiver/     # Bundled SDR receiver (run-receiver)
+├── web-interface/           # React frontend (Vite + TypeScript)
+├── tests/                   # pytest suite (unit + integration + remote_receiver)
+├── infrastructure/          # Docker, PM2, AWS Lambda, Alembic
 └── scripts/                # Demo and utility scripts
 
-remote_receiver/            # Remote SDR receiver station
-├── receiver/               # FastAPI server for SDR data
-└── pyproject.toml          # Separate uv project
-
-docs/                       # Implementation plans and hardware notes
+docs/                        # Implementation plans and hardware notes
 codex/                      # Reference-only (gitignored)
 mistral-vibe-main/          # Reference-only (gitignored)
 nanobot-main/               # Reference-only (gitignored)

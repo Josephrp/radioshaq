@@ -4,11 +4,19 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
 from radioshaq.config.schema import Config
+
+
+def _web_ui_dir() -> Path | None:
+    """Path to bundled web UI static files (when present in installed package)."""
+    p = Path(__file__).resolve().parent.parent / "web_ui"
+    return p if (p / "index.html").exists() else None
 
 
 def _is_bus_consumer_enabled(config: Config) -> bool:
@@ -22,12 +30,17 @@ def _is_bus_consumer_enabled(config: Config) -> bool:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create and tear down shared resources."""
+    from zoneinfo import ZoneInfo
+
     config = Config()
     app.state.config = config
     app.state.db = None
     app.state.callsign_repository = None
     app.state.orchestrator = None
     app.state.agent_registry = None
+    app.state.memory_manager = None
+    _cron_stop_event = None
+    _cron_task = None
 
     try:
         if config.database.postgres_url and "localhost" in config.database.postgres_url:
@@ -38,6 +51,27 @@ async def lifespan(app: FastAPI):
                 pass
         from radioshaq.callsign import get_callsign_repository
         app.state.callsign_repository = get_callsign_repository(getattr(app.state, "db", None))
+
+        # Memory manager and daily summary cron (when memory enabled)
+        memory_cfg = getattr(config, "memory", None)
+        if memory_cfg and getattr(memory_cfg, "enabled", False) and config.database.postgres_url:
+            try:
+                from radioshaq.memory import MemoryManager
+                from radioshaq.memory.daily_summary_cron import run_midnight_cron_loop
+                app.state.memory_manager = MemoryManager(config.database.postgres_url)
+                tz_str = getattr(memory_cfg, "summary_timezone", "America/New_York")
+                _cron_stop_event = asyncio.Event()
+                _cron_task = asyncio.create_task(
+                    run_midnight_cron_loop(
+                        app.state.memory_manager,
+                        config,
+                        timezone=ZoneInfo(tz_str),
+                        stop_event=_cron_stop_event,
+                    )
+                )
+            except Exception as e:
+                from loguru import logger
+                logger.warning("Memory manager or cron not started: %s", e)
 
         from radioshaq.orchestrator.factory import create_orchestrator, create_tool_registry
         from radioshaq.vendor.nanobot.bus.queue import MessageBus
@@ -54,6 +88,7 @@ async def lifespan(app: FastAPI):
                 config,
                 db=getattr(app.state, "db", None),
                 message_bus=app.state.message_bus,
+                memory_manager=getattr(app.state, "memory_manager", None),
                 max_iterations=20,
                 tool_registry=getattr(app.state, "tool_registry", None),
             )
@@ -81,6 +116,16 @@ async def lifespan(app: FastAPI):
                 await _consumer_task
             except asyncio.CancelledError:
                 pass
+        if _cron_stop_event is not None:
+            _cron_stop_event.set()
+        if _cron_task is not None and not _cron_task.done():
+            _cron_task.cancel()
+            try:
+                await _cron_task
+            except asyncio.CancelledError:
+                pass
+        if getattr(app.state, "memory_manager", None) and hasattr(app.state.memory_manager, "close"):
+            await app.state.memory_manager.close()
     finally:
         if getattr(app.state, "db", None) and hasattr(app.state.db, "close"):
             await app.state.db.close()
@@ -95,19 +140,26 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from radioshaq.api.routes import auth, audio, bus, callsigns, health, inject, messages, metrics, radio, relay, transcripts
+    from radioshaq.api.routes import auth, audio, bus, callsigns, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(metrics.metrics_router, prefix="/metrics", tags=["metrics"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
+    app.include_router(memory.router, prefix="/memory", tags=["memory"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])
     app.include_router(relay.router, prefix="/messages", tags=["messages"])
     app.include_router(transcripts.router, prefix="/transcripts", tags=["transcripts"])
     app.include_router(callsigns.router, prefix="/callsigns", tags=["callsigns"])
     app.include_router(inject.router, prefix="/inject", tags=["inject"])
+    app.include_router(receiver.router, prefix="/receiver", tags=["receiver"])
     app.include_router(bus.router, prefix="/internal", tags=["internal"])
     app.include_router(audio.router, prefix="/api/v1")
     app.include_router(audio.ws_router, prefix="/ws")
+
+    # Serve bundled web UI at / when present (e.g. from PyPI wheel). API routes above take precedence.
+    web_ui = _web_ui_dir()
+    if web_ui is not None:
+        app.mount("/", StaticFiles(directory=str(web_ui), html=True), name="web_ui")
 
     return app
 

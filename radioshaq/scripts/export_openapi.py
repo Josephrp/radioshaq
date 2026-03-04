@@ -9,10 +9,10 @@ import json
 import sys
 from pathlib import Path
 
-# Repo root: radioshaq/scripts/export_openapi.py -> scripts -> radioshaq -> monorepo root
+# Repo root: radioshaq/scripts/export_openapi.py -> scripts -> radioshaq -> RadioShaq root
 _script_dir = Path(__file__).resolve().parent
 _radioshaq_root = _script_dir.parent  # package root (radioshaq/ containing radioshaq/*.py)
-_repo_root = _radioshaq_root.parent   # monorepo root (containing docs/, radioshaq/)
+_repo_root = _radioshaq_root.parent   # RadioShaq root (containing docs/, radioshaq/)
 if str(_radioshaq_root) not in sys.path:
     sys.path.insert(0, str(_radioshaq_root))
 
