@@ -86,7 +86,7 @@ async def send_tts(
         "use_tts": True,
     }
     if body.frequency_hz is not None:
-        task["frequency_hz"] = body.frequency_hz
+        task["frequency"] = body.frequency_hz
     if body.mode:
         task["mode"] = body.mode
     result = await radio_tx.execute(task)

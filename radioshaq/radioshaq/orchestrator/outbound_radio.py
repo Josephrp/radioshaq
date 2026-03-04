@@ -26,6 +26,7 @@ async def run_outbound_radio_handler(
         return
     radio_cfg = getattr(config, "radio", None)
     tx_enabled = getattr(radio_cfg, "radio_reply_tx_enabled", True) if radio_cfg else True
+    reply_use_tts = getattr(radio_cfg, "radio_reply_use_tts", True) if radio_cfg else True
 
     while not stop_event.is_set():
         try:
@@ -60,6 +61,7 @@ async def run_outbound_radio_handler(
                     "frequency": freq,
                     "message": msg.content or "",
                     "mode": mode,
+                    "use_tts": bool(reply_use_tts),
                 })
             except Exception as e:
                 logger.warning("Outbound radio_tx execute failed: %s", e)

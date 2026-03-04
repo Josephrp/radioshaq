@@ -586,6 +586,16 @@ def setup(
         "--memory-enabled/--memory-disabled",
         help="Enable or disable memory (Hindsight). Used with --no-input.",
     ),
+    radio_reply_tx_enabled: Optional[bool] = typer.Option(
+        None,
+        "--radio-reply-tx-enabled/--radio-reply-tx-disabled",
+        help="Enable/disable outbound radio replies from MessageBus (used with --no-input).",
+    ),
+    radio_reply_use_tts: Optional[bool] = typer.Option(
+        None,
+        "--radio-reply-use-tts/--radio-reply-no-tts",
+        help="Use TTS for outbound MessageBus radio replies (used with --no-input).",
+    ),
     llm_overrides: Optional[str] = typer.Option(
         None,
         "--llm-overrides",
@@ -619,6 +629,8 @@ def setup(
         custom_api_base=custom_api_base,
         hindsight_url=hindsight_url,
         memory_enabled=memory_enabled,
+        radio_reply_tx_enabled=radio_reply_tx_enabled,
+        radio_reply_use_tts=radio_reply_use_tts,
         llm_overrides=llm_overrides,
     )
     raise typer.Exit(exit_code)

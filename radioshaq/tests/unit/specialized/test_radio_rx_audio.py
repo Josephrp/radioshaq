@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+from datetime import datetime, timedelta, timezone
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -78,6 +80,24 @@ async def test_confirmation_manager_create_and_list() -> None:
     listed = await mgr.list_pending()
     assert len(listed) == 1
     assert listed[0].id == pending.id
+
+
+@pytest.mark.asyncio
+async def test_confirmation_manager_list_pending_expires_stale_items() -> None:
+    config = AudioConfig(response_timeout_seconds=30.0)
+    mgr = ConfirmationManager(config)
+    pending = await mgr.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    listed = await mgr.list_pending()
+    assert listed == []
+
+    fetched = await mgr.get_pending(pending.id)
+    assert fetched is not None
+    assert fetched.status.value == "expired"
 
 
 @pytest.mark.asyncio
@@ -321,3 +341,230 @@ async def test_voice_store_keywords_stores_when_match() -> None:
             m_transcribe.return_value = "please relay this to 2m"
             await agent._on_segment_ready(segment)
     assert storage.store.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_creates_pending_without_immediate_send() -> None:
+    """CONFIRM_TIMEOUT queues pending response first; timeout handler sends later."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        stream_processor=MagicMock(),
+        response_agent=response_agent,
+    )
+    agent._monitoring = True
+    segment = _make_segment()
+    with patch("radioshaq.audio.stream_processor.ProcessedSegment", _FakeProcessedSegment):
+        with patch.object(agent, "_transcribe_segment", new_callable=AsyncMock) as m_transcribe:
+            m_transcribe.return_value = "radioshaq status check"
+            await agent._on_segment_ready(segment)
+    pending = await agent._confirmation_manager.list_pending()
+    assert len(pending) == 1
+    response_agent.execute.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_auto_sends_expired_pending_with_frequency_and_mode() -> None:
+    """Expired pending response in CONFIRM_TIMEOUT is auto-sent over voice TX with original freq/mode."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(config=config, response_agent=response_agent)
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack timeout",
+        frequency_hz=145_550_000.0,
+        mode="FM",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    await agent._handle_pending_timeouts()
+
+    response_agent.execute.assert_awaited_once()
+    sent_task = response_agent.execute.await_args.args[0]
+    assert sent_task.get("transmission_type") == "voice"
+    assert sent_task.get("use_tts") is True
+    assert sent_task.get("frequency") == 145_550_000.0
+    assert sent_task.get("mode") == "FM"
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "auto_sent"
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_claim_prevents_approve_race_double_send() -> None:
+    """Timeout auto-send claims pending item, so concurrent approve cannot trigger a second TX."""
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    agent = RadioAudioReceptionAgent(config=config, response_agent=response_agent)
+
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack once",
+        frequency_hz=145_550_000.0,
+        mode="FM",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    send_started = asyncio.Event()
+    release_send = asyncio.Event()
+    call_count = 0
+
+    async def blocked_send(*args, **kwargs) -> bool:
+        nonlocal call_count
+        call_count += 1
+        send_started.set()
+        await release_send.wait()
+        return True
+
+    agent._send_response = AsyncMock(side_effect=blocked_send)
+
+    auto_task = asyncio.create_task(agent._handle_pending_timeouts())
+    await asyncio.wait_for(send_started.wait(), timeout=1.0)
+
+    approve_result = await agent._action_approve_response({"pending_id": pending.id, "operator": "op"})
+    assert "error" in approve_result
+    assert approve_result["error"] == "Pending response is already in state: sending"
+
+    release_send.set()
+    await auto_task
+
+    assert call_count == 1
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "auto_sent"
+
+
+@pytest.mark.asyncio
+async def test_approve_response_reports_existing_non_pending_state() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+
+    claimed = await agent._confirmation_manager.claim_for_sending(pending.id)
+    assert claimed is not None
+
+    result = await agent._action_approve_response(
+        {"pending_id": pending.id, "operator": "op"}
+    )
+    assert result["error"] == "Pending response is already in state: sending"
+
+
+@pytest.mark.asyncio
+async def test_reject_response_reports_existing_non_pending_state() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+
+    claimed = await agent._confirmation_manager.claim_for_sending(pending.id)
+    assert claimed is not None
+
+    result = await agent._action_reject_response(
+        {"pending_id": pending.id, "operator": "op"}
+    )
+    assert result["error"] == "Pending response is already in state: sending"
+
+
+@pytest.mark.asyncio
+async def test_send_response_honors_radio_reply_use_tts_config() -> None:
+    config = AudioConfig(trigger_enabled=False, min_snr_db=0.0)
+    response_agent = MagicMock()
+    response_agent.execute = AsyncMock(return_value={"success": True})
+    radio_config = MagicMock()
+    radio_config.radio_reply_use_tts = False
+    agent = RadioAudioReceptionAgent(
+        config=config,
+        response_agent=response_agent,
+        radio_config=radio_config,
+    )
+
+    sent = await agent._send_response("Ack no tts")
+    assert sent is True
+    response_agent.execute.assert_awaited_once()
+    task = response_agent.execute.await_args.args[0]
+    assert task["transmission_type"] == "voice"
+    assert task["use_tts"] is False
+
+
+@pytest.mark.asyncio
+async def test_confirm_timeout_manual_approve_failed_send_expires_pending() -> None:
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_TIMEOUT,
+    )
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    agent._send_response = AsyncMock(return_value=False)
+    agent.emit_result = AsyncMock()
+
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack fail",
+    )
+
+    agent._monitoring = True
+    watcher = asyncio.create_task(agent._confirmation_watcher(None))
+    await asyncio.sleep(0.05)
+    try:
+        result = await agent._action_approve_response(
+            {"pending_id": pending.id, "operator": "op"}
+        )
+        assert result["success"] is True
+        pending_after = await agent._confirmation_manager.get_pending(pending.id)
+        assert pending_after is not None
+        assert pending_after.status.value == "expired"
+        agent.emit_result.assert_not_awaited()
+    finally:
+        agent._monitoring = False
+        watcher.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await watcher
+
+
+@pytest.mark.asyncio
+async def test_confirm_first_timeout_expiry_uses_mark_expired_notifications() -> None:
+    config = AudioConfig(
+        trigger_enabled=False,
+        min_snr_db=0.0,
+        response_mode=ResponseMode.CONFIRM_FIRST,
+    )
+    agent = RadioAudioReceptionAgent(config=config, response_agent=MagicMock())
+    observed_statuses: list[str] = []
+
+    async def on_change(pending):
+        observed_statuses.append(pending.status.value)
+
+    agent._confirmation_manager.add_callback(on_change)
+    pending = await agent._confirmation_manager.create_pending(
+        transcript="incoming",
+        proposed_message="Ack",
+    )
+    pending.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    await agent._handle_pending_timeouts()
+
+    pending_after = await agent._confirmation_manager.get_pending(pending.id)
+    assert pending_after is not None
+    assert pending_after.status.value == "expired"
+    assert "expired" in observed_statuses

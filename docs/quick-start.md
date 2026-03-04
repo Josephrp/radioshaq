@@ -2,7 +2,7 @@
 
 This guide gets the RadioShaq API running on your machine in a few minutes. By the end you’ll have a local API that can run the REACT orchestrator (message processing), use the database for transcripts and callsigns, and serve the OpenAPI docs. No radio is required for this path—you can add a rig and voice pipeline later using [Configuration](configuration.md) and [Radio Usage](radio-usage.md).
 
-**(Optional) Interactive setup:** Run `radioshaq setup` from the `radioshaq/` directory to be guided through mode, database (Docker or URL), JWT, LLM, and optional radio/memory/field settings. It writes `.env` and `config.yaml` to the project root and can start Docker Postgres and run migrations. See [Configuration](configuration.md#interactive-setup).
+**(Optional) Interactive setup:** Run `radioshaq setup` from the `radioshaq/` directory to be guided through mode, database (Docker or URL), JWT, LLM, and optional radio/memory/field settings. Radio setup includes prompts for MessageBus outbound radio replies and whether those replies use TTS. It writes `.env` and `config.yaml` to the project root and can start Docker Postgres and run migrations. See [Configuration](configuration.md#interactive-setup).
 
 **(Optional) Full automated setup:** From the `radioshaq/` directory, run one script to install deps, create config, start Docker Postgres (and optionally Hindsight), run migrations, and install PM2 if Node is present: **Windows** — `.\infrastructure\local\setup.ps1`; **Linux/macOS** — `./infrastructure/local/setup.sh` (or `bash infrastructure/local/setup.sh`). Then start the API with `radioshaq launch pm2` or `radioshaq run-api`. Alternatively, follow the steps below.
 

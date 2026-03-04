@@ -34,10 +34,10 @@ Use these as the single source of truth for option names and env var spelling.
 
 Run **`radioshaq setup`** from the `radioshaq/` directory (project root) to create or update `.env` and `config.yaml` via prompts:
 
-- **First-time:** Prompts for mode, database (Docker / URL / skip), JWT secret, LLM provider and API key (optional), then optional radio, memory, field/HQ, **station callsign**, and **trigger phrases** (voice activation). Writes to project root by default; use `--config-dir` to override.
+- **First-time:** Prompts for mode, database (Docker / URL / skip), JWT secret, LLM provider and API key (optional), then optional radio, memory, field/HQ, **station callsign**, and **trigger phrases** (voice activation). In radio prompts, setup now also asks whether MessageBus-driven radio replies are enabled and whether those replies should use TTS. Writes to project root by default; use `--config-dir` to override.
 - **Reconfigure:** `radioshaq setup --reconfigure` loads existing config and lets you change selected sections (mode, database, jwt, llm, memory, overrides).
 - **Quick:** `radioshaq setup --quick` asks only for mode and “Use Docker for Postgres?” then uses defaults and can start Docker and run migrations.
-- **CI / no-input:** `radioshaq setup --no-input --mode field [--db-url ...] [--station-callsign K5ABC] [--trigger-phrases "radioshaq, field station"] [--llm-provider mistral] [--llm-model mistral-large-latest] [--custom-api-base http://localhost:11434] [--hindsight-url http://localhost:8888] [--memory-enabled] [--llm-overrides '{"whitelist":{"provider":"custom","model":"ollama/llama2","custom_api_base":"http://localhost:11434"}}']` writes default files with no prompts; use in scripts or CI. **Per-role LLM:** use `--llm-overrides` with a JSON object mapping role names (`orchestrator`, `judge`, `whitelist`, `daily_summary`) to partial LLM config (e.g. `provider`, `model`, `custom_api_base`).
+- **CI / no-input:** `radioshaq setup --no-input --mode field [--db-url ...] [--station-callsign K5ABC] [--trigger-phrases "radioshaq, field station"] [--llm-provider mistral] [--llm-model mistral-large-latest] [--custom-api-base http://localhost:11434] [--hindsight-url http://localhost:8888] [--memory-enabled] [--radio-reply-tx-enabled|--radio-reply-tx-disabled] [--radio-reply-use-tts|--radio-reply-no-tts] [--llm-overrides '{"whitelist":{"provider":"custom","model":"ollama/llama2","custom_api_base":"http://localhost:11434"}}']` writes default files with no prompts; use in scripts or CI. **Per-role LLM:** use `--llm-overrides` with a JSON object mapping role names (`orchestrator`, `judge`, `whitelist`, `daily_summary`) to partial LLM config (e.g. `provider`, `model`, `custom_api_base`).
 - **Per-role LLM (interactive):** In full setup or when using **reconfigure** and choosing **overrides**, you can configure per-role LLM overrides (orchestrator, judge, whitelist, daily_summary). Each override can set a different provider, model, and (for custom) API base; API keys remain in env. Use **reconfigure** → **overrides** to add or change them later.
 - **Config show:** `radioshaq config show [--section llm|memory|overrides] [--config-dir PATH]` prints LLM, memory, and per-role overrides from `config.yaml` (API keys redacted).
 - **Launch (dev):** After setup, start dependencies and the API with **`radioshaq launch docker`** (Postgres only), **`radioshaq launch docker --hindsight`** (Postgres + Hindsight), **`radioshaq launch pm2`** (Docker Postgres + PM2 API), or **`radioshaq launch pm2 --hindsight`**. These commands work on Windows, Linux, and macOS.
@@ -213,6 +213,8 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.max_power_watts` | `RADIOSHAQ_RADIO__MAX_POWER_WATTS` | `100.0` | Max power (informational). |
 | `radio.audio_output_device` | `RADIOSHAQ_RADIO__AUDIO_OUTPUT_DEVICE` | `null` | Sound device name/index feeding rig line-in (voice TX). |
 | `radio.voice_use_tts` | `RADIOSHAQ_RADIO__VOICE_USE_TTS` | `false` | Use TTS when no audio file is provided. |
+| `radio.radio_reply_tx_enabled` | `RADIOSHAQ_RADIO__RADIO_REPLY_TX_ENABLED` | `true` | Enable MessageBus outbound radio replies (`radio_rx` -> `radio_tx`). |
+| `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
 | `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Region for restricted bands: `FCC`, `CEPT`. |
@@ -357,7 +359,7 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 - **MessageBus consumer** — The API can run an inbound message consumer in the background so external systems can push work into the REACT loop. Set **`RADIOSHAQ_BUS_CONSUMER_ENABLED=1`** (or `true`/`yes`) to enable it. If not set, the consumer is disabled.
 - **API host/port** — The server uses `API_HOST` / `API_PORT` or **`RADIOSHAQ_API_HOST`** / **`RADIOSHAQ_API_PORT`** when starting uvicorn (default from `hq.host` and `hq.port`).
 - **CLI** — Scripts that call the API use **`RADIOSHAQ_API`** (base URL, default `http://localhost:8000`) and **`RADIOSHAQ_TOKEN`** (Bearer token).
-- **TTS** — When `radio.voice_use_tts` is true, ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
+- **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`, including MessageBus replies when `radio.radio_reply_use_tts: true`), ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
 - **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](reference/.env.example)).
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

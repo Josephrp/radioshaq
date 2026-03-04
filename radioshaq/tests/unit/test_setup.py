@@ -103,6 +103,21 @@ def test_run_setup_no_input_with_db_url(tmp_path: Path) -> None:
     assert "mydb" in env_content
 
 
+def test_run_setup_no_input_radio_reply_tts_flags(tmp_path: Path) -> None:
+    """run_setup --no-input writes radio reply TX/TTS flags when explicitly provided."""
+    exit_code = run_setup(
+        interactive=False,
+        no_input=True,
+        config_dir=tmp_path,
+        radio_reply_tx_enabled=True,
+        radio_reply_use_tts=False,
+    )
+    assert exit_code == 0
+    config_content = (tmp_path / "config.yaml").read_text()
+    assert "radio_reply_tx_enabled: true" in config_content.lower()
+    assert "radio_reply_use_tts: false" in config_content.lower()
+
+
 def test_write_env_merge_preserves_other_vars(tmp_path: Path) -> None:
     """write_env with merge=True keeps existing vars not overridden."""
     env_path = tmp_path / ".env"
@@ -145,7 +160,7 @@ def test_run_setup_interactive_mocked_writes_config(tmp_path: Path) -> None:
     """run_setup interactive with all prompts mocked writes expected config."""
     with (
         patch("radioshaq.setup._run_interactive_prompts_core") as mock_core,
-        patch("radioshaq.setup._prompt_radio_audio", return_value=(False, 1, "COM1", False)),
+        patch("radioshaq.setup._prompt_radio_audio", return_value=(False, 1, "COM1", False, True, True)),
         patch("radioshaq.setup._prompt_memory", return_value=(True, "http://localhost:8888")),
         patch("radioshaq.setup._prompt_field_hq", return_value=("FIELD-01", None, None, None, None)),
         patch("radioshaq.setup._prompt_station_callsign_trigger", return_value=(None, [])),

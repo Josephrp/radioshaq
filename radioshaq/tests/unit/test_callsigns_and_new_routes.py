@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import io
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from fastapi.testclient import TestClient
@@ -255,6 +257,37 @@ def test_radio_send_tts_without_agent_or_on_failure_returns_5xx(
     assert r.status_code in (503, 500)
 
 
+@pytest.mark.unit
+def test_radio_send_tts_passes_frequency_to_radio_tx(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """POST /radio/send-tts forwards frequency_hz as radio_tx 'frequency' task field."""
+    app = client.app
+    old_registry = getattr(app.state, "agent_registry", None)
+
+    tx = MagicMock()
+    tx.execute = AsyncMock(return_value={"success": True})
+
+    class _Registry:
+        def get_agent(self, name: str):
+            return tx if name == "radio_tx" else None
+
+    app.state.agent_registry = _Registry()
+    try:
+        r = client.post(
+            "/radio/send-tts",
+            headers=auth_headers,
+            json={"message": "hello", "frequency_hz": 145550000.0, "mode": "FM"},
+        )
+        assert r.status_code == 200
+        tx.execute.assert_awaited_once()
+        sent_task = tx.execute.await_args.args[0]
+        assert sent_task.get("frequency") == 145550000.0
+        assert sent_task.get("mode") == "FM"
+    finally:
+        app.state.agent_registry = old_registry
+
+
 # ----- Messages from-audio (validation only with auth) -----
 
 
@@ -340,3 +373,54 @@ def test_whitelist_request_json_with_auth_returns_200_or_503(
         assert "audio_sent" in data
     else:
         assert "orchestrator" in data.get("detail", "").lower() or "not available" in data.get("detail", "").lower()
+
+
+@pytest.mark.unit
+def test_whitelist_request_send_audio_back_includes_frequency_and_mode(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """Whitelist request uses provided frequency_hz/mode when sending TTS over radio."""
+    app = client.app
+    old_orchestrator = getattr(app.state, "orchestrator", None)
+    old_registry = getattr(app.state, "agent_registry", None)
+
+    class _Orchestrator:
+        async def process_request(self, request: str, callsign: str | None = None):
+            return SimpleNamespace(
+                success=True,
+                message="Approved. You are registered.",
+                state=SimpleNamespace(task_id="t-1", completed_tasks=[]),
+            )
+
+    tx = MagicMock()
+    tx.execute = AsyncMock(return_value={"success": True})
+
+    class _Registry:
+        def get_agent(self, name: str):
+            return tx if name == "radio_tx" else None
+
+    app.state.orchestrator = _Orchestrator()
+    app.state.agent_registry = _Registry()
+
+    try:
+        r = client.post(
+            "/messages/whitelist-request",
+            headers=auth_headers,
+            json={
+                "text": "please whitelist me",
+                "callsign": "K5ABC",
+                "send_audio_back": True,
+                "frequency_hz": 146520000.0,
+                "mode": "FM",
+            },
+        )
+        assert r.status_code == 200
+        body = r.json()
+        assert body.get("audio_sent") is True
+        tx.execute.assert_awaited_once()
+        sent_task = tx.execute.await_args.args[0]
+        assert sent_task.get("frequency") == 146520000.0
+        assert sent_task.get("mode") == "FM"
+    finally:
+        app.state.orchestrator = old_orchestrator
+        app.state.agent_registry = old_registry
