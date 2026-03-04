@@ -158,6 +158,7 @@ def recall(
             try:
                 response = client.recall(**kwargs)
             except TypeError:
+                logger.debug("Hindsight API fallback: max_tokens/budget not supported")
                 kwargs.pop("max_tokens", None)
                 kwargs.pop("budget", None)
                 response = client.recall(bank_id=bank_id, query=query)
