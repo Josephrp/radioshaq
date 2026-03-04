@@ -148,6 +148,8 @@ def test_run_setup_interactive_mocked_writes_config(tmp_path: Path) -> None:
         patch("radioshaq.setup._prompt_radio_audio", return_value=(False, 1, "COM1", False)),
         patch("radioshaq.setup._prompt_memory", return_value=(True, "http://localhost:8888")),
         patch("radioshaq.setup._prompt_field_hq", return_value=("FIELD-01", None, None, None, None)),
+        patch("radioshaq.setup._prompt_station_callsign_trigger", return_value=(None, [])),
+        patch("radioshaq.setup._prompt_llm_overrides", return_value={}),
         patch("radioshaq.setup.typer.confirm", return_value=False),
         patch("radioshaq.setup._docker_available", return_value=False),
     ):
@@ -161,6 +163,8 @@ def test_run_setup_interactive_mocked_writes_config(tmp_path: Path) -> None:
             "custom-jwt-secret",  # jwt_secret
             "openai",  # llm_provider
             "sk-fake",  # llm_key
+            None,  # llm_model
+            None,  # custom_api_base
             False,  # merge_env
             False,  # merge_config
         )
@@ -192,6 +196,8 @@ def test_run_setup_reconfigure_mocked_merges_config(tmp_path: Path) -> None:
     )
     with (
         patch("radioshaq.setup._run_reconfigure_prompts") as mock_reconfig,
+        patch("radioshaq.setup._prompt_station_callsign_trigger", return_value=(None, [])),
+        patch("radioshaq.setup._prompt_llm_overrides", return_value={}),
         patch("radioshaq.setup.typer.confirm", return_value=False),
         patch("radioshaq.setup._docker_available", return_value=False),
     ):
@@ -208,6 +214,8 @@ def test_run_setup_reconfigure_mocked_merges_config(tmp_path: Path) -> None:
             "new-secret",
             "mistral",
             None,
+            None,  # llm_model_val
+            None,  # custom_api_base_val
         )
         exit_code = run_setup(
             interactive=True,
