@@ -216,6 +216,7 @@ markers = [
     "unit: Unit tests",
     "integration: Integration tests",
     "live_api: Tests that require BASE_URL and a running API (e.g. PM2)",
+    "live_e2e: Tests that require explicit opt-in and real provider API keys",
     "radio: Tests requiring radio hardware",
     "slow: Slow tests",
 ]
