@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from radioshaq import __version__
 from radioshaq.config.schema import Config
 
 
@@ -270,7 +271,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RadioShaq API",
         description="Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 
@@ -295,6 +296,10 @@ def create_app() -> FastAPI:
     web_ui = _web_ui_dir()
     if web_ui is not None:
         app.mount("/", StaticFiles(directory=str(web_ui), html=True), name="web_ui")
+        if app.router.routes[-1].name != "web_ui":
+            raise RuntimeError(
+                "web_ui mount must remain the final route. Register all API routes before mounting static files at /."
+            )
 
     return app
 

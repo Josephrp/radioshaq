@@ -72,4 +72,4 @@ uv run ruff check . && uv run ruff format .
 
 ## License
 
-MIT
+GPL-2.0-only
