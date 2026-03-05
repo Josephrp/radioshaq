@@ -40,10 +40,23 @@ jobs:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: radioshaq/web-interface/package-lock.json
-      - name: Build web UI and stage for wheel
+      - name: Verify web UI paths
         run: |
-          cd radioshaq/web-interface && npm ci && npm run build
-          cp -r dist ../radioshaq/web_ui
+          ls -la
+          ls -la radioshaq
+          ls -la radioshaq/web-interface
+          test -f radioshaq/web-interface/package-lock.json
+      - name: Build web UI
+        working-directory: radioshaq/web-interface
+        run: |
+          node --version
+          npm --version
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Stage web UI for wheel
+        run: |
+          mkdir -p radioshaq/radioshaq/web_ui
+          cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
