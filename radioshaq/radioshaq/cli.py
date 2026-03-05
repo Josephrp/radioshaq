@@ -787,10 +787,29 @@ app.add_typer(launch_app)
 # -----------------------------------------------------------------------------
 
 
+def _should_skip_license_gate(argv: list[str]) -> bool:
+    """Allow informational/license-intent invocations before acceptance."""
+    if not argv:
+        return True
+    if "--help" in argv:
+        return True
+    safe_first_args = {
+        "help",
+        "--help",
+        "--version",
+        "-v",
+        "license",
+        "license-accept",
+        "accept-license",
+    }
+    return argv[0] in safe_first_args
+
+
 def main() -> int:
     """Entry point for 'radioshaq' script and python -m radioshaq."""
     try:
-        ensure_license_accepted()
+        if not _should_skip_license_gate(sys.argv[1:]):
+            ensure_license_accepted()
         app()
         return 0
     except RuntimeError as e:

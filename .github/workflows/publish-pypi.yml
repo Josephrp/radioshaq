@@ -49,7 +49,8 @@ jobs:
       - name: Ensure tagged commit is reachable from origin/main
         run: |
           git fetch origin +refs/heads/main:refs/remotes/origin/main
-          if ! git branch -r --contains "$GITHUB_SHA" | grep -q "origin/main"; then
+          TAG_SHA=$(git rev-parse HEAD)
+          if ! git branch -r --contains "$TAG_SHA" | grep -q "origin/main"; then
             echo "Stable publish is only allowed for tags on main history."
             exit 1
           fi
