@@ -16,6 +16,8 @@ pip install radioshaq
 
 **Requirements:** Python 3.11+
 
+**License notice:** RadioShaq is distributed under GPL-2.0-only. Official CLI and web UI require explicit license acceptance before normal use.
+
 ---
 
 ## Easiest way to get started: interactive setup
@@ -147,4 +149,4 @@ If you prefer to configure by hand:
 
 ## License
 
-MIT
+GPL-2.0-only

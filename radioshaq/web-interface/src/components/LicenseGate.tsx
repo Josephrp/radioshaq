@@ -1,0 +1,55 @@
+type LicenseGateProps = {
+  onAccept: () => void;
+};
+
+export function LicenseGate({ onAccept }: LicenseGateProps) {
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'grid',
+        placeItems: 'center',
+        padding: '2rem',
+        background: '#0b1220',
+        color: '#e6edf3',
+      }}
+    >
+      <section
+        style={{
+          maxWidth: 760,
+          width: '100%',
+          border: '1px solid #2f3b52',
+          borderRadius: 12,
+          padding: '1.5rem',
+          background: '#111a2d',
+        }}
+      >
+        <h1 style={{ marginTop: 0 }}>License Acceptance Required</h1>
+        <p>
+          RadioShaq is licensed under <strong>GPL-2.0-only</strong>. You must
+          accept this license before using the official web interface.
+        </p>
+        <p>
+          Review the full license text in the project&apos;s
+          {' '}
+          <code>LICENSE.md</code>.
+        </p>
+        <button
+          type="button"
+          onClick={onAccept}
+          style={{
+            marginTop: '0.75rem',
+            padding: '0.6rem 1rem',
+            borderRadius: 8,
+            border: '1px solid #4f6ea9',
+            background: '#2053c9',
+            color: '#fff',
+            cursor: 'pointer',
+          }}
+        >
+          I Accept GPL-2.0-only
+        </button>
+      </section>
+    </main>
+  );
+}

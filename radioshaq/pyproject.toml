@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception System"
 readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = {text = "GPL-2.0-only"}
+license-files = ["LICENSE.md"]
 authors = [
     {name = "RadioShaq Contributors"}
 ]
@@ -14,7 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Telecommunications Industry",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -148,7 +149,7 @@ voice_rx = [
 ]
 
 [project.scripts]
-radioshaq = "radioshaq.cli:app"
+radioshaq = "radioshaq.cli:main"
 run-receiver = "radioshaq.remote_receiver.server:main"
 alembic-upgrade = "radioshaq.scripts.alembic_runner:main_upgrade"
 alembic-upgrade-sql = "radioshaq.scripts.alembic_runner:main_upgrade_sql"

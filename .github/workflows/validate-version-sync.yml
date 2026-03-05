@@ -1,0 +1,25 @@
+name: Validate Version Sync
+
+on:
+  pull_request:
+    branches:
+      - "**"
+  push:
+    branches:
+      - dev
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check-version-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate version fields are synchronized
+        run: |
+          python radioshaq/scripts/check_version_sync.py

@@ -1,22 +1,17 @@
-name: Publish Stable to PyPI
+name: Publish Nightly to PyPI
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - dev
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Stable tag to publish (example: v1.2.3). Defaults to current ref name."
-        required: false
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: stable-pypi-${{ github.ref }}
-  cancel-in-progress: false
+  group: nightly-pypi-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -24,8 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -36,33 +29,15 @@ jobs:
           uv sync --extra dev --extra test --extra sdr
           uv run pytest tests/unit tests/integration -v
 
-  verify-tag-source:
-    name: Verify tag points to main history
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
-      - name: Ensure tagged commit is reachable from origin/main
-        run: |
-          git fetch origin main --depth=1
-          if ! git branch -r --contains "$GITHUB_SHA" | grep -q "origin/main"; then
-            echo "Stable publish is only allowed for tags on main history."
-            exit 1
-          fi
-
   build-and-publish:
-    name: Build and publish stable artifact
-    needs: [test, verify-tag-source]
+    name: Build and publish nightly artifact
+    needs: test
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
@@ -81,11 +56,26 @@ jobs:
         with:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v5
-      - name: Build wheel and sdist
+      - name: Compute and sync nightly prerelease version
+        id: nightly
+        run: |
+          base_version=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("radioshaq/pyproject.toml").read_text(encoding="utf-8")
+          m = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', text)
+          if not m:
+              raise SystemExit("Could not read base version from pyproject.toml")
+          print(m.group(1).split(".dev", 1)[0])
+          PY
+          )
+          nightly_version=$(python radioshaq/scripts/bump_version.py --project-root . --nightly-from "$base_version" --sync-all)
+          echo "nightly_version=$nightly_version" >> "$GITHUB_OUTPUT"
+      - name: Build nightly wheel and sdist
         run: |
           cd radioshaq
           uv run --with build python -m build
-      - name: Publish package to PyPI
+      - name: Publish nightly package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: radioshaq/dist

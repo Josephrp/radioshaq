@@ -7,11 +7,13 @@ A specialized AI-powered orchestrator for ham radio operations, emergency commun
 **Documentation:** [Quick Start](https://josephrp.github.io/radioshaq/quick-start/), [Configuration](https://Josephrp.github.io/RadioShaq/configuration/), [API Reference](https://Josephrp.github.io/RadioShaq/api-reference/) (published site). In-repo source: [../docs/](../docs/) (MkDocs Material).
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](LICENSE.md)
 
 ## Install (get everything correctly)
 
 **Prerequisites:** Python 3.11+, [uv](https://github.com/astral-sh/uv). Optional: Docker (Postgres), Node.js (PM2).
+
+**License notice:** RadioShaq is distributed under GPL-2.0-only. Official CLI and web UI require explicit license acceptance before normal use.
 
 From the **radioshaq** directory:
 
@@ -118,4 +120,4 @@ uv run ruff check . && uv run ruff format .
 
 ## License
 
-MIT
+GPL-2.0-only

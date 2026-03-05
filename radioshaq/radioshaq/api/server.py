@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from radioshaq import __version__
 from radioshaq.config.schema import Config
 
 
@@ -270,7 +271,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RadioShaq API",
         description="Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 

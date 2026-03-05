@@ -12,6 +12,8 @@ from typing import Any, Optional
 import typer
 import httpx
 
+from radioshaq.license_acceptance import ensure_license_accepted
+
 app = typer.Typer(
     name="radioshaq",
     help="RadioShaq CLI: auth, health, callsigns, messages, transcripts, radio, run API server.",
@@ -788,8 +790,12 @@ app.add_typer(launch_app)
 def main() -> int:
     """Entry point for 'radioshaq' script and python -m radioshaq."""
     try:
+        ensure_license_accepted()
         app()
         return 0
+    except RuntimeError as e:
+        typer.echo(str(e), err=True)
+        return 1
     except typer.Exit as e:
         return e.exit_code
     except Exception as e:
