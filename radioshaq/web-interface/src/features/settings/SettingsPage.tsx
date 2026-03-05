@@ -83,6 +83,8 @@ export function SettingsPage() {
     }
   };
 
+  // Keep until per-role override controls are wired back in:
+  // const ROLES = ['orchestrator', 'judge', 'whitelist', 'daily_summary', 'memory'] as const;
   // Keep this handler compiled until override edit controls are wired back in.
   void handleOverridesChange;
 

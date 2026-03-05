@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from collections.abc import Iterator
 
 import httpx
 import pytest
@@ -44,8 +45,9 @@ def live_base_url() -> str:
 
 
 @pytest.fixture(scope="module")
-def live_client(live_base_url: str) -> httpx.Client:
-    return httpx.Client(base_url=live_base_url, timeout=30.0)
+def live_client(live_base_url: str) -> Iterator[httpx.Client]:
+    with httpx.Client(base_url=live_base_url, timeout=30.0) as client:
+        yield client
 
 
 def _auth_headers(client: httpx.Client) -> dict[str, str]:
