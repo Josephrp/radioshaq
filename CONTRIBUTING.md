@@ -160,3 +160,55 @@ docker compose -f infrastructure/local/docker-compose.yml up -d postgres
 python infrastructure/local/run_alembic.py upgrade head
 radioshaq run-api
 ```
+
+## Release: selecting versions and pushing tags to main
+
+Stable publish is triggered by pushing a tag matching `v*` and validated against `origin/main`.
+
+### Select the version before release
+
+Recommended on `dev`:
+
+1. Use workflow dispatch:
+   1. `Prepare Patch Release (dev)` for `X.Y.Z+1`.
+   2. `Prepare Minor Release (dev)` for `X.Y+1.0`.
+   3. `Prepare Major Release (dev)` for `X+1.0.0`.
+2. Or bump locally:
+
+```bash
+python radioshaq/scripts/bump_version.py --project-root . --bump patch --sync-all
+# or explicit version:
+python radioshaq/scripts/bump_version.py --project-root . --set-version 0.2.0 --sync-all
+```
+
+Always validate after bump:
+
+```bash
+python radioshaq/scripts/check_version_sync.py
+```
+
+### Push stable tag from main
+
+1. Merge `dev -> main` through PR.
+2. Update local main:
+
+```bash
+git fetch origin
+git checkout main
+git pull origin main
+python radioshaq/scripts/check_version_sync.py
+```
+
+3. Create annotated tag that matches package version:
+
+```bash
+git tag -a v0.2.0 -m "Release v0.2.0"
+```
+
+4. Push tag:
+
+```bash
+git push origin v0.2.0
+```
+
+This starts stable build and publish workflow.

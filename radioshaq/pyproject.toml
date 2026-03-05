@@ -1,6 +1,6 @@
 [project]
 name = "radioshaq"
-version = "0.1.0"
+version = "0.1.1"
 description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception System"
 readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
