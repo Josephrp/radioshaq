@@ -51,3 +51,112 @@ Each pull request should include:
 4. Any licensing or compliance impact.
 
 If a change affects release workflows, branch policy enforcement, or licensing gates, include explicit validation notes in the PR description.
+
+## Local Test Workflow (before commit)
+
+Run from repository root:
+
+```bash
+cd radioshaq
+uv sync --extra dev --extra test --extra sdr
+uv run pytest tests/unit tests/integration -v
+cd ..
+python radioshaq/scripts/check_version_sync.py
+```
+
+What this covers:
+
+1. Full unit test suite.
+2. Full integration test suite used by CI.
+3. Version consistency guard across package/runtime surfaces.
+
+## Git Hook: run all tests before push
+
+This repository provides a managed pre-push hook in `.githooks/pre-push`.
+
+Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+# Linux/macOS only:
+chmod +x .githooks/pre-push
+```
+
+Then every `git push` runs:
+
+1. `python radioshaq/scripts/check_version_sync.py`
+2. `uv sync --extra dev --extra test --extra sdr`
+3. `uv run pytest tests/unit tests/integration -v`
+
+Push is blocked if any step fails.
+
+## Development Runtime Workflows (Docker Compose + PM2)
+
+Run from repository root unless noted otherwise.
+
+### Workflow A: Docker Compose + direct API process
+
+```bash
+cd radioshaq
+uv sync --extra dev --extra test --extra sdr
+
+# Start Postgres only
+radioshaq launch docker
+
+# Optional: start Postgres + Hindsight profile
+# radioshaq launch docker --hindsight
+
+# Run migrations
+python infrastructure/local/run_alembic.py upgrade head
+
+# Start API (foreground)
+radioshaq run-api
+```
+
+Verify:
+
+1. API health: `http://localhost:8000/health`
+2. API docs: `http://localhost:8000/docs`
+3. Web UI: `http://localhost:8000/`
+
+Shutdown:
+
+```bash
+docker compose -f infrastructure/local/docker-compose.yml down
+```
+
+### Workflow B: Docker Compose + PM2 managed API
+
+```bash
+cd radioshaq
+uv sync --extra dev --extra test --extra sdr
+
+# PM2 workflow starts Docker Postgres first when available
+radioshaq launch pm2
+
+# Optional: include Hindsight
+# radioshaq launch pm2 --hindsight
+```
+
+PM2 operations:
+
+```bash
+pm2 status
+pm2 logs radioshaq-api
+pm2 restart radioshaq-api
+pm2 stop radioshaq-api
+pm2 delete radioshaq-api
+```
+
+If Hindsight was started under PM2, manage it similarly with `hindsight-api`.
+
+### Manual Docker Compose commands (when not using `radioshaq launch`)
+
+```bash
+cd radioshaq
+docker compose -f infrastructure/local/docker-compose.yml up -d postgres
+# Optional hindsight profile:
+# docker compose -f infrastructure/local/docker-compose.yml --profile hindsight up -d postgres hindsight
+python infrastructure/local/run_alembic.py upgrade head
+radioshaq run-api
+```
