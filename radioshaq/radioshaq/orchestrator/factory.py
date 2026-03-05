@@ -7,7 +7,8 @@ from typing import Any
 
 from loguru import logger
 
-from radioshaq.config.schema import Config
+from radioshaq.config.resolve import get_llm_config_for_role, get_memory_config_for_role
+from radioshaq.config.schema import Config, LLMConfig
 from radioshaq.llm.client import LLMClient
 from radioshaq.orchestrator.judge import JudgeSystem
 from radioshaq.orchestrator.react_loop import REACTOrchestrator
@@ -24,6 +25,8 @@ from radioshaq.specialized.whitelist_agent import WhitelistAgent
 from radioshaq.vendor.nanobot.tools.registry import ToolRegistry
 from radioshaq.specialized.radio_tools import SendAudioOverRadioTool
 from radioshaq.specialized.whitelist_tools import ListRegisteredCallsignsTool, RegisterCallsignTool
+from radioshaq.specialized.memory_tools import RecallMemoryTool, ReflectMemoryTool
+from radioshaq.specialized.relay_tools import RelayMessageTool
 from radioshaq.callsign import get_callsign_repository
 
 
@@ -38,28 +41,43 @@ def _prompts_dir() -> Path:
 
 
 def _llm_model_string(config: Config) -> str:
-    """Build LiteLLM-style model string from config."""
-    model = getattr(config.llm, "model", "mistral-large-latest") or "mistral-large-latest"
-    provider = getattr(config.llm, "provider", None)
-    if provider and str(provider).lower() == "mistral" and "/" not in model:
+    """Build LiteLLM-style model string from config (uses global llm)."""
+    return _llm_model_string_from_llm_config(config.llm)
+
+
+def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
+    """Build LiteLLM-style model string from an LLMConfig."""
+    model = getattr(llm, "model", "mistral-large-latest") or "mistral-large-latest"
+    provider = getattr(llm, "provider", None)
+    p = str(provider).lower() if provider else ""
+    if p == "mistral" and "/" not in model:
         return f"mistral/{model}"
-    if provider and str(provider).lower() == "openai" and "/" not in model:
+    if p == "openai" and "/" not in model:
         return f"openai/{model}"
-    if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/")):
+    if p == "anthropic" and "/" not in model:
+        return f"anthropic/{model}"
+    if p == "custom":
+        return f"custom/{model}" if "/" not in model else model
+    if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
         return f"mistral/{model}"
     return model
 
 
 def _llm_api_key(config: Config) -> str | None:
-    """Get API key for configured provider."""
-    if getattr(config.llm, "mistral_api_key", None):
-        return config.llm.mistral_api_key
-    if getattr(config.llm, "openai_api_key", None):
-        return config.llm.openai_api_key
-    if getattr(config.llm, "anthropic_api_key", None):
-        return config.llm.anthropic_api_key
-    if getattr(config.llm, "custom_api_key", None):
-        return config.llm.custom_api_key
+    """Get API key for configured provider (global llm)."""
+    return _llm_api_key_from_llm_config(config.llm)
+
+
+def _llm_api_key_from_llm_config(llm: LLMConfig) -> str | None:
+    """Get API key from an LLMConfig."""
+    if getattr(llm, "mistral_api_key", None):
+        return llm.mistral_api_key
+    if getattr(llm, "openai_api_key", None):
+        return llm.openai_api_key
+    if getattr(llm, "anthropic_api_key", None):
+        return llm.anthropic_api_key
+    if getattr(llm, "custom_api_key", None):
+        return llm.custom_api_key
     return None
 
 
@@ -78,13 +96,15 @@ def create_judge(config: Config) -> JudgeSystem:
     except FileNotFoundError:
         subtask_prompt = "Evaluate subtask execution. Respond with JSON: success, output_quality, errors, recommendations, retry_eligible."
 
-    model = _llm_model_string(config)
-    api_key = _llm_api_key(config)
+    llm_cfg = get_llm_config_for_role(config, "judge")
+    model = _llm_model_string_from_llm_config(llm_cfg)
+    api_key = _llm_api_key_from_llm_config(llm_cfg)
     provider = LLMClient(
         model=model,
         api_key=api_key,
-        temperature=getattr(config.llm, "temperature", 0.1),
-        max_tokens=getattr(config.llm, "max_tokens", 4096),
+        api_base=getattr(llm_cfg, "custom_api_base", None),
+        temperature=getattr(llm_cfg, "temperature", 0.1),
+        max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
     return JudgeSystem(
         provider=provider,
@@ -167,7 +187,7 @@ def _create_sdr_transmitter(config: Config) -> Any:
         return None
 
 
-def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
+def create_agent_registry(config: Config, db: Any = None, message_bus: Any = None) -> AgentRegistry:
     """Build AgentRegistry and register all specialized agents with config/db dependencies."""
     registry = AgentRegistry()
 
@@ -256,12 +276,22 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
                 chunk_duration_ms=30,
             )
             tx_agent = registry.get_agent("radio_tx")
+            transcript_storage = None
+            if db is not None:
+                try:
+                    from radioshaq.database.transcripts import TranscriptStorage
+                    transcript_storage = TranscriptStorage(db=db)
+                except Exception:
+                    pass
             rx_audio_agent = RadioAudioReceptionAgent(
                 config=audio_cfg,
                 rig_manager=rig_manager,
                 capture_service=capture_service,
                 stream_processor=stream_processor,
                 response_agent=tx_agent,
+                message_bus=message_bus,
+                radio_config=getattr(config, "radio", None),
+                transcript_storage=transcript_storage,
             )
             registry.register_agent(rx_audio_agent)
             logger.debug("Registered RadioAudioReceptionAgent (voice_rx)")
@@ -282,11 +312,14 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
         whitelist_eval_prompt = loader.load_raw("specialized/whitelist_evaluate")
     except Exception:
         pass
+    # Per-subagent LLM: use agent name as role key (llm_overrides["whitelist"] etc.)
+    llm_cfg = get_llm_config_for_role(config, "whitelist")
     llm_client = LLMClient(
-        model=_llm_model_string(config),
-        api_key=_llm_api_key(config),
-        temperature=getattr(config.llm, "temperature", 0.1),
-        max_tokens=getattr(config.llm, "max_tokens", 4096),
+        model=_llm_model_string_from_llm_config(llm_cfg),
+        api_key=_llm_api_key_from_llm_config(llm_cfg),
+        api_base=getattr(llm_cfg, "custom_api_base", None),
+        temperature=getattr(llm_cfg, "temperature", 0.1),
+        max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
     registry.register_agent(
         WhitelistAgent(repository=callsign_repo, llm_client=llm_client, eval_prompt=whitelist_eval_prompt)
@@ -296,8 +329,8 @@ def create_agent_registry(config: Config, db: Any = None) -> AgentRegistry:
     return registry
 
 
-def create_tool_registry(config: Config, db: Any = None) -> ToolRegistry:
-    """Build ToolRegistry and register LLM-callable tools (e.g. SendAudioOverRadioTool, whitelist tools)."""
+def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> ToolRegistry:
+    """Build ToolRegistry and register LLM-callable tools (e.g. SendAudioOverRadioTool, whitelist, relay)."""
     registry = ToolRegistry()
     rig_manager = _create_rig_manager(config)
     try:
@@ -313,6 +346,37 @@ def create_tool_registry(config: Config, db: Any = None) -> ToolRegistry:
         logger.debug("Registered whitelist tools: list_registered_callsigns, register_callsign")
     except Exception as e:
         logger.warning("Could not register whitelist tools: %s", e)
+    if getattr(config, "memory", None) and getattr(config.memory, "enabled", False):
+        try:
+            from types import SimpleNamespace
+            memory_cfg = get_memory_config_for_role(config, "memory")
+            tools_config = SimpleNamespace(memory=memory_cfg)
+            registry.register(RecallMemoryTool(tools_config))
+            registry.register(ReflectMemoryTool(tools_config))
+            logger.debug("Registered memory tools: recall_memory, reflect_memory")
+        except Exception as e:
+            logger.warning("Could not register memory tools: %s", e)
+    if db is not None and app is not None:
+        try:
+            from radioshaq.database.transcripts import TranscriptStorage
+            from radioshaq.radio.injection import get_injection_queue
+            storage = TranscriptStorage(db=db)
+            injection_queue = get_injection_queue()
+            get_radio_tx = lambda: (
+                app.state.agent_registry.get_agent("radio_tx")
+                if getattr(app.state, "agent_registry", None) else None
+            )
+            relay_tool = RelayMessageTool(
+                storage=storage,
+                injection_queue=injection_queue,
+                get_radio_tx=get_radio_tx,
+                config=config,
+                callsign_repository=callsign_repo,
+            )
+            registry.register(relay_tool)
+            logger.debug("Registered relay tool: %s", relay_tool.name)
+        except Exception as e:
+            logger.warning("Could not register RelayMessageTool: %s", e)
     return registry
 
 
@@ -339,6 +403,7 @@ def create_orchestrator(
     config: Config,
     db: Any = None,
     message_bus: Any = None,
+    memory_manager: Any = None,
     max_iterations: int = 20,
     middleware_pipeline: Any = None,
     tool_registry: Any = None,
@@ -347,9 +412,10 @@ def create_orchestrator(
     """Build REACTOrchestrator with Judge, PromptLoader, AgentRegistry, and optional middleware.
     Optionally store message_bus for future bridge use.
     When tool_registry and llm_client are provided, REASONING runs the LLM tool-calling loop.
+    When memory_manager is provided, orchestrator loads/persists memory and retains to Hindsight per callsign.
     """
     judge = create_judge(config)
-    agent_registry = create_agent_registry(config, db)
+    agent_registry = create_agent_registry(config, db, message_bus=message_bus)
     prompts_dir = _prompts_dir()
     prompt_loader = PromptLoader(prompts_dir=prompts_dir)
     if middleware_pipeline is None:
@@ -357,11 +423,13 @@ def create_orchestrator(
             config, max_turns=max_iterations, max_tokens=50_000
         )
     if llm_client is None and tool_registry is not None:
+        llm_cfg = get_llm_config_for_role(config, "orchestrator")
         llm_client = LLMClient(
-            model=_llm_model_string(config),
-            api_key=_llm_api_key(config),
-            temperature=getattr(config.llm, "temperature", 0.1),
-            max_tokens=getattr(config.llm, "max_tokens", 4096),
+            model=_llm_model_string_from_llm_config(llm_cfg),
+            api_key=_llm_api_key_from_llm_config(llm_cfg),
+            api_base=getattr(llm_cfg, "custom_api_base", None),
+            temperature=getattr(llm_cfg, "temperature", 0.1),
+            max_tokens=getattr(llm_cfg, "max_tokens", 4096),
         )
 
     orchestrator = REACTOrchestrator(
@@ -372,7 +440,11 @@ def create_orchestrator(
         middleware_pipeline=middleware_pipeline,
         tool_registry=tool_registry,
         llm_client=llm_client,
+        memory_manager=memory_manager,
     )
+    setattr(orchestrator, "_config", config)
     if message_bus is not None:
         setattr(orchestrator, "_message_bus", message_bus)
+    from radioshaq.callsign.repository import get_callsign_repository
+    setattr(orchestrator, "_callsign_repository", get_callsign_repository(db))
     return orchestrator

@@ -148,11 +148,17 @@ class WhitelistAgent(SpecializedAgent):
                 reason = f"{reason} Registration failed."
                 callsign_registered = None
 
+        station_callsign = (task.get("station_callsign") or "").strip().upper() or None
         if approved:
             if callsign_registered:
-                message_for_user = f"You're approved and whitelisted as {callsign_registered}. You can use gated services like messaging between bands."
+                prefix = f"This is {station_callsign}. " if station_callsign else ""
+                message_for_user = (
+                    f"{prefix}You're approved and whitelisted as {callsign_registered}. "
+                    "You can use gated services like messaging between bands."
+                )
             else:
-                message_for_user = f"Approved. {reason}" if reason else "You're approved."
+                prefix = f"This is {station_callsign}. " if station_callsign else ""
+                message_for_user = f"{prefix}Approved. {reason}" if reason else f"{prefix}You're approved."
         else:
             message_for_user = f"Not approved. {reason}" if reason else "Not approved."
 

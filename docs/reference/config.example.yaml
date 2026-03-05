@@ -1,0 +1,204 @@
+# =============================================================================
+# RadioShaq – exhaustive configuration reference (YAML)
+# =============================================================================
+# Copy to config.yaml (or set path via env). Environment variables override
+# these values. See docs/configuration.md and .env.example for env equivalents.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Core
+# -----------------------------------------------------------------------------
+mode: field                    # field | hq | receiver
+debug: false
+log_level: INFO                 # DEBUG | INFO | WARNING | ERROR | CRITICAL
+workspace_dir: "~/.radioshaq"
+data_dir: "~/.radioshaq/data"
+
+# -----------------------------------------------------------------------------
+# Database
+# -----------------------------------------------------------------------------
+database:
+  postgres_url: "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq"
+  postgres_pool_size: 10
+  postgres_max_overflow: 20
+  postgres_echo: false
+  dynamodb_table_prefix: radioshaq
+  dynamodb_endpoint: null       # e.g. http://localhost:4566 for localstack
+  dynamodb_region: us-east-1
+  redis_url: "redis://localhost:6379/0"
+  alembic_config: "infrastructure/local/alembic.ini"
+  auto_migrate: false
+
+# -----------------------------------------------------------------------------
+# JWT / Auth
+# -----------------------------------------------------------------------------
+jwt:
+  secret_key: "dev-secret-change-in-production"  # MUST change in production
+  algorithm: HS256
+  access_token_expire_minutes: 30
+  refresh_token_expire_days: 7
+  field_token_expire_hours: 24
+  require_station_id: true
+
+# -----------------------------------------------------------------------------
+# LLM (set API key in env or here; prefer env for secrets)
+# -----------------------------------------------------------------------------
+llm:
+  provider: mistral             # mistral | openai | anthropic | custom
+  model: mistral-large-latest
+  mistral_api_key: null
+  openai_api_key: null
+  anthropic_api_key: null
+  custom_api_base: null
+  custom_api_key: null
+  temperature: 0.1
+  max_tokens: 4096
+  timeout_seconds: 60.0
+  max_retries: 3
+  retry_delay_seconds: 1.0
+
+# -----------------------------------------------------------------------------
+# Memory (per-callsign memory, Hindsight, daily summaries)
+# -----------------------------------------------------------------------------
+memory:
+  enabled: true
+  hindsight_base_url: "http://localhost:8888"
+  hindsight_enabled: true
+  recent_messages_limit: 40
+  daily_summary_days: 7
+  summary_timezone: "America/New_York"
+
+# -----------------------------------------------------------------------------
+# Radio (CAT, FLDIGI, packet, SDR TX, voice)
+# -----------------------------------------------------------------------------
+radio:
+  enabled: false
+  rig_model: 1                  # Hamlib model (e.g. 3073 = IC-7300)
+  port: "/dev/ttyUSB0"
+  baudrate: 9600
+  use_daemon: false
+  daemon_host: localhost
+  daemon_port: 4532
+  fldigi_host: localhost
+  fldigi_port: 7362
+  fldigi_enabled: false
+  packet_enabled: false
+  packet_callsign: N0CALL
+  packet_ssid: 0
+  packet_kiss_host: localhost
+  packet_kiss_port: 8001
+  tx_enabled: true
+  rx_enabled: true
+  max_power_watts: 100.0
+  audio_output_device: null
+  voice_use_tts: false
+  radio_reply_tx_enabled: true
+  radio_reply_use_tts: true
+  tx_audit_log_path: null
+  tx_allowed_bands_only: true
+  restricted_bands_region: FCC   # FCC | CEPT
+  allowed_callsigns: null        # e.g. [K1ABC, W2XYZ]; merged with DB registry
+  callsign_registry_required: false
+  sdr_tx_enabled: false
+  sdr_tx_backend: hackrf
+  sdr_tx_device_index: 0
+  sdr_tx_serial: null
+  sdr_tx_max_gain: 47
+  sdr_tx_allow_bands_only: true
+  audio_input_enabled: false
+  audio_output_enabled: false
+  audio_monitoring_enabled: false
+  # Response formatting for radio (exit prompt / call-out)
+  station_callsign: null        # Our callsign for reply; defaults to packet_callsign
+  response_radio_format_enabled: false
+  response_radio_format_style: over   # over | prosign (K) | none
+
+# -----------------------------------------------------------------------------
+# Audio (voice_rx pipeline: capture, VAD, ASR, triggers, response mode)
+# -----------------------------------------------------------------------------
+audio:
+  input_device: null
+  input_sample_rate: 16000
+  output_device: null
+  preprocessing_enabled: true
+  agc_enabled: true
+  agc_target_rms: 0.1
+  highpass_filter_enabled: true
+  highpass_cutoff_hz: 80.0
+  denoising_enabled: true
+  denoising_backend: rnnoise     # rnnoise | spectral | none
+  noise_calibration_seconds: 3.0
+  min_snr_db: 3.0
+  vad_enabled: true
+  vad_threshold: 0.02
+  vad_mode: aggressive           # normal | low | aggressive | very_aggressive
+  pre_speech_buffer_ms: 300
+  post_speech_buffer_ms: 400
+  min_speech_duration_ms: 500
+  max_speech_duration_ms: 30000
+  silence_duration_ms: 800
+  asr_model: voxtral
+  asr_language: en
+  asr_min_confidence: 0.6
+  response_mode: listen_only     # listen_only | confirm_first | auto_respond | confirm_timeout
+  response_timeout_seconds: 30.0
+  response_delay_ms: 500
+  response_cooldown_seconds: 5.0
+  trigger_enabled: true
+  trigger_phrases:
+    - radioshaq
+    - field station
+  trigger_match_mode: contains   # exact | contains | starts_with | fuzzy
+  trigger_callsign: null
+  trigger_min_confidence: 0.7
+  audio_activation_enabled: false
+  audio_activation_phrase: radioshaq
+  audio_activation_mode: session  # session | per_message
+  ptt_coordination_enabled: true
+  ptt_cooldown_ms: 500
+  break_in_enabled: true
+
+# -----------------------------------------------------------------------------
+# Field mode (when mode: field)
+# -----------------------------------------------------------------------------
+field:
+  station_id: FIELD-01
+  callsign: null
+  hq_base_url: "https://hq.radioshaq.example.com"
+  hq_ws_url: null                # derived from hq_base_url if not set
+  hq_auth_token: null
+  sync_interval_seconds: 60
+  sync_batch_size: 100
+  sync_max_retries: 5
+  sync_retry_delay: 10
+  sync_on_connect: true
+  offline_mode: false
+  max_offline_queue_size: 1000
+
+# -----------------------------------------------------------------------------
+# HQ mode (when mode: hq)
+# -----------------------------------------------------------------------------
+hq:
+  host: "0.0.0.0"
+  port: 8000
+  ws_enabled: true
+  ws_path: /ws
+  max_field_stations: 100
+  field_auth_required: true
+  field_registration_open: false
+  auto_coordination_enabled: true
+  coordination_interval_seconds: 30
+
+# -----------------------------------------------------------------------------
+# PM2 (process manager)
+# -----------------------------------------------------------------------------
+pm2:
+  instances: 1
+  autorestart: true
+  watch: true
+  max_memory_restart: 1G
+  log_dir: logs
+  log_date_format: "YYYY-MM-DD HH:mm:ss Z"
+  merge_logs: false
+  env_file: .env
+  source_map_support: true

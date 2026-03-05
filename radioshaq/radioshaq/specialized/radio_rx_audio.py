@@ -109,6 +109,8 @@ class ConfirmationManager:
             if pending_id not in self._pending:
                 return None
             pending = self._pending[pending_id]
+            if pending.status != PendingResponseStatus.PENDING:
+                return None
             pending.status = PendingResponseStatus.APPROVED
             pending.responded_at = datetime.now(timezone.utc)
             pending.responded_by = operator
@@ -125,6 +127,8 @@ class ConfirmationManager:
             if pending_id not in self._pending:
                 return None
             pending = self._pending[pending_id]
+            if pending.status != PendingResponseStatus.PENDING:
+                return None
             pending.status = PendingResponseStatus.REJECTED
             pending.responded_at = datetime.now(timezone.utc)
             pending.responded_by = operator
@@ -136,16 +140,65 @@ class ConfirmationManager:
         async with self._lock:
             return self._pending.get(pending_id)
 
-    async def list_pending(self) -> list[PendingResponse]:
+    async def list_pending(
+        self,
+        *,
+        skip_auto_expire: bool = False,
+    ) -> list[PendingResponse]:
+        """Return pending items; optionally skip inline auto-expire side effects."""
         async with self._lock:
+            if skip_auto_expire:
+                return [
+                    pending for pending in self._pending.values()
+                    if pending.status == PendingResponseStatus.PENDING
+                ]
             now = datetime.now(timezone.utc)
-            for p in self._pending.values():
-                if p.expires_at < now and p.status == PendingResponseStatus.PENDING:
-                    p.status = PendingResponseStatus.EXPIRED
+            for pending in self._pending.values():
+                if (
+                    pending.status == PendingResponseStatus.PENDING
+                    and pending.expires_at <= now
+                ):
+                    pending.status = PendingResponseStatus.EXPIRED
             return [
                 p for p in self._pending.values()
                 if p.status == PendingResponseStatus.PENDING
             ]
+
+    async def mark_expired(self, pending_id: str) -> PendingResponse | None:
+        async with self._lock:
+            pending = self._pending.get(pending_id)
+            if not pending or pending.status not in (
+                PendingResponseStatus.PENDING,
+                PendingResponseStatus.SENDING,
+                PendingResponseStatus.APPROVED,
+            ):
+                return None
+            pending.status = PendingResponseStatus.EXPIRED
+            pending.responded_at = datetime.now(timezone.utc)
+        await self._notify_change(pending)
+        return pending
+
+    async def mark_auto_sent(self, pending_id: str) -> PendingResponse | None:
+        async with self._lock:
+            pending = self._pending.get(pending_id)
+            if not pending or pending.status not in (
+                PendingResponseStatus.PENDING,
+                PendingResponseStatus.SENDING,
+            ):
+                return None
+            pending.status = PendingResponseStatus.AUTO_SENT
+            pending.responded_at = datetime.now(timezone.utc)
+        await self._notify_change(pending)
+        return pending
+
+    async def claim_for_sending(self, pending_id: str) -> PendingResponse | None:
+        """Atomically claim a pending item for TX to prevent concurrent approval/auto-send races."""
+        async with self._lock:
+            pending = self._pending.get(pending_id)
+            if not pending or pending.status != PendingResponseStatus.PENDING:
+                return None
+            pending.status = PendingResponseStatus.SENDING
+            return pending
 
     async def _notify_change(self, pending: PendingResponse) -> None:
         for callback in self._callbacks:
@@ -177,12 +230,18 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         capture_service: Any = None,
         stream_processor: Any = None,
         response_agent: Any = None,
+        message_bus: Any = None,
+        radio_config: Any = None,
+        transcript_storage: Any = None,
     ) -> None:
         self.config = config
         self.rig_manager = rig_manager
         self.capture_service = capture_service
         self.stream_processor = stream_processor
         self.response_agent = response_agent
+        self._message_bus = message_bus
+        self._radio_config = radio_config
+        self._transcript_storage = transcript_storage
         self._monitoring = False
         self._audio_activated = False  # Reset when monitoring starts/stops if audio_activation_enabled
         self._trigger_filter = TriggerFilter(config)
@@ -191,6 +250,10 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         self._cooldown_lock = asyncio.Lock()
         self._confirmation_task: asyncio.Task[None] | None = None
         self._whisper_model: Any = None
+        # Current monitor context for bus metadata (set in _action_monitor)
+        self._current_frequency: float | None = None
+        self._current_band: str | None = None
+        self._current_mode: str = "FM"
 
         if self.stream_processor:
             self.stream_processor.set_segment_callback(self._on_segment_ready)
@@ -231,6 +294,19 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             await self.rig_manager.set_frequency(frequency)
             await self.rig_manager.set_mode(mode)
 
+        # Set context for message bus metadata (band, frequency, mode)
+        self._current_frequency = float(frequency) if frequency is not None else None
+        self._current_mode = mode or "FM"
+        if self._current_frequency and self._current_frequency > 0:
+            from radioshaq.radio.bands import get_band_for_frequency
+            self._current_band = get_band_for_frequency(self._current_frequency)
+        else:
+            rc = self._radio_config
+            self._current_band = (
+                getattr(rc, "default_band", None)
+                or (getattr(rc, "listen_bands", None) or [None])[0]
+            )
+
         self._monitoring = True
         self._confirmation_task = asyncio.create_task(
             self._confirmation_watcher(upstream_callback)
@@ -245,6 +321,8 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         finally:
             self._monitoring = False
             self._audio_activated = False
+            self._current_frequency = None
+            self._current_band = None
             await self.capture_service.stop()
             if self._confirmation_task and not self._confirmation_task.done():
                 self._confirmation_task.cancel()
@@ -290,19 +368,110 @@ class RadioAudioReceptionAgent(SpecializedAgent):
         confidence = getattr(segment, "transcript_confidence", None) or 0.8
         if not self._trigger_filter.check(transcript, confidence):
             return
+
+        # Optionally store voice transcript (band, source=voice_listener) for GET /transcripts and relay
+        if getattr(self._radio_config, "voice_store_transcript", False) and self._transcript_storage and getattr(self._transcript_storage, "_db", None):
+            min_len = getattr(self._radio_config, "voice_store_min_length", 0) or 0
+            keywords = getattr(self._radio_config, "voice_store_keywords", None) or []
+            stripped = transcript.strip()
+            if min_len > 0 and len(stripped) < min_len:
+                pass  # skip store: too short
+            elif keywords and not any(k.lower() in stripped.lower() for k in keywords if k):
+                pass  # skip store: no keyword match
+            else:
+                try:
+                    import uuid
+                    source = (getattr(self.config, "voice_source_callsign_default", None) or "UNKNOWN").strip().upper()
+                    session_id = f"voice-{self._current_band or 'unknown'}-{uuid.uuid4().hex[:8]}"
+                    await self._transcript_storage.store(
+                        session_id=session_id,
+                        source_callsign=source,
+                        frequency_hz=self._current_frequency or 0.0,
+                        mode=self._current_mode,
+                        transcript_text=transcript,
+                        destination_callsign=None,
+                        metadata={"band": self._current_band or "unknown", "source": "voice_listener"},
+                    )
+                except Exception as e:
+                    logger.warning("Voice transcript store failed: %s", e)
+
+        # Publish to MessageBus so orchestrator can process (default capture path)
+        if getattr(self.config, "voice_publish_to_bus", True) and self._message_bus and hasattr(self._message_bus, "publish_inbound"):
+            try:
+                from radioshaq.orchestrator.radio_ingestion import radio_received_to_inbound
+                source = (getattr(self.config, "voice_source_callsign_default", None) or "UNKNOWN").strip().upper()
+                inbound = radio_received_to_inbound(
+                    text=transcript,
+                    band=self._current_band,
+                    frequency_hz=self._current_frequency or 0.0,
+                    source_callsign=source,
+                    destination_callsign=None,
+                    mode=self._current_mode,
+                )
+                ok = await self._message_bus.publish_inbound(inbound)
+                if not ok:
+                    logger.debug("Voice segment dropped (bus full)")
+            except Exception as e:
+                logger.warning("Voice publish_inbound failed: %s", e)
+
         response_text = await self._generate_response_text(transcript)
         if self.config.response_mode == ResponseMode.LISTEN_ONLY:
             self._maybe_reset_activation_per_message()
             return
         if self.config.response_mode == ResponseMode.CONFIRM_FIRST:
             await self._confirmation_manager.create_pending(
-                transcript=transcript, proposed_message=response_text
+                transcript=transcript,
+                proposed_message=response_text,
+                frequency_hz=self._current_frequency,
+                mode=self._current_mode,
+            )
+            self._maybe_reset_activation_per_message()
+            return
+        if self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT:
+            await self._confirmation_manager.create_pending(
+                transcript=transcript,
+                proposed_message=response_text,
+                frequency_hz=self._current_frequency,
+                mode=self._current_mode,
             )
             self._maybe_reset_activation_per_message()
             return
         if self.config.response_mode == ResponseMode.AUTO_RESPOND:
-            await self._send_response(response_text)
+            await self._send_response(
+                response_text,
+                frequency_hz=self._current_frequency,
+                mode=self._current_mode,
+            )
             self._maybe_reset_activation_per_message()
+
+    async def _handle_pending_timeouts(self) -> None:
+        """Expire or auto-send timed-out pending responses based on response_mode."""
+        now = datetime.now(timezone.utc)
+        pending_list = await self._confirmation_manager.list_pending(
+            skip_auto_expire=True
+        )
+        if not pending_list:
+            return
+        if self.config.response_mode == ResponseMode.CONFIRM_TIMEOUT:
+            for pending in pending_list:
+                if pending.expires_at > now:
+                    continue
+                claimed = await self._confirmation_manager.claim_for_sending(pending.id)
+                if not claimed:
+                    continue
+                sent = await self._send_response(
+                    claimed.proposed_message,
+                    frequency_hz=claimed.frequency_hz,
+                    mode=claimed.mode,
+                )
+                if sent:
+                    await self._confirmation_manager.mark_auto_sent(claimed.id)
+                else:
+                    await self._confirmation_manager.mark_expired(claimed.id)
+            return
+        for pending in pending_list:
+            if pending.expires_at <= now:
+                await self._confirmation_manager.mark_expired(pending.id)
 
     async def _confirmation_watcher(
         self,
@@ -310,18 +479,26 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     ) -> None:
         async def on_change(pending: PendingResponse) -> None:
             if pending.status == PendingResponseStatus.APPROVED:
-                await self._send_response(pending.proposed_message)
-                await self.emit_result(
-                    upstream_callback,
-                    {
-                        "type": "response_sent_confirmed",
-                        "pending_id": pending.id,
-                        "response": pending.proposed_message,
-                    },
+                sent = await self._send_response(
+                    pending.proposed_message,
+                    frequency_hz=pending.frequency_hz,
+                    mode=pending.mode,
                 )
+                if sent:
+                    await self.emit_result(
+                        upstream_callback,
+                        {
+                            "type": "response_sent_confirmed",
+                            "pending_id": pending.id,
+                            "response": pending.proposed_message,
+                        },
+                    )
+                else:
+                    await self._confirmation_manager.mark_expired(pending.id)
 
         self._confirmation_manager.add_callback(on_change)
         while self._monitoring:
+            await self._handle_pending_timeouts()
             await asyncio.sleep(1)
 
     def _maybe_reset_activation_per_message(self) -> None:
@@ -367,15 +544,29 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     async def _generate_response_text(self, incoming_message: str) -> str:
         return f"Acknowledged: {incoming_message[:50]}... Standing by."
 
-    async def _send_response(self, message: str) -> bool:
+    async def _send_response(
+        self,
+        message: str,
+        *,
+        frequency_hz: float | None = None,
+        mode: str | None = None,
+    ) -> bool:
         if not self.response_agent:
             return False
-        # Responses to radio are always sent as audio (TTS) on radio out.
+        use_tts = (
+            getattr(self._radio_config, "radio_reply_use_tts", True)
+            if self._radio_config is not None
+            else True
+        )
         task = {
             "transmission_type": "voice",
             "message": message,
-            "use_tts": True,
+            "use_tts": use_tts,
         }
+        if frequency_hz is not None and frequency_hz > 0:
+            task["frequency"] = frequency_hz
+        if mode:
+            task["mode"] = mode
         try:
             result = await self.response_agent.execute(task)
             return result.get("success", False)
@@ -423,6 +614,14 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "pending_id required"}
         pending = await self._confirmation_manager.approve(pending_id, operator)
         if not pending:
+            existing = await self._confirmation_manager.get_pending(pending_id)
+            if existing is not None:
+                return {
+                    "error": (
+                        "Pending response is already in state: "
+                        f"{existing.status.value}"
+                    ),
+                }
             return {"error": "Pending response not found"}
         return {"success": True, "pending": pending.model_dump()}
 
@@ -434,6 +633,14 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "pending_id required"}
         pending = await self._confirmation_manager.reject(pending_id, operator, notes)
         if not pending:
+            existing = await self._confirmation_manager.get_pending(pending_id)
+            if existing is not None:
+                return {
+                    "error": (
+                        "Pending response is already in state: "
+                        f"{existing.status.value}"
+                    ),
+                }
             return {"error": "Pending response not found"}
         return {"success": True, "pending": pending.model_dump()}
 

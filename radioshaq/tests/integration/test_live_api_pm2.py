@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import time
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -39,11 +40,13 @@ def live_base_url() -> str | None:
 
 
 @pytest.fixture(scope="module")
-def live_client(live_base_url: str | None) -> httpx.Client | None:
+def live_client(live_base_url: str | None) -> Iterator[httpx.Client | None]:
     """HTTP client for live API if BASE_URL is set."""
     if not live_base_url:
-        return None
-    return httpx.Client(base_url=live_base_url, timeout=10.0)
+        yield None
+        return
+    with httpx.Client(base_url=live_base_url, timeout=10.0) as client:
+        yield client
 
 
 @pytest.mark.live_api

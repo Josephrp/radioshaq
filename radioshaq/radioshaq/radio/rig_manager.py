@@ -96,3 +96,8 @@ class RigManager:
     def list_rigs(self) -> list[str]:
         """List registered rig names."""
         return list(self._rigs.keys())
+
+    def is_connected(self, rig_name: str | None = None) -> bool:
+        """Return True if the active or specified rig is connected."""
+        rig = self.get_rig(rig_name)
+        return getattr(rig, "_connected", False) if rig else False

@@ -54,7 +54,12 @@ async def process_message(
     request_text = body.get("message", body.get("text", ""))
     if not request_text:
         raise HTTPException(status_code=400, detail="message or text required")
-    result = await orchestrator.process_request(request=request_text)
+    callsign = body.get("sender_id") or body.get("callsign")
+    if callsign is None and user:
+        callsign = getattr(user, "station_id", None) or getattr(user, "sub", None)
+    if callsign is not None:
+        callsign = str(callsign).strip().upper() or None
+    result = await orchestrator.process_request(request=request_text, callsign=callsign)
     response: dict[str, Any] = {
         "success": result.success,
         "message": result.message,
@@ -90,6 +95,9 @@ async def whitelist_request(
     request_text = None
     callsign: str | None = None
     send_audio_back = True
+    response_frequency_hz: float | None = None
+    response_mode: str | None = None
+    response_band: str | None = None
     content_type = (request.headers.get("content-type") or "").split(";")[0].strip().lower()
 
     if content_type == "application/json":
@@ -101,6 +109,13 @@ async def whitelist_request(
         callsign = body.get("callsign")
         if "send_audio_back" in body:
             send_audio_back = bool(body["send_audio_back"])
+        if body.get("frequency_hz") is not None:
+            try:
+                response_frequency_hz = float(body.get("frequency_hz"))
+            except (TypeError, ValueError):
+                response_frequency_hz = None
+        response_mode = body.get("mode")
+        response_band = body.get("band")
     elif content_type == "multipart/form-data":
         form = await request.form()
         request_text = form.get("text") or form.get("message")
@@ -113,6 +128,15 @@ async def whitelist_request(
             callsign = str(callsign).strip() or None
         if "send_audio_back" in form:
             send_audio_back = str(form["send_audio_back"]).strip().lower() in ("1", "true", "yes")
+        if "frequency_hz" in form:
+            try:
+                response_frequency_hz = float(form["frequency_hz"])
+            except (TypeError, ValueError):
+                response_frequency_hz = None
+        if "mode" in form:
+            response_mode = str(form["mode"]).strip() or None
+        if "band" in form:
+            response_band = str(form["band"]).strip() or None
         if not request_text and "file" in form:
             file = form["file"]
             if hasattr(file, "read") and file.filename:
@@ -150,10 +174,15 @@ async def whitelist_request(
     orchestrator_input = f"User requests to be whitelisted for gated services (e.g. messaging between bands). Their message: {request_text}"
     if callsign:
         orchestrator_input += f" Stated callsign: {callsign}."
+    
+    result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
+    if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
+        plan = BAND_PLANS[response_band]
+        response_frequency_hz = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
+        if not response_mode:
+            response_mode = (plan.modes or ["FM"])[0]
 
-    result = await orchestrator.process_request(request=orchestrator_input)
-    message_for_user = result.message
-
+    message_for_user = getattr(result, "message", None) or "Incomplete"
     approved_from_agent = None
     for task in result.state.completed_tasks:
         if getattr(task, "agent", None) == "whitelist" and task.result and isinstance(task.result, dict):
@@ -169,6 +198,10 @@ async def whitelist_request(
             "message": message_for_user,
             "use_tts": True,
         }
+        if response_frequency_hz is not None and response_frequency_hz > 0:
+            tx_task["frequency"] = response_frequency_hz
+        if response_mode:
+            tx_task["mode"] = response_mode
         try:
             await radio_tx_agent.execute(tx_task, upstream_callback=None)
             audio_sent = True

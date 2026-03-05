@@ -67,10 +67,13 @@ class JudgeSystem:
     async def evaluate_task_completion(self, state: REACTState) -> TaskEvaluation:
         """Orchestrator-level judge: Has the overall task been completed?"""
         prompt = self._build_task_evaluation_prompt(state)
+        system_content = self.task_judge_prompt
+        if state.context.get("memory_system_prefix"):
+            system_content = state.context["memory_system_prefix"] + "\n\n" + system_content
 
         response = await self.provider.chat(
             messages=[
-                {"role": "system", "content": self.task_judge_prompt},
+                {"role": "system", "content": system_content},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.1,

@@ -4,6 +4,10 @@ Allows user scripts or the API to inject text (and optional audio path) so that
 receivers can "hear" messages without real hardware or FLDIGI. Used for:
 - Demo on two local machines + one remote with user injection script
 - Band-translation scenario (inject on one band, relay to another)
+
+Re-put semantics: when a consumer (e.g. radio_rx with band filter) gets a message
+that does not match (e.g. wrong band), it may call put_back_nowait(msg). If the
+queue is full, the message is dropped and a warning is logged to avoid deadlock.
 """
 
 from __future__ import annotations
@@ -81,6 +85,15 @@ class InMemoryInjectionQueue:
             return self._queue.get_nowait()
         except asyncio.QueueEmpty:
             return None
+
+    def put_back_nowait(self, msg: InjectedMessage) -> bool:
+        """Re-put a message (e.g. after band mismatch). Returns True if put, False if queue full (message dropped)."""
+        try:
+            self._queue.put_nowait(msg)
+            return True
+        except asyncio.QueueFull:
+            logger.warning("Injection queue full on re-put, dropping message (band=%s)", getattr(msg, "band", None))
+            return False
 
     def qsize(self) -> int:
         return self._queue.qsize()

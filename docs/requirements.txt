@@ -1,0 +1,8 @@
+# MkDocs and Material theme — install from repo root: pip install -r docs/requirements.txt
+# Pin MkDocs 1.x: MkDocs 2.0 is incompatible with Material for MkDocs (no plugins, new theme system).
+mkdocs==1.6.1
+mkdocs-material>=9.5,<10
+mkdocs-git-revision-date-localized-plugin
+pymdown-extensions
+# OpenAPI docs (for API Reference from FastAPI spec)
+neoteroi-mkdocs

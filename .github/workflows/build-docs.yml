@@ -1,0 +1,72 @@
+# Build and deploy documentation (manual only). Tests run first; then MkDocs build; then deploy to GitHub Pages.
+name: Build and deploy documentation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Run tests
+        run: |
+          cd radioshaq && \
+          uv sync --extra dev --extra test && \
+          uv run pytest tests/unit tests/integration -v
+
+  build-docs:
+    name: Build docs
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history for git-revision-date-localized-plugin
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Install doc dependencies
+        run: pip install --no-cache-dir -r docs/requirements.txt
+      - name: MkDocs version
+        run: mkdocs --version
+      - name: Install radioshaq (for OpenAPI export)
+        run: uv sync --directory radioshaq
+      - name: Export OpenAPI
+        run: uv run --directory radioshaq python scripts/export_openapi.py
+      - name: Sync config examples into docs
+        run: |
+          mkdir -p docs/reference
+          cp radioshaq/.env.example docs/reference/.env.example
+          cp radioshaq/config.example.yaml docs/reference/config.example.yaml
+      - name: Build MkDocs
+        run: mkdocs build -f .github/mkdocs.yml
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+

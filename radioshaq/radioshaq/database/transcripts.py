@@ -6,6 +6,7 @@ for the API and orchestrator.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Protocol
 
 
@@ -34,7 +35,19 @@ class TranscriptStoreProtocol(Protocol):
         mode: str | None = None,
         since: str | None = None,
         limit: int = 100,
+        band: str | None = None,
+        destination_only: bool = False,
     ) -> list[dict[str, Any]]:
+        ...
+
+    async def delete_transcripts_older_than(
+        self,
+        cutoff: datetime,
+        *,
+        source: str | None = None,
+        limit: int = 10_000,
+    ) -> int:
+        """Delete transcripts with timestamp < cutoff. Return count deleted."""
         ...
 
 
@@ -84,6 +97,8 @@ class TranscriptStorage:
         mode: str | None = None,
         since: str | None = None,
         limit: int = 100,
+        band: str | None = None,
+        destination_only: bool = False,
     ) -> list[dict[str, Any]]:
         """Search transcripts. Returns empty list if no backend."""
         if not self._db:
@@ -95,4 +110,20 @@ class TranscriptStorage:
             mode=mode,
             since=since,
             limit=limit,
+            band=band,
+            destination_only=destination_only,
+        )
+
+    async def delete_transcripts_older_than(
+        self,
+        cutoff: datetime,
+        *,
+        source: str | None = None,
+        limit: int = 10_000,
+    ) -> int:
+        """Delete transcripts with timestamp < cutoff. Returns 0 if no backend."""
+        if not self._db or not hasattr(self._db, "delete_transcripts_older_than"):
+            return 0
+        return await self._db.delete_transcripts_older_than(
+            cutoff, source=source, limit=limit
         )

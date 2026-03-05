@@ -68,6 +68,15 @@ module.exports = {
         BRIDGE_TOKEN: 'dev-bridge-token',
         // Alembic
         ALEMBIC_CONFIG: 'infrastructure/local/alembic.ini',
+        // Memory (per-callsign; optional Hindsight)
+        RADIOSHAQ_MEMORY__ENABLED: 'true',
+        RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL: 'http://localhost:8888',
+        RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED: 'true',
+        RADIOSHAQ_MEMORY__SUMMARY_TIMEZONE: 'America/New_York',
+      },
+      env_test: {
+        NODE_ENV: 'test',
+        RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED: 'false',
       },
       env_production: {
         NODE_ENV: 'production',
@@ -91,6 +100,34 @@ module.exports = {
       wait_ready: true,
       // Custom metrics
       instances_var: 'INSTANCE_ID',
+    },
+
+    // ==========================================
+    // Hindsight API (optional: when running via pip instead of Docker)
+    // Start with: pm2 start ecosystem.config.js --only hindsight-api
+    // Requires: pip install hindsight-all; set HINDSIGHT_API_LLM_* in env
+    // ==========================================
+    {
+      name: 'hindsight-api',
+      script: 'hindsight-api',
+      args: '--port 8888',
+      cwd: cwd,
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: true,
+      max_memory_restart: '512M',
+      env: {
+        HINDSIGHT_API_LLM_PROVIDER: process.env.HINDSIGHT_API_LLM_PROVIDER || 'openai',
+        HINDSIGHT_API_LLM_API_KEY: process.env.HINDSIGHT_API_LLM_API_KEY || '',
+        HINDSIGHT_API_LLM_MODEL: process.env.HINDSIGHT_API_LLM_MODEL || 'gpt-4o-mini',
+        // Same Postgres as RadioShaq when running on host (Docker Postgres on 5434)
+        HINDSIGHT_API_DATABASE_URL: process.env.HINDSIGHT_API_DATABASE_URL || 'postgresql://radioshaq:radioshaq@127.0.0.1:5434/radioshaq',
+        HINDSIGHT_API_DATABASE_SCHEMA: process.env.HINDSIGHT_API_DATABASE_SCHEMA || 'hindsight',
+        HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP: process.env.HINDSIGHT_API_RUN_MIGRATIONS_ON_STARTUP || 'true',
+      },
+      log_file: path.join(logsDir, 'hindsight-api.log'),
+      out_file: path.join(logsDir, 'hindsight-api-out.log'),
+      error_file: path.join(logsDir, 'hindsight-api-error.log'),
     },
 
     // ==========================================

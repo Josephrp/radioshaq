@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AudioActivationMode, ResponseMode } from '../../types/audio';
 import { ResponseModeSelector } from '../../components/audio/ResponseModeSelector';
 import { ConfirmationQueue } from '../../components/audio/ConfirmationQueue';
@@ -43,6 +43,14 @@ export function AudioConfigPage() {
     })();
   }, []);
 
+  // Live polling: pending queue when in confirm mode
+  useEffect(() => {
+    const mode = config?.response_mode;
+    if (mode !== 'confirm_first' && mode !== 'confirm_timeout') return;
+    const interval = setInterval(loadPending, 5000);
+    return () => clearInterval(interval);
+  }, [config?.response_mode]);
+
   const handleResponseModeChange = async (mode: ResponseMode) => {
     if (!config) return;
     try {
@@ -78,7 +86,7 @@ export function AudioConfigPage() {
 
   return (
     <div className="audio-config-page">
-      <h1>SHAKODS Audio</h1>
+      <h1>RadioShaq Audio</h1>
 
       <section>
         <h2>Response mode</h2>

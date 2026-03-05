@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from radioshaq.api.callsign_whitelist import get_effective_allowed_callsigns, is_callsign_allowed
-from radioshaq.api.dependencies import get_config, get_current_user, get_transcript_storage
+from radioshaq.api.dependencies import get_config, get_current_user, get_radio_tx_agent, get_transcript_storage
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.radio.bands import BAND_PLANS
+from radioshaq.radio.injection import get_injection_queue
+from radioshaq.relay.service import relay_message_between_bands_service
 
 router = APIRouter()
 
@@ -27,6 +29,7 @@ class RelayBody(BaseModel):
     source_callsign: str = Field("UNKNOWN")
     destination_callsign: str | None = Field(None)
     session_id: str | None = Field(None)
+    deliver_at: str | None = Field(None, description="ISO datetime when message should be delivered on target band (optional)")
     source_audio_path: str | None = Field(None)
     target_audio_path: str | None = Field(None)
 
@@ -77,61 +80,38 @@ async def relay_message_between_bands(
         raise HTTPException(status_code=403, detail="Destination callsign not allowed")
 
     storage = get_transcript_storage(request)
-    if not storage or not getattr(storage, "_db", None):
-        # No DB: return relay plan without persisting
-        return {
-            "ok": True,
-            "relay": "no_storage",
-            "message": "Relay accepted (no DB to store)",
-            "source_band": source_band,
-            "source_frequency_hz": source_freq,
-            "target_band": target_band,
-            "target_frequency_hz": target_freq,
-            "source_callsign": source_callsign,
-            "destination_callsign": destination_callsign,
-        }
-    mode = (source_plan.modes or ["SSB"])[0]
-    target_mode = (target_plan.modes or ["FM"])[0]
-
-    # 1) Store original (received on source band)
-    source_metadata = {"band": source_band, "relay_role": "source"}
-    orig_id = await storage.store(
-        session_id=session_id,
+    queue = get_injection_queue()
+    radio_tx = get_radio_tx_agent(request)
+    result = await relay_message_between_bands_service(
+        message=msg,
+        source_band=source_band,
+        target_band=target_band,
+        source_frequency_hz=source_freq,
+        target_frequency_hz=target_freq,
         source_callsign=source_callsign,
-        frequency_hz=source_freq,
-        mode=mode,
-        transcript_text=msg,
         destination_callsign=destination_callsign,
-        metadata=source_metadata,
-        raw_audio_path=body.source_audio_path,
-    )
-
-    # 2) Store relayed (translated to target band)
-    relay_metadata = {
-        "band": target_band,
-        "relay_role": "relayed",
-        "relay_from_transcript_id": orig_id,
-        "relay_from_band": source_band,
-        "relay_from_frequency_hz": source_freq,
-    }
-    relay_id = await storage.store(
         session_id=session_id,
-        source_callsign=source_callsign,
-        frequency_hz=target_freq,
-        mode=target_mode,
-        transcript_text=msg,
-        destination_callsign=destination_callsign,
-        metadata=relay_metadata,
-        raw_audio_path=body.target_audio_path,
+        deliver_at=body.deliver_at,
+        storage=storage,
+        injection_queue=queue,
+        radio_tx_agent=radio_tx,
+        config=config.radio,
+        source_audio_path=body.source_audio_path,
+        target_audio_path=body.target_audio_path,
+        store_only_relayed=getattr(config.radio, "relay_store_only_relayed", False),
     )
-
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Relay failed"))
+    if result.get("relay") == "no_storage":
+        return result
     return {
-        "ok": True,
-        "source_transcript_id": orig_id,
-        "relayed_transcript_id": relay_id,
-        "source_band": source_band,
-        "source_frequency_hz": source_freq,
-        "target_band": target_band,
-        "target_frequency_hz": target_freq,
-        "session_id": session_id,
+        "ok": result["ok"],
+        "source_transcript_id": result.get("source_transcript_id"),
+        "relayed_transcript_id": result.get("relayed_transcript_id"),
+        "source_band": result["source_band"],
+        "source_frequency_hz": result["source_frequency_hz"],
+        "target_band": result["target_band"],
+        "target_frequency_hz": result["target_frequency_hz"],
+        "session_id": result["session_id"],
+        "deliver_at": result.get("deliver_at"),
     }

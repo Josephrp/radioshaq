@@ -1,0 +1,95 @@
+name: Publish Stable to PyPI
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Stable tag to publish (example: v1.2.3). Defaults to current ref name."
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: stable-pypi-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      RADIOSHAQ_LICENSE_ACCEPTED: "1"
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Run test suite
+        run: |
+          cd radioshaq
+          uv sync --extra dev --extra test --extra sdr
+          uv run pytest tests/unit tests/integration -v
+
+  verify-tag-source:
+    name: Verify tag points to main history
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
+      - name: Ensure tagged commit is reachable from origin/main
+        run: |
+          git fetch origin +refs/heads/main:refs/remotes/origin/main
+          TAG_SHA=$(git rev-parse HEAD)
+          if ! git branch -r --contains "$TAG_SHA" | grep -q "origin/main"; then
+            echo "Stable publish is only allowed for tags on main history."
+            exit 1
+          fi
+
+  build-and-publish:
+    name: Build and publish stable artifact
+    needs: [test, verify-tag-source]
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: radioshaq/web-interface/package-lock.json
+      - name: Build web UI
+        working-directory: radioshaq/web-interface
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Stage web UI for wheel
+        run: |
+          mkdir -p radioshaq/radioshaq/web_ui
+          cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Build wheel and sdist
+        run: |
+          cd radioshaq
+          uv run --with build python -m build
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: radioshaq/dist
+

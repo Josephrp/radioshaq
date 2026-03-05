@@ -1,0 +1,27 @@
+name: Enforce Main PR Source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  enforce-main-source:
+    name: Enforce main <- dev only
+    runs-on: ubuntu-latest
+    env:
+      BASE_REF: ${{ github.base_ref }}
+      HEAD_REF: ${{ github.head_ref }}
+    steps:
+      - name: Validate pull request source branch
+        run: |
+          echo "Base branch: $BASE_REF"
+          echo "Head branch: $HEAD_REF"
+          if [ "$BASE_REF" = "main" ] && [ "$HEAD_REF" != "dev" ]; then
+            echo "Only pull requests from 'dev' into 'main' are allowed."
+            echo "Required flow: feature/* -> dev -> main."
+            exit 1
+          fi

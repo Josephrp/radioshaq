@@ -1,0 +1,41 @@
+name: Prepare Patch Release (dev)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: dev
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - name: Bump patch version on dev
+        run: |
+          python radioshaq/scripts/bump_version.py --project-root . --bump patch --sync-all
+      - name: Commit and push version update to dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radioshaq/pyproject.toml radioshaq/radioshaq/__init__.py radioshaq/web-interface/package.json
+          git commit -m "chore(release): prepare patch version on dev"
+          for attempt in 1 2 3; do
+            git fetch origin dev
+            git rebase origin/dev
+            if git push origin HEAD:dev; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to push after 3 attempts due to concurrent updates on dev."
+              exit 1
+            fi
+            echo "Push race detected, retrying (${attempt}/3)..."
+            sleep 2
+          done
+

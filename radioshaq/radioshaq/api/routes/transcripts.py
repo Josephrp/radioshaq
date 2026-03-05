@@ -24,6 +24,10 @@ async def search_transcripts(
     frequency_max: float | None = Query(None, description="Maximum frequency (Hz)"),
     mode: str | None = Query(None, description="Filter by mode (FM, PSK31, etc.)"),
     band: str | None = Query(None, description="Filter by band name (e.g. 40m, 2m); uses extra_data.band"),
+    destination_only: bool = Query(
+        False,
+        description="If True and callsign set, return only transcripts where callsign is destination",
+    ),
     since: str | None = Query(None, description="Only transcripts after this time (ISO 8601)"),
     limit: int = Query(100, ge=1, le=500, description="Max results"),
     user: TokenPayload = Depends(get_current_user),
@@ -32,6 +36,8 @@ async def search_transcripts(
     """
     Search transcripts (received/relayed messages). Use for demo so User 2 can poll
     for messages on a band or for their callsign (e.g. after relay from 40m to 2m).
+    For a callsign to poll their messages on a band: use callsign=<their_callsign>&destination_only=true&band=<band>.
+    Omit band to get messages across all bands.
     When whitelist is configured, only transcripts whose source/destination is in the whitelist are returned.
     """
     if db is None or not hasattr(db, "search_transcripts"):
@@ -44,10 +50,10 @@ async def search_transcripts(
         mode=mode,
         since=since,
         limit=limit,
+        band=band,
+        destination_only=destination_only,
     )
     out = list(results)
-    if band:
-        out = [t for t in out if (t.get("extra_data") or {}).get("band") == band]
     config = get_config(request)
     allowed = await get_effective_allowed_callsigns(db, config.radio)
     if allowed:

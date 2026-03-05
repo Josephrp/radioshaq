@@ -41,6 +41,35 @@ async def bands(
     return {"bands": list(BAND_PLANS.keys())}
 
 
+@router.get("/status")
+async def radio_status(
+    request: Request,
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Report whether a radio (CAT rig) is connected. When connected, optionally include
+    current frequency and mode from the rig.
+    """
+    radio_tx = get_radio_tx_agent(request)
+    if not radio_tx:
+        return {"connected": False, "reason": "radio_tx_agent_not_available"}
+    rig_manager = getattr(radio_tx, "rig_manager", None)
+    if not rig_manager or not hasattr(rig_manager, "is_connected"):
+        return {"connected": False, "reason": "rig_not_configured"}
+    connected = rig_manager.is_connected()
+    out: dict[str, Any] = {"connected": connected}
+    if connected:
+        try:
+            state = await rig_manager.get_state()
+            if state:
+                out["frequency_hz"] = state.frequency
+                out["mode"] = getattr(state.mode, "value", str(state.mode))
+                out["ptt"] = state.ptt
+        except Exception:
+            pass
+    return out
+
+
 @router.post("/send-tts")
 async def send_tts(
     request: Request,
@@ -57,7 +86,7 @@ async def send_tts(
         "use_tts": True,
     }
     if body.frequency_hz is not None:
-        task["frequency_hz"] = body.frequency_hz
+        task["frequency"] = body.frequency_hz
     if body.mode:
         task["mode"] = body.mode
     result = await radio_tx.execute(task)

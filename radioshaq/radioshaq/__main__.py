@@ -1,10 +1,10 @@
-"""Entry point for running SHAKODS as a module."""
+"""Entry point for running RadioShaq as a module (CLI)."""
 
 from __future__ import annotations
 
 import sys
 
-from radioshaq.cli import app
+from radioshaq.cli import main
 
 if __name__ == "__main__":
-    sys.exit(app())
+    sys.exit(main())
