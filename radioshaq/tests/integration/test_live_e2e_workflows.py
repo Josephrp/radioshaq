@@ -124,4 +124,4 @@ def test_live_relay_and_transcript_poll_workflow(live_client: httpx.Client) -> N
             break
         time.sleep(0.5)
 
-    assert matched
+    assert matched, f"Transcript for destination={destination!r} run_id={run_id!r} not found within 10 s"
