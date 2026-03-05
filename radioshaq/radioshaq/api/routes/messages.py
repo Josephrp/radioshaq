@@ -176,13 +176,13 @@ async def whitelist_request(
         orchestrator_input += f" Stated callsign: {callsign}."
 
     result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
-        response_mode = str(body["mode"]).strip() or None if "mode" in body else None
     if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
         plan = BAND_PLANS[response_band]
         response_frequency_hz = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
         if not response_mode:
             response_mode = (plan.modes or ["FM"])[0]
 
+    message_for_user = getattr(result, "message", None) or "Incomplete"
     approved_from_agent = None
     for task in result.state.completed_tasks:
         if getattr(task, "agent", None) == "whitelist" and task.result and isinstance(task.result, dict):
