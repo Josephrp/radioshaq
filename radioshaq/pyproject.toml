@@ -173,6 +173,7 @@ force-include = { "prompts" = "prompts" }
 [tool.hatch.build]
 include = [
     "radioshaq/**/*.py",
+    "radioshaq/web_ui/**",
     "prompts/**/*.md",
 ]
 
