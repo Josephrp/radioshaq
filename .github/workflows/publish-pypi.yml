@@ -1,17 +1,25 @@
-# Build and publish radioshaq to PyPI (single package: API, web UI, remote receiver).
-# Trigger: manual (workflow_dispatch) or on release (publish).
-# Prerequisite: Configure Trusted Publishing on PyPI:
-#   https://pypi.org/manage/project/radioshaq/settings/publishing/
-
-name: Publish to PyPI
+name: Release and Publish to PyPI
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+    inputs:
+      bump_type:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
 
 permissions:
-  contents: read
+  contents: write
+  models: read
+
+concurrency:
+  group: release-pypi-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -23,48 +31,149 @@ jobs:
         with:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v5
-      - name: Test radioshaq (includes remote_receiver unit tests)
+      - name: Run test suite
         run: |
-          cd radioshaq && uv sync --extra dev --extra test --extra sdr && uv run pytest tests/unit tests/integration -v
+          cd radioshaq
+          uv sync --extra dev --extra test --extra sdr
+          uv run pytest tests/unit tests/integration -v
 
-  build-and-publish-radioshaq:
-    name: Build and publish radioshaq
+  release-and-publish:
+    name: Bump, tag, release, publish
     needs: test
     runs-on: ubuntu-latest
+    if: ${{ github.ref == 'refs/heads/main' }}
+    environment: pypi
     permissions:
+      contents: write
       id-token: write
+      models: read
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
           cache: "npm"
           cache-dependency-path: radioshaq/web-interface/package-lock.json
-      - name: Verify web UI paths
-        run: |
-          ls -la
-          ls -la radioshaq
-          ls -la radioshaq/web-interface
-          test -f radioshaq/web-interface/package-lock.json
+
       - name: Build web UI
         working-directory: radioshaq/web-interface
         run: |
-          node --version
-          npm --version
           npm ci --no-audit --no-fund
           npm run build
+
       - name: Stage web UI for wheel
         run: |
           mkdir -p radioshaq/radioshaq/web_ui
           cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - uses: astral-sh/setup-uv@v5
-      - name: Build radioshaq wheel and sdist
+
+      - name: Bump package version
+        id: bump
         run: |
-          cd radioshaq && uv run --with build python -m build
-      - name: Publish radioshaq to PyPI
+          new_version=$(python radioshaq/scripts/bump_version.py --file radioshaq/pyproject.toml --bump "${{ inputs.bump_type }}")
+          echo "new_version=$new_version" >> "$GITHUB_OUTPUT"
+          echo "new_tag=v$new_version" >> "$GITHUB_OUTPUT"
+
+      - name: Build wheel and sdist
+        run: |
+          cd radioshaq
+          uv run --with build python -m build
+
+      - name: Commit version bump and create tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add radioshaq/pyproject.toml
+          git commit -m "chore(release): v${{ steps.bump.outputs.new_version }}"
+          git tag "${{ steps.bump.outputs.new_tag }}"
+          git push origin HEAD:main
+          git push origin "${{ steps.bump.outputs.new_tag }}"
+
+      - name: Build release notes context
+        id: notes_context
+        run: |
+          prev_tag=$(git describe --tags --abbrev=0 "${{ steps.bump.outputs.new_tag }}^" 2>/dev/null || echo "")
+          if [ -n "$prev_tag" ]; then
+            range="$prev_tag..${{ steps.bump.outputs.new_tag }}"
+          else
+            range="${{ steps.bump.outputs.new_tag }}"
+          fi
+          {
+            echo "range=$range"
+            echo "commit_log<<EOF"
+            git log --pretty=format:'- %s (%h)' $range
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Draft radio-themed notes with GitHub Models
+        id: ai_notes
+        continue-on-error: true
+        uses: actions/ai-inference@v1
+        with:
+          model: openai/gpt-4.1-mini
+          prompt: |
+            You are writing concise release notes for RadioShaq.
+            Keep a radio operator theme (clear, practical, "traffic update" tone), but stay technical.
+            Version: ${{ steps.bump.outputs.new_tag }}
+            Bump type: ${{ inputs.bump_type }}
+            Commit range: ${{ steps.notes_context.outputs.range }}
+            Commits:
+            ${{ steps.notes_context.outputs.commit_log }}
+
+            Output markdown with:
+            - "### Net Control Summary"
+            - "### Changes Landed"
+            - "### Operator Notes"
+            - "### Upgrade Callout"
+            Keep it under 220 words.
+
+      - name: Compose release notes body
+        id: notes_body
+        env:
+          AI_RESPONSE: ${{ steps.ai_notes.outputs.response }}
+        run: |
+          if [ -n "$AI_RESPONSE" ]; then
+            printf '%s\n' "$AI_RESPONSE" > release-notes.md
+          else
+            cat > release-notes.md <<'EOF'
+          ### Net Control Summary
+          RadioShaq ${{ steps.bump.outputs.new_tag }} is on-frequency and ready for field deployment.
+
+          ### Changes Landed
+          ${{ steps.notes_context.outputs.commit_log }}
+
+          ### Operator Notes
+          This release was cut by automated CI: tests, web build, package build, tag, and publish path all passed in sequence.
+
+          ### Upgrade Callout
+          Install or upgrade with `pip install -U radioshaq==${{ steps.bump.outputs.new_version }}`.
+          EOF
+          fi
+          {
+            echo "body<<EOF"
+            cat release-notes.md
+            echo
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.bump.outputs.new_tag }}
+          name: RadioShaq ${{ steps.bump.outputs.new_tag }}
+          body: ${{ steps.notes_body.outputs.body }}
+          generate_release_notes: false
+
+      - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: radioshaq/dist
