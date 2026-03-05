@@ -73,6 +73,7 @@ What this covers:
 ## Git Hook: run all tests before push
 
 This repository provides a managed pre-push hook in `.githooks/pre-push`.
+There is currently no managed `pre-commit` hook in this repository.
 
 Enable it once per clone:
 
@@ -80,6 +81,18 @@ Enable it once per clone:
 git config core.hooksPath .githooks
 # Linux/macOS only:
 chmod +x .githooks/pre-push
+```
+
+Verify your local clone is configured:
+
+```bash
+git config --get core.hooksPath
+```
+
+Expected output:
+
+```text
+.githooks
 ```
 
 Then every `git push` runs:
