@@ -17,6 +17,8 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
+    env:
+      RADIOSHAQ_LICENSE_ACCEPTED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

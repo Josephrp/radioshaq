@@ -18,6 +18,8 @@ jobs:
     name: Test
     if: ${{ github.repository == format('{0}/{1}', vars.CI_ROOT_OWNER != '' && vars.CI_ROOT_OWNER || 'Josephrp', vars.CI_ROOT_REPO != '' && vars.CI_ROOT_REPO || github.event.repository.name) }}
     runs-on: ubuntu-latest
+    env:
+      RADIOSHAQ_LICENSE_ACCEPTED: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
