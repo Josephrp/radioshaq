@@ -116,7 +116,7 @@ services:
     container_name: radioshaq-pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@radioshaq.local
+      PGADMIN_DEFAULT_EMAIL: admin@radioshaq.dev
       PGADMIN_DEFAULT_PASSWORD: admin
       PGADMIN_SERVER_JSON_FILE: /pgadmin4/servers.json
     ports:

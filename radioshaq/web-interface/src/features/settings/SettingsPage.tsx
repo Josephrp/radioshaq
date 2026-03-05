@@ -14,7 +14,6 @@ import {
 const SECTION_STYLE: React.CSSProperties = { marginBottom: '1.5rem', padding: '1rem', border: '1px solid #ddd', borderRadius: 8 };
 const LABEL_STYLE: React.CSSProperties = { display: 'block', marginBottom: '0.25rem', fontWeight: 500 };
 const INPUT_STYLE: React.CSSProperties = { width: '100%', maxWidth: 400, padding: '0.35rem 0.5rem', marginBottom: '0.5rem' };
-const ROLES = ['orchestrator', 'judge', 'whitelist', 'daily_summary', 'memory'] as const;
 
 export function SettingsPage() {
   const [llm, setLlm] = useState<LlmConfigResponse | null>(null);
@@ -83,6 +82,11 @@ export function SettingsPage() {
       setSaving(null);
     }
   };
+
+  // Keep until per-role override controls are wired back in:
+  // const ROLES = ['orchestrator', 'judge', 'whitelist', 'daily_summary', 'memory'] as const;
+  // Keep this handler compiled until override edit controls are wired back in.
+  void handleOverridesChange;
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p role="alert">Error: {error}</p>;
