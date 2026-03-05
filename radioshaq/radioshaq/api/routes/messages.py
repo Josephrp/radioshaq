@@ -174,7 +174,7 @@ async def whitelist_request(
     orchestrator_input = f"User requests to be whitelisted for gated services (e.g. messaging between bands). Their message: {request_text}"
     if callsign:
         orchestrator_input += f" Stated callsign: {callsign}."
-
+    
     result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
     if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
         plan = BAND_PLANS[response_band]
