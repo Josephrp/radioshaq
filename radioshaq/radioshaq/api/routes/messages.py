@@ -176,8 +176,7 @@ async def whitelist_request(
         orchestrator_input += f" Stated callsign: {callsign}."
 
     result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
-    message_for_user = result.message
-
+        response_mode = str(body["mode"]).strip() or None if "mode" in body else None
     if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
         plan = BAND_PLANS[response_band]
         response_frequency_hz = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
