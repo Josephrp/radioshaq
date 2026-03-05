@@ -67,6 +67,8 @@ export function SettingsPage() {
     }
   };
 
+  // Keep this handler compiled until per-role override controls are wired back in.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleOverridesChange = async (kind: 'llm_overrides' | 'memory_overrides', role: string, field: string, value: unknown) => {
     if (!overrides) return;
     setSaving('overrides');
@@ -85,8 +87,6 @@ export function SettingsPage() {
 
   // Keep until per-role override controls are wired back in:
   // const ROLES = ['orchestrator', 'judge', 'whitelist', 'daily_summary', 'memory'] as const;
-  // Keep this handler compiled until override edit controls are wired back in.
-  void handleOverridesChange;
 
   if (loading) return <p>Loading…</p>;
   if (error) return <p role="alert">Error: {error}</p>;

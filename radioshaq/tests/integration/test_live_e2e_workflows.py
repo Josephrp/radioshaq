@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 import uuid
 from collections.abc import Iterator
 
@@ -100,19 +101,27 @@ def test_live_relay_and_transcript_poll_workflow(live_client: httpx.Client) -> N
     if relay_data.get("relay") == "no_storage":
         pytest.skip("Relay accepted but transcript storage is unavailable")
 
-    search = live_client.get(
-        "/transcripts",
-        headers=headers,
-        params={"callsign": destination, "destination_only": "true", "band": "2m", "limit": 100},
-    )
-    assert search.status_code == 200, search.text
-    search_data = search.json()
-    assert "transcripts" in search_data
-    transcripts = search_data["transcripts"]
-    assert isinstance(transcripts, list)
-    assert any(
-        isinstance(t, dict)
-        and t.get("destination_callsign") == destination
-        and run_id in str(t.get("transcript_text", ""))
-        for t in transcripts
-    )
+    deadline = time.monotonic() + 10.0
+    matched = False
+    while time.monotonic() < deadline:
+        search = live_client.get(
+            "/transcripts",
+            headers=headers,
+            params={"callsign": destination, "destination_only": "true", "band": "2m", "limit": 100},
+        )
+        assert search.status_code == 200, search.text
+        search_data = search.json()
+        assert "transcripts" in search_data
+        transcripts = search_data["transcripts"]
+        assert isinstance(transcripts, list)
+        matched = any(
+            isinstance(t, dict)
+            and t.get("destination_callsign") == destination
+            and run_id in str(t.get("transcript_text", ""))
+            for t in transcripts
+        )
+        if matched:
+            break
+        time.sleep(0.5)
+
+    assert matched
