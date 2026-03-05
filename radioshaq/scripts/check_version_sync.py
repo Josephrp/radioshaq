@@ -28,7 +28,13 @@ def main() -> int:
         "package_json": extract(r'^\s*"version":\s*"([^"]+)",\s*$', package_json, "package_json"),
     }
     if "from radioshaq import __version__" not in api_server:
-        print("API server is not deriving version from radioshaq.__version__", file=sys.stderr)
+        print("API server is not importing version from radioshaq.__version__", file=sys.stderr)
+        return 1
+    if not re.search(r"FastAPI\([\s\S]*?\bversion\s*=\s*__version__", api_server):
+        print("API server FastAPI() constructor is not using radioshaq.__version__", file=sys.stderr)
+        return 1
+    if re.search(r'FastAPI\([\s\S]*?\bversion\s*=\s*["\'][^"\']+["\']', api_server):
+        print("API server has a hard-coded version string in FastAPI() constructor", file=sys.stderr)
         return 1
 
     unique = set(versions.values())

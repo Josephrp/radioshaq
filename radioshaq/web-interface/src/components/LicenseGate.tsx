@@ -30,9 +30,16 @@ export function LicenseGate({ onAccept }: LicenseGateProps) {
           accept this license before using the official web interface.
         </p>
         <p>
-          Review the full license text in the project&apos;s
-          {' '}
-          <code>LICENSE.md</code>.
+          Review the full license text in{' '}
+          <a
+            href="https://github.com/josephrp/radioshaq/blob/main/LICENSE.md"
+            target="_blank"
+            rel="noreferrer"
+            style={{ color: '#7ca5e0' }}
+          >
+            LICENSE.md
+          </a>
+          .
         </p>
         <button
           type="button"

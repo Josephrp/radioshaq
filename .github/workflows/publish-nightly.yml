@@ -14,8 +14,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  verify-source-branch:
+    name: Verify source branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure nightly publish runs from dev
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/dev" ]]; then
+            echo "Nightly publish must be triggered from the 'dev' branch."
+            echo "Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
   test:
     name: Test
+    needs: verify-source-branch
     runs-on: ubuntu-latest
     env:
       RADIOSHAQ_LICENSE_ACCEPTED: "1"

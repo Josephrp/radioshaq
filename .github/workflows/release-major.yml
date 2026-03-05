@@ -25,5 +25,17 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add radioshaq/pyproject.toml radioshaq/radioshaq/__init__.py radioshaq/web-interface/package.json
           git commit -m "chore(release): prepare major version on dev"
-          git push origin HEAD:dev
+          for attempt in 1 2 3; do
+            git fetch origin dev
+            git rebase origin/dev
+            if git push origin HEAD:dev; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "Failed to push after 3 attempts due to concurrent updates on dev."
+              exit 1
+            fi
+            echo "Push race detected, retrying (${attempt}/3)..."
+            sleep 2
+          done
 

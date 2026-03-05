@@ -296,6 +296,10 @@ def create_app() -> FastAPI:
     web_ui = _web_ui_dir()
     if web_ui is not None:
         app.mount("/", StaticFiles(directory=str(web_ui), html=True), name="web_ui")
+        if app.router.routes[-1].name != "web_ui":
+            raise RuntimeError(
+                "web_ui mount must remain the final route. Register all API routes before mounting static files at /."
+            )
 
     return app
 
