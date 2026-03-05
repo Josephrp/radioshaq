@@ -10,10 +10,10 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: dev
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Bump minor version on dev
@@ -26,3 +26,4 @@ jobs:
           git add radioshaq/pyproject.toml radioshaq/radioshaq/__init__.py radioshaq/web-interface/package.json
           git commit -m "chore(release): prepare minor version on dev"
           git push origin HEAD:dev
+

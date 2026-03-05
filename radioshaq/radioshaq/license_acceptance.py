@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ACCEPTANCE_VERSION = "gpl-2.0-only-v1"
@@ -38,6 +39,7 @@ def record_license_acceptance() -> None:
     ACCEPTANCE_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "acceptance_version": ACCEPTANCE_VERSION,
+        "accepted_at": datetime.now(timezone.utc).isoformat(),
     }
     ACCEPTANCE_FILE.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 

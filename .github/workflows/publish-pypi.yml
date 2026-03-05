@@ -25,13 +25,13 @@ jobs:
     env:
       RADIOSHAQ_LICENSE_ACCEPTED: "1"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - name: Run test suite
         run: |
           cd radioshaq
@@ -42,13 +42,13 @@ jobs:
     name: Verify tag points to main history
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
           ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
       - name: Ensure tagged commit is reachable from origin/main
         run: |
-          git fetch origin main --depth=1
+          git fetch origin +refs/heads/main:refs/remotes/origin/main
           if ! git branch -r --contains "$GITHUB_SHA" | grep -q "origin/main"; then
             echo "Stable publish is only allowed for tags on main history."
             exit 1
@@ -62,10 +62,10 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           ref: ${{ inputs.tag != '' && inputs.tag || github.ref }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -79,10 +79,10 @@ jobs:
         run: |
           mkdir -p radioshaq/radioshaq/web_ui
           cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
       - name: Build wheel and sdist
         run: |
           cd radioshaq
@@ -91,3 +91,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: radioshaq/dist
+

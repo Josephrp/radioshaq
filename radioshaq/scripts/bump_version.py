@@ -73,7 +73,7 @@ def bump_semver(version: tuple[int, int, int], bump_type: str) -> tuple[int, int
 
 def nightly_version(base: str) -> str:
     split_base(base)
-    stamp = dt.datetime.utcnow().strftime("%Y%m%d%H%M")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d%H%M")
     return f"{base}.dev{stamp}"
 
 
