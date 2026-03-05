@@ -50,7 +50,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
       - name: Build radioshaq wheel and sdist
         run: |
-          cd radioshaq && uv pip install build && uv run python -m build
+          cd radioshaq && uv run --with build python -m build
       - name: Publish radioshaq to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
