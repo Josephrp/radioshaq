@@ -4,7 +4,7 @@
 
 A specialized AI-powered orchestrator for ham radio operations, emergency communications, and field-to-HQ coordination.
 
-**Documentation:** [Quick Start](https://josephrp.github.io/radioshaq/quick-start/), [Configuration](https://Josephrp.github.io/RadioShaq/configuration/), [API Reference](https://Josephrp.github.io/RadioShaq/api-reference/) (published site). In-repo source: [../docs/](../docs/) (MkDocs Material).
+**Documentation:** [Quick Start](https://radioshaq.readthedocs.io/quick-start/), [Configuration](https://radioshaq.readthedocs.io/configuration/), [API Reference](https://radioshaq.readthedocs.io/api-reference/) (Read the Docs). In-repo source: [../docs/](../docs/) (MkDocs Material).
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](LICENSE.md)
@@ -32,7 +32,7 @@ radioshaq setup
 
 **Full automated setup:** Run one script from the `radioshaq/` directory: Windows — `.\infrastructure\local\setup.ps1`; Linux/macOS — `./infrastructure/local/setup.sh` (or `bash infrastructure/local/setup.sh`). Each installs deps, creates config, starts Docker Postgres on port 5434 (optional Hindsight), runs migrations, and installs PM2 if Node is present.
 
-See the [documentation site](https://Josephrp.github.io/RadioShaq/) (Quick Start, Configuration) or **[docs/install.md](docs/install.md)** for the full install guide (prerequisites, DB, PM2, troubleshooting).
+See the [documentation site](https://radioshaq.readthedocs.io/) (Quick Start, Configuration) or **[docs/install.md](docs/install.md)** for the full install guide (prerequisites, DB, PM2, troubleshooting).
 
 ## Quick Start
 
@@ -53,7 +53,7 @@ uv run python -m radioshaq.api.server
 # API: http://localhost:8000/docs — open http://localhost:8000/ for the web UI (when using the PyPI package with bundled frontend)
 ```
 
-See [Configuration](https://Josephrp.github.io/RadioShaq/configuration/) or [docs/database.md](docs/database.md) for DATABASE_URL and migration commands (including the `run_alembic.py` script).
+See [Configuration](https://radioshaq.readthedocs.io/configuration/) or [docs/database.md](docs/database.md) for DATABASE_URL and migration commands (including the `run_alembic.py` script).
 
 **Launch (dev):** From the project root, `radioshaq launch docker` starts Postgres; `radioshaq launch docker --hindsight` adds Hindsight. Use `radioshaq launch pm2` to start Docker Postgres (if available) and the API via PM2; add `--hindsight` to also run Hindsight under PM2 (requires `pip install hindsight-all`). Configurations that need upstreams (e.g. API → Postgres, API → Hindsight) are satisfied by starting Postgres and optionally Hindsight before the API.
 
@@ -78,7 +78,7 @@ TOKEN=$(curl -s -X POST "http://localhost:8000/auth/token?subject=op1&role=field
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/auth/me
 ```
 
-Roles: `field` (default), `hq`, `receiver`. Full details: [docs/auth.md](docs/auth.md). **Connecting real radios (IC-7300, FT-450D, FT-817, RTL-SDR):** see [Radio Usage](https://Josephrp.github.io/RadioShaq/radio-usage/) or [../docs/HARDWARE_CONNECTION.md](../docs/HARDWARE_CONNECTION.md) for CAT/Hamlib config and remote receiver deployment.
+Roles: `field` (default), `hq`, `receiver`. Full details: [docs/auth.md](docs/auth.md). **Connecting real radios (IC-7300, FT-450D, FT-817, RTL-SDR):** see [Radio Usage](https://radioshaq.readthedocs.io/radio-usage/) or [../docs/HARDWARE_CONNECTION.md](../docs/HARDWARE_CONNECTION.md) for CAT/Hamlib config and remote receiver deployment.
 
 ## Demo (inject, relay, poll)
 
@@ -92,7 +92,7 @@ The script gets its own token from `POST /auth/token` (subject `demo-op1`, role 
 
 ## Monitoring
 
-**Prometheus:** `GET /metrics` (no auth) exposes uptime, callsign count, and optional GPU gauges (when `nvidia-smi` is available). Optional: `uv sync --extra metrics` for full prometheus-client support. See [Monitoring](https://Josephrp.github.io/RadioShaq/monitoring/) in the docs.
+**Prometheus:** `GET /metrics` (no auth) exposes uptime, callsign count, and optional GPU gauges (when `nvidia-smi` is available). Optional: `uv sync --extra metrics` for full prometheus-client support. See [Monitoring](https://radioshaq.readthedocs.io/monitoring/) in the docs.
 
 ## Installing from PyPI
 
