@@ -6,6 +6,7 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 
 ACCEPTANCE_VERSION = "gpl-2.0-only-v1"
@@ -13,8 +14,29 @@ ACCEPTANCE_ENV_VAR = "RADIOSHAQ_LICENSE_ACCEPTED"
 ACCEPTANCE_FILE = Path.home() / ".radioshaq" / "license_acceptance.json"
 
 
-def _license_path() -> Path:
-    return Path(__file__).resolve().parent.parent / "LICENSE.md"
+def _license_path() -> str:
+    """Best-effort path or URL for the GPL license text.
+
+    Prefers a repo-local LICENSE for editable installs, then falls back to the
+    wheel's dist-info license file when available, and finally a canonical URL.
+    """
+    # Editable / source checkout: repo root contains LICENSE.md next to package dir
+    repo_candidate = Path(__file__).resolve().parent.parent / "LICENSE.md"
+    if repo_candidate.exists():
+        return str(repo_candidate)
+
+    # Regular wheel install: LICENSE.md is included via license-files in dist-info
+    try:
+        dist = metadata.distribution("radioshaq")
+        dist_candidate = dist.locate_file("LICENSE.md")
+        if Path(dist_candidate).is_file():
+            return str(dist_candidate)
+    except metadata.PackageNotFoundError:
+        # Fall through to canonical URL
+        pass
+
+    # Fallback to canonical GitHub URL if we can't find a local file
+    return "https://github.com/josephrp/radioshaq/blob/main/LICENSE.md"
 
 
 def is_license_accepted() -> bool:
