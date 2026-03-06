@@ -7,7 +7,7 @@ operations, emergency communications, and field-to-HQ coordination.
 
 from __future__ import annotations
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
 __logo__ = "📡"
 __description__ = "Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System"
 

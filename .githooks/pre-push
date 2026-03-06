@@ -5,7 +5,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
 echo "[pre-push] Validating version synchronization..."
-python radioshaq/scripts/check_version_sync.py
+uv run python radioshaq/scripts/check_version_sync.py
 
 echo "[pre-push] Installing/syncing test dependencies..."
 cd radioshaq

@@ -3,7 +3,7 @@
 # Build: mkdocs build -f .github/mkdocs.yml (from repo root). Deploy: GitHub Actions.
 site_name: RadioShaq
 site_description: Ham Radio AI Orchestration and Field-to-HQ Coordination
-site_url: https://josephrp.github.io/radioshaq/
+site_url: https://radioshaq.readthedocs.io/
 
 docs_dir: ../docs
 site_dir: ../site
