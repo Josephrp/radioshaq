@@ -378,3 +378,81 @@ async def test_radio_tx_digital_does_not_retune_when_frequency_not_set():
     rig_manager.set_frequency.assert_not_awaited()
     digital_modes.set_modem.assert_awaited_once_with("PSK31")
     digital_modes.transmit_text.assert_awaited_once_with("CQ TEST")
+
+
+# ---- GIS location capture: tool registry, agent routing, context injection ----
+
+def test_tool_registry_includes_gis_tools_when_db_present():
+    """create_tool_registry with db registers set_operator_location, get_operator_location, operators_nearby."""
+    from radioshaq.config.schema import Config
+    from radioshaq.orchestrator.factory import create_tool_registry
+
+    config = Config()
+    mock_db = MagicMock()
+    registry = create_tool_registry(config, db=mock_db)
+    assert registry.has("set_operator_location")
+    assert registry.has("get_operator_location")
+    assert registry.has("operators_nearby")
+    assert "set_operator_location" in registry.tool_names
+    assert "get_operator_location" in registry.tool_names
+    assert "operators_nearby" in registry.tool_names
+
+
+def test_get_agent_for_task_gis_returns_gis_agent():
+    """get_agent_for_task with agent 'gis' returns GISAgent when registered."""
+    from radioshaq.specialized.gis_agent import GISAgent
+
+    registry = AgentRegistry()
+    gis_agent = GISAgent(db=None)
+    registry.register_agent(gis_agent)
+    agent = registry.get_agent_for_task({"agent": "gis"})
+    assert agent is gis_agent
+    assert agent.name == "gis"
+
+
+@pytest.mark.asyncio
+async def test_inject_agent_context_injects_callsign_for_gis(mock_judge):
+    """_inject_agent_context sets task_dict['callsign'] when agent is gis and payload has no callsign."""
+    from radioshaq.specialized.gis_agent import GISAgent
+
+    loader = PromptLoader()
+    registry = AgentRegistry()
+    registry.register_agent(GISAgent(db=None))
+    orchestrator = REACTOrchestrator(
+        judge=mock_judge,
+        prompt_loader=loader,
+        max_iterations=5,
+        agent_registry=registry,
+    )
+    state = REACTState(
+        task_id="t1",
+        original_request="Where am I?",
+        context={"callsign": "K5ABC"},
+    )
+    task_dict = {"agent": "gis", "action": "get_location"}
+    orchestrator._inject_agent_context(state, task_dict)
+    assert task_dict.get("callsign") == "K5ABC"
+
+
+@pytest.mark.asyncio
+async def test_gis_propagation_fallback_uses_stored_location():
+    """GISAgent._propagation_prediction uses stored location as origin when lat/lon origin are 0,0 and callsign present."""
+    from radioshaq.specialized.gis_agent import GISAgent
+
+    mock_db = MagicMock()
+    mock_db.get_latest_location_decoded = AsyncMock(
+        return_value={"latitude": 48.8566, "longitude": 2.3522, "callsign": "K5ABC"}
+    )
+    agent = GISAgent(db=mock_db)
+    task = {
+        "latitude_origin": 0,
+        "longitude_origin": 0,
+        "latitude_destination": 40.0,
+        "longitude_destination": -74.0,
+        "callsign": "K5ABC",
+    }
+    result = await agent._propagation_prediction(task, None)
+    assert result["success"] is True
+    assert result["origin"]["latitude"] == 48.8566
+    assert result["origin"]["longitude"] == 2.3522
+    mock_db.get_latest_location_decoded.assert_awaited_once_with("K5ABC")

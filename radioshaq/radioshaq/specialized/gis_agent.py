@@ -32,6 +32,7 @@ class GISAgent(SpecializedAgent):
     capabilities = [
         "operators_nearby",
         "operator_location",
+        "set_operator_location",
         "propagation_prediction",
     ]
 
@@ -44,13 +45,15 @@ class GISAgent(SpecializedAgent):
         task: dict[str, Any],
         upstream_callback: Any = None,
     ) -> dict[str, Any]:
-        """Execute GIS task: operators_nearby, get_location, propagation_prediction."""
+        """Execute GIS task: operators_nearby, get_location, set_location, propagation_prediction."""
         action = task.get("action", "operators_nearby")
 
         if action == "operators_nearby":
             return await self._operators_nearby(task, upstream_callback)
         if action == "get_location":
             return await self._get_location(task, upstream_callback)
+        if action == "set_location":
+            return await self._set_location(task, upstream_callback)
         if action == "propagation_prediction":
             return await self._propagation_prediction(task, upstream_callback)
         raise ValueError(f"Unknown GIS action: {action}")
@@ -137,14 +140,77 @@ class GISAgent(SpecializedAgent):
             await self.emit_error(upstream_callback, str(e))
             raise
 
+    async def _set_location(
+        self, task: dict[str, Any], upstream_callback: Any
+    ) -> dict[str, Any]:
+        """Store operator location (source=user_disclosed) for reuse in propagation/nearby."""
+        callsign = (task.get("callsign") or "").strip().upper()
+        if not callsign:
+            return {"success": False, "error": "callsign is required"}
+        try:
+            lat = float(task.get("latitude"))
+            lon = float(task.get("longitude"))
+        except (TypeError, ValueError):
+            return {"success": False, "error": "latitude and longitude are required (numeric)"}
+
+        await self.emit_progress(upstream_callback, "storing", callsign=callsign, latitude=lat, longitude=lon)
+
+        if not self.db:
+            return {"success": False, "error": "Database not configured"}
+
+        try:
+            await self.db.store_operator_location(
+                callsign=callsign,
+                latitude=lat,
+                longitude=lon,
+                altitude_meters=task.get("altitude_meters"),
+                accuracy_meters=task.get("accuracy_meters"),
+                source="user_disclosed",
+            )
+            loc = await self.db.get_latest_location_decoded(callsign)
+            if not loc:
+                await self.emit_result(upstream_callback, {"stored": True, "callsign": callsign})
+                return {
+                    "success": True,
+                    "id": None,
+                    "callsign": callsign,
+                    "latitude": lat,
+                    "longitude": lon,
+                    "source": "user_disclosed",
+                    "timestamp": None,
+                }
+            await self.emit_result(upstream_callback, {"location": loc})
+            return {
+                "success": True,
+                "id": loc["id"],
+                "callsign": loc["callsign"],
+                "latitude": loc["latitude"],
+                "longitude": loc["longitude"],
+                "source": loc["source"],
+                "timestamp": loc["timestamp"],
+            }
+        except Exception as e:
+            logger.exception("GIS set_location failed: %s", e)
+            await self.emit_error(upstream_callback, str(e))
+            raise
+
     async def _propagation_prediction(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Simple propagation: distance between two points and band suggestion."""
+        """Simple propagation: distance between two points and band suggestion. Uses stored location as origin when omitted."""
         lat1 = float(task.get("latitude_origin", 0))
         lon1 = float(task.get("longitude_origin", 0))
         lat2 = float(task.get("latitude_destination", 0))
         lon2 = float(task.get("longitude_destination", 0))
+
+        # Fallback: use stored operator location as origin when coords missing/zero and callsign present
+        if (lat1 == 0 and lon1 == 0) and self.db:
+            callsign = (task.get("callsign") or "").strip().upper()
+            if callsign:
+                stored = await self.db.get_latest_location_decoded(callsign)
+                if stored:
+                    lat1 = stored["latitude"]
+                    lon1 = stored["longitude"]
 
         await self.emit_progress(
             upstream_callback,

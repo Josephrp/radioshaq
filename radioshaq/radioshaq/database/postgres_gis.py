@@ -236,7 +236,44 @@ class PostGISManager:
             if location:
                 return location.to_dict()
             return None
-    
+
+    async def get_latest_location_decoded(
+        self,
+        callsign: str,
+    ) -> dict[str, Any] | None:
+        """Get the most recent location for a callsign with explicit latitude/longitude.
+
+        Returns a dict with id, callsign, latitude, longitude, source, timestamp,
+        altitude_meters, accuracy_meters, session_id (no raw geometry).
+        """
+        async with self.async_session() as session:
+            query = text("""
+                SELECT id, callsign,
+                       ST_Y(location::geometry) AS latitude,
+                       ST_X(location::geometry) AS longitude,
+                       altitude_meters, accuracy_meters, source, timestamp, session_id
+                FROM operator_locations
+                WHERE callsign = :callsign
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            result = await session.execute(query, {"callsign": callsign.upper()})
+            row = result.first()
+            if not row:
+                return None
+            m = row._mapping
+            return {
+                "id": m["id"],
+                "callsign": m["callsign"],
+                "latitude": float(m["latitude"]),
+                "longitude": float(m["longitude"]),
+                "altitude_meters": m["altitude_meters"],
+                "accuracy_meters": m["accuracy_meters"],
+                "source": m["source"],
+                "timestamp": m["timestamp"].isoformat() if m["timestamp"] else None,
+                "session_id": m["session_id"],
+            }
+
     async def store_transcript(
         self,
         session_id: str,
@@ -448,7 +485,7 @@ class PostGISManager:
                 status=status,
                 priority=priority,
                 notes=notes,
-                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude and longitude else None,
+                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude is not None and longitude is not None else None,
                 task_id=task_id,
             )
             session.add(event)

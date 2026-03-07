@@ -23,7 +23,7 @@ Analyze the request, understand the goal, and decompose it into manageable subta
 
 ## Output Format
 
-Respond with a single JSON object. Include a `decomposed_tasks` array; each element must have `id`, `description`, and optionally `agent` (exact agent name, e.g. radio_tx, whitelist, gis_agent), `capability` (e.g. voice_transmission), and `payload` (object with task parameters for the agent).
+Respond with a single JSON object. Include a `decomposed_tasks` array; each element must have `id`, `description`, and optionally `agent` (exact agent name, e.g. radio_tx, whitelist, gis), `capability` (e.g. voice_transmission), and `payload` (object with task parameters for the agent).
 
 ```json
 {
@@ -47,6 +47,10 @@ Respond with a single JSON object. Include a `decomposed_tasks` array; each elem
 ```
 
 If the request can be fulfilled entirely by tools (e.g. send a message over radio, register a callsign), you may output a single step that indicates using tools; the system will then run tool-calling.
+
+## Location disclosure
+
+- If the user discloses their location (e.g. "I'm at 48.8566, 2.3522" or "I'm in Lyon"), plan a location-set action first: use the tool **set_operator_location** (with latitude and longitude) or a gis task with action **set_location** before any GIS/propagation reasoning that uses origin. This stores the operator's position for reuse in propagation and nearby queries.
 
 ## Remember
 

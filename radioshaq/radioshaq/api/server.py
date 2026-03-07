@@ -278,11 +278,12 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
+    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, gis, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(metrics.metrics_router, prefix="/metrics", tags=["metrics"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
+    app.include_router(gis.router, prefix="/gis", tags=["gis"])
     app.include_router(memory.router, prefix="/memory", tags=["memory"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])
     app.include_router(relay.router, prefix="/messages", tags=["messages"])

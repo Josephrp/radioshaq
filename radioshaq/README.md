@@ -43,8 +43,8 @@ radioshaq launch docker
 
 # Or manually: cd infrastructure/local && docker compose up -d postgres && cd ../..
 
-# 2. Run migrations (use the runner script to avoid path issues on Windows)
-python infrastructure/local/run_alembic.py upgrade head
+# 2. Run migrations (use uv run so project deps are available; runner avoids path issues on Windows)
+uv run python infrastructure/local/run_alembic.py upgrade head
 
 # 3. Start API
 uv run python -m radioshaq.api.server
@@ -107,6 +107,8 @@ Then open **http://localhost:8000/** for the web UI and **http://localhost:8000/
 
 ## Development
 
+Install dependencies first (from the **radioshaq** directory): `uv sync --extra dev --extra test`. Then use `uv run` for all commands below so the correct environment (with geoalchemy2, loguru, etc.) is used.
+
 ```bash
 # Run tests (memory tests use HINDSIGHT_ENABLED=false; test_manager may skip without migrated DB)
 uv run pytest tests/unit tests/integration -v
@@ -129,6 +131,16 @@ cd .. && uv run python -m radioshaq.api.server
 ```
 
 Then open http://localhost:8000/. CI (test-ci, publish-pypi, publish-nightly) builds the web UI and copies it to `radioshaq/radioshaq/web_ui` so the served artifact matches the source for the same commit.
+
+### Troubleshooting: ModuleNotFoundError (geoalchemy2, loguru)
+
+If you see `ModuleNotFoundError: No module named 'geoalchemy2'` or `...'loguru'` when running migrations, tests, or the API, the command is using a Python that doesn't have the project's dependencies. Fix:
+
+1. From the **radioshaq** directory run: `uv sync --extra dev --extra test`
+2. Run commands via **uv run** so the project venv is used, e.g.  
+   `uv run python infrastructure/local/run_alembic.py upgrade head`,  
+   `uv run pytest tests/unit -v`,  
+   `uv run python -m radioshaq.api.server`
 
 ## License
 
