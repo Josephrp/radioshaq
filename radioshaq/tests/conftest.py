@@ -7,6 +7,30 @@ from typing import Any, Generator
 
 import pytest
 
+# Default test DB URL (same as env_overrides); migrations need DATABASE_URL set
+_TEST_DB_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
+)
+
+
+@pytest.fixture(scope="session")
+def _run_db_migrations() -> None:
+    """Run Alembic migrations so test DB has current schema (e.g. notify_opt_out_at_sms)."""
+    try:
+        prev = os.environ.get("DATABASE_URL")
+        os.environ["DATABASE_URL"] = _TEST_DB_URL
+        from radioshaq.scripts.alembic_runner import upgrade
+        code = upgrade()
+        if prev is not None:
+            os.environ["DATABASE_URL"] = prev
+        else:
+            os.environ.pop("DATABASE_URL", None)
+        if code != 0:
+            pytest.skip("Alembic upgrade failed (is Postgres running?)")
+    except Exception as e:
+        pytest.skip(f"Migrations unavailable: {e}")
+
 
 @pytest.fixture(scope="session")
 def env_overrides() -> dict[str, str]:
@@ -14,10 +38,7 @@ def env_overrides() -> dict[str, str]:
     return {
         "RADIOSHAQ_MODE": "field",
         "JWT_SECRET": "test-secret",
-        "RADIOSHAQ_DATABASE__POSTGRES_URL": os.environ.get(
-            "TEST_DATABASE_URL",
-            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
-        ),
+        "RADIOSHAQ_DATABASE__POSTGRES_URL": _TEST_DB_URL,
         "RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED": "false",
     }
 
@@ -30,8 +51,8 @@ def patch_env(env_overrides: dict[str, str], monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.fixture
-def client() -> Generator[Any, None, None]:
-    """FastAPI test client (lifespan handled)."""
+def client(_run_db_migrations: None) -> Generator[Any, None, None]:
+    """FastAPI test client (lifespan handled). Migrations run before first use."""
     from fastapi.testclient import TestClient
 
     from radioshaq.api.server import app

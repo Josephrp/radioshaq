@@ -238,6 +238,7 @@ def test_run_setup_reconfigure_mocked_merges_config(tmp_path: Path) -> None:
             None,  # llm_model_val
             None,  # custom_api_base_val
             None,  # huggingface_api_base_val
+            None,  # elevenlabs_key_reconfigure
         )
         exit_code = run_setup(
             interactive=True,
