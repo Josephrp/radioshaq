@@ -287,8 +287,10 @@ def _prompt_jwt_secret() -> str:
     return secret
 
 
-def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
-    """Prompt for LLM provider, model, optional custom API base, and optional API key. Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none)."""
+def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Prompt for LLM provider, model, optional API bases, and optional API key.
+    Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none, huggingface_api_base_or_none).
+    """
     provider = typer.prompt(
         "LLM provider (mistral / openai / anthropic / custom / huggingface)",
         default="mistral",
@@ -307,6 +309,7 @@ def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
         show_default=True,
     ).strip() or None
     custom_base: Optional[str] = None
+    hf_base: Optional[str] = None
     if provider == "custom":
         custom_base = typer.prompt(
             "Custom API base URL (e.g. http://localhost:11434 for Ollama)",
@@ -315,12 +318,17 @@ def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
         ).strip() or None
     elif provider == "huggingface":
         typer.echo("Hugging Face: set HF_TOKEN or paste token when prompted. Token needs 'Inference Providers' permission.")
+        hf_base = typer.prompt(
+            "Hugging Face API base (optional; Enter for default https://router.huggingface.co/v1)",
+            default="",
+            show_default=False,
+        ).strip() or None
     key = typer.prompt(
         "LLM API key (optional; press Enter to skip and set later in .env)",
         default="",
         show_default=False,
     ).strip() or None
-    return provider, key, model, custom_base
+    return provider, key, model, custom_base, hf_base
 
 
 def _run_interactive_prompts_core(
@@ -329,8 +337,8 @@ def _run_interactive_prompts_core(
     has_config: bool,
     force: bool,
     reconfigure: bool,
-) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], bool, bool]:
-    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config)."""
+) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], Optional[str], bool, bool]:
+    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config)."""
     base_config: Optional[Config] = None
     merge_env = False
     merge_config = False
@@ -350,7 +358,7 @@ def _run_interactive_prompts_core(
     mode = _prompt_mode()
     db_choice, db_choice_url = _prompt_database()
     jwt_secret = _prompt_jwt_secret()
-    llm_provider, llm_key, llm_model, custom_api_base = _prompt_llm()
+    llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base = _prompt_llm()
 
     if db_choice == DB_CHOICE_SKIP:
         db_url: Optional[str] = None
@@ -359,7 +367,7 @@ def _run_interactive_prompts_core(
     else:
         db_url = db_choice_url
 
-    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config
+    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config
 
 
 def _run_quick_prompts() -> tuple[str, str, Optional[str]]:
@@ -505,12 +513,19 @@ def _prompt_llm_overrides() -> dict[str, Any]:
             ).strip()
             if custom_base:
                 entry["custom_api_base"] = custom_base
+        elif provider == "huggingface":
+            hf_base = typer.prompt(
+                f"  [{role}] Hugging Face API base (optional; Enter for default)",
+                default="",
+            ).strip()
+            if hf_base:
+                entry["huggingface_api_base"] = hf_base
         overrides[role] = entry
     return overrides
 
 
-def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str]]:
-    """Reconfigure: prompt which sections to change. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base)."""
+def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Reconfigure: prompt which sections to change. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base)."""
     config = existing_config
     mode_val = config.mode.value
     db_choice = DB_CHOICE_URL
@@ -522,6 +537,7 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
     llm_key: Optional[str] = None
     llm_model_val: Optional[str] = getattr(config.llm, "model", None)
     custom_api_base_val: Optional[str] = getattr(config.llm, "custom_api_base", None)
+    huggingface_api_base_val: Optional[str] = getattr(config.llm, "huggingface_api_base", None)
 
     sections = ["mode", "database", "jwt", "llm", "memory", "radio", "overrides", "done"]
     while True:
@@ -542,7 +558,7 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
         elif choice == "jwt":
             jwt_secret = _prompt_jwt_secret()
         elif choice == "llm":
-            llm_provider, llm_key, llm_model_val, custom_api_base_val = _prompt_llm()
+            llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val = _prompt_llm()
         elif choice == "memory":
             memory_enabled, hindsight_url = _prompt_memory()
             config.memory.enabled = memory_enabled
@@ -561,7 +577,7 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
             overrides = _prompt_llm_overrides()
             config.llm_overrides = overrides if overrides else None
 
-    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val
+    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val
 
 
 def run_setup(
@@ -578,6 +594,7 @@ def run_setup(
     llm_provider: Optional[str] = None,
     llm_model: Optional[str] = None,
     custom_api_base: Optional[str] = None,
+    huggingface_api_base: Optional[str] = None,
     hindsight_url: Optional[str] = None,
     memory_enabled: Optional[bool] = None,
     radio_reply_tx_enabled: Optional[bool] = None,
@@ -629,6 +646,8 @@ def run_setup(
                 config.llm.model = llm_model.strip()
             if custom_api_base and custom_api_base.strip():
                 config.llm.custom_api_base = custom_api_base.strip()
+            if huggingface_api_base and huggingface_api_base.strip():
+                config.llm.huggingface_api_base = huggingface_api_base.strip()
             if memory_enabled is not None:
                 config.memory.enabled = memory_enabled
             if hindsight_url and hindsight_url.strip():
@@ -691,13 +710,14 @@ def run_setup(
             existing = load_config(project_root / CONFIG_FILENAME)
         except Exception:
             existing = Config()
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val = _run_reconfigure_prompts(project_root, existing)
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val = _run_reconfigure_prompts(project_root, existing)
         merge_env = True
         merge_config = True
         llm_model = llm_model_val
         custom_api_base = custom_api_base_val
+        huggingface_api_base = huggingface_api_base_val
     else:
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config = _run_interactive_prompts_core(
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config = _run_interactive_prompts_core(
             project_root, has_dotenv, has_config, force, reconfigure
         )
 
@@ -712,6 +732,8 @@ def run_setup(
         config.llm.model = llm_model.strip()
     if custom_api_base and str(custom_api_base).strip():
         config.llm.custom_api_base = custom_api_base.strip()
+    if huggingface_api_base and str(huggingface_api_base).strip():
+        config.llm.huggingface_api_base = huggingface_api_base.strip()
 
     # Phase 6: radio, audio, memory, field/HQ (full interactive only)
     if not quick:

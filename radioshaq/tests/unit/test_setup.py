@@ -181,6 +181,7 @@ def test_run_setup_interactive_mocked_writes_config(tmp_path: Path) -> None:
             "sk-fake",  # llm_key
             None,  # llm_model
             None,  # custom_api_base
+            None,  # huggingface_api_base
             False,  # merge_env
             False,  # merge_config
         )
@@ -236,6 +237,7 @@ def test_run_setup_reconfigure_mocked_merges_config(tmp_path: Path) -> None:
             None,
             None,  # llm_model_val
             None,  # custom_api_base_val
+            None,  # huggingface_api_base_val
         )
         exit_code = run_setup(
             interactive=True,
