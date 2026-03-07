@@ -31,11 +31,6 @@ jobs:
           POSTGRES_DB: radioshaq
         ports:
           - 5434:5432
-        options: >-
-          --health-cmd "pg_isready -U radioshaq -d radioshaq"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -55,6 +50,17 @@ jobs:
       - uses: astral-sh/setup-uv@v7
       - name: Install dependencies
         run: cd radioshaq && uv sync --extra dev --extra test --extra sdr
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if python -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',5434)); s.close()" 2>/dev/null; then
+              echo "Postgres is ready on 127.0.0.1:5434"
+              break
+            fi
+            echo "Waiting for Postgres... ($i/30)"
+            sleep 2
+          done
+          python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('127.0.0.1',5434)); s.close(); print('Postgres port open')"
       - name: Run database migrations
         run: cd radioshaq && uv run alembic-upgrade
       - name: Run tests
