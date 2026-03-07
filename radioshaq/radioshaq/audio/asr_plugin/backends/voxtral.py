@@ -16,6 +16,7 @@ class VoxtralASRBackend:
     def __init__(self) -> None:
         self._processor: object | None = None
         self._model: object | None = None
+        self._peft_model: object | None = None
 
     def _load_base(self) -> tuple[object, object]:
         """Load base processor and model once; cache on instance."""
@@ -50,7 +51,13 @@ class VoxtralASRBackend:
 
         import torch
 
-        model_id = kwargs.get("model_id") or VOXTRAL_ASR_HF_MODEL_ID
+        # Routing key "voxtral" means use default RadioShaq PEFT model; treat as VOXTRAL_ASR_HF_MODEL_ID.
+        raw_model_id = kwargs.get("model_id")
+        model_id = (
+            VOXTRAL_ASR_HF_MODEL_ID
+            if not raw_model_id or str(raw_model_id).strip().lower() == "voxtral"
+            else raw_model_id
+        )
         base_id = VOXTRAL_ASR_BASE_ID
         lang_normalized = (language or "").strip().lower()
         use_peft = (
@@ -58,21 +65,30 @@ class VoxtralASRBackend:
             and lang_normalized == "en"
         )
 
-        processor, model = self._load_base()
+        processor, base_model = self._load_base()
 
         if use_peft:
-            try:
-                from peft import PeftModel
-                model = PeftModel.from_pretrained(model, VOXTRAL_ASR_HF_MODEL_ID)
-                model.eval()
-            except ImportError:
-                pass  # PEFT not installed; run with base model
-            except Exception as e:
-                import warnings
-                warnings.warn(
-                    f"PEFT adapter load failed, using base model: {e}",
-                    stacklevel=2,
-                )
+            if self._peft_model is not None:
+                model = self._peft_model
+            else:
+                try:
+                    from peft import PeftModel
+                    self._peft_model = PeftModel.from_pretrained(
+                        base_model, VOXTRAL_ASR_HF_MODEL_ID
+                    )
+                    self._peft_model.eval()
+                    model = self._peft_model
+                except ImportError:
+                    model = base_model  # PEFT not installed; run with base model
+                except Exception as e:
+                    import warnings
+                    warnings.warn(
+                        f"PEFT adapter load failed, using base model: {e}",
+                        stacklevel=2,
+                    )
+                    model = base_model
+        else:
+            model = base_model
 
         if lang_normalized == ASR_LANGUAGE_AUTO:
             inputs = processor.apply_transcription_request(

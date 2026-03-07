@@ -28,12 +28,13 @@ class ScribeASRBackend:
                 "Set ELEVENLABS_API_KEY or pass api_key= to use Scribe ASR."
             )
 
-        model_id = kwargs.get("model_id") or "scribe_v2"
+        # Use scribe_model_id so the plugin does not send the routing key "scribe" as the API model.
+        api_model_id = kwargs.get("scribe_model_id") or "scribe_v2"
         url = "https://api.elevenlabs.io/v1/speech-to-text"
         headers = {"xi-api-key": api_key}
         with path.open("rb") as f:
             files = {"file": (path.name, f, "audio/wav")}
-            data = {"model_id": model_id}
+            data = {"model_id": api_model_id}
             if language and language.lower() != "auto":
                 data["language_code"] = language
             with httpx.Client(timeout=120.0) as client:

@@ -46,6 +46,10 @@ def transcribe_audio(
             f"ASR backend {model_id!r} not available. "
             "For voxtral/whisper run: uv sync --extra audio. For scribe set ELEVENLABS_API_KEY."
         )
+    # Scribe expects ElevenLabs API model name (scribe_v1/scribe_v2), not the routing key "scribe".
+    if backend_key == "scribe":
+        backend_kwargs = {**kwargs, "scribe_model_id": model_id if model_id in ("scribe_v1", "scribe_v2") else "scribe_v2"}
+        return backend.transcribe(audio_path, language=language, **backend_kwargs)
     return backend.transcribe(
         audio_path, language=language, model_id=model_id, **kwargs
     )
