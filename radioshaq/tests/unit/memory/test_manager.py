@@ -6,6 +6,7 @@ Uses TEST_DATABASE_URL or env_overrides; skips if DB unavailable or tables missi
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import pytest
@@ -31,12 +32,18 @@ def db_url() -> str:
     )
 
 
+# Max time to wait for DB probe so tests don't hang when Postgres is unreachable
+_MEMORY_DB_PROBE_TIMEOUT = 8.0
+
+
 @pytest.fixture
 async def memory_manager(_run_db_migrations: None, db_url: str):
     """MemoryManager with test DB; migrations run first so memory_* tables exist."""
     try:
         mgr = MemoryManager(db_url)
-        await mgr.get_core_blocks("TESTCALL")
+        await asyncio.wait_for(mgr.get_core_blocks("TESTCALL"), timeout=_MEMORY_DB_PROBE_TIMEOUT)
+    except asyncio.TimeoutError:
+        pytest.skip(f"MemoryManager DB probe timed out after {_MEMORY_DB_PROBE_TIMEOUT}s (is Postgres running?)")
     except Exception as e:
         pytest.skip(f"MemoryManager requires migrated DB: {e}")
     yield mgr
