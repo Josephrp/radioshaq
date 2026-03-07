@@ -118,13 +118,14 @@ radio = [
     # "pyham-ax25",  # For packet radio
 ]
 
-# ASR (radioshaq/voxtral-asr-en) + TTS (ElevenLabs)
+# ASR: Voxtral (shakods/voxtral-asr-en), Whisper (local). Scribe uses ELEVENLABS_API_KEY.
 audio = [
     "transformers>=4.54",
     "peft>=0.18",
     "accelerate>=1.0",
     "torch>=2.0",
     "mistral-common[audio]>=1.8.1",
+    "openai-whisper>=20231117",
 ]
 
 # Voice TX: play audio to rig (sound device → rig line-in)

@@ -19,6 +19,14 @@ def get_asr_backend(model_id: str) -> ASRBackend | None:
     return _backends.get(model_id)
 
 
+def _is_voxtral_like_model_id(model_id: str) -> bool:
+    """True if model_id looks like a Voxtral HF repo (route to voxtral backend)."""
+    if not model_id or not model_id.strip():
+        return False
+    s = model_id.strip().lower()
+    return s == "voxtral" or "voxtral" in s or s.startswith("shakods/") or s.startswith("mistralai/voxtral")
+
+
 def transcribe_audio(
     audio_path: str | Path,
     model_id: str = "voxtral",
@@ -27,7 +35,11 @@ def transcribe_audio(
     **kwargs: object,
 ) -> str:
     """Transcribe audio using the configured backend. Raises if backend not found or transcription fails."""
-    backend_key = model_id if model_id in _backends else ("voxtral" if _backends.get("voxtral") and model_id else model_id)
+    backend_key = (
+        model_id
+        if model_id in _backends
+        else ("voxtral" if _backends.get("voxtral") and _is_voxtral_like_model_id(model_id) else model_id)
+    )
     backend = _backends.get(backend_key)
     if backend is None:
         raise RuntimeError(

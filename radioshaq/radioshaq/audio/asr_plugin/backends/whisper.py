@@ -1,4 +1,4 @@
-"""Whisper ASR backend. Requires: pip install openai-whisper."""
+"""Whisper ASR backend. Requires: uv sync --extra audio (or pip install openai-whisper)."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ class WhisperASRBackend:
                 self._model = whisper.load_model("base")
             except ImportError as e:
                 raise RuntimeError(
-                    "Whisper ASR requires: pip install openai-whisper"
+                    "Whisper ASR requires: uv sync --extra audio (or pip install openai-whisper)"
                 ) from e
         return self._model
 
