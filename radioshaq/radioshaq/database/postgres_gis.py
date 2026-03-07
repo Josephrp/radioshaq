@@ -39,11 +39,12 @@ class PostGISManager:
         await manager.init_db()
         
         # Store operator location
-        location_id = await manager.store_operator_location(
+        loc = await manager.store_operator_location(
             callsign="N0CALL",
             latitude=40.7128,
             longitude=-74.0060,
         )
+        location_id = loc["id"]
         
         # Find nearby operators
         nearby = await manager.find_operators_nearby(
@@ -106,7 +107,7 @@ class PostGISManager:
         accuracy_meters: float | None = None,
         source: str = "manual",
         session_id: str | None = None,
-    ) -> int:
+    ) -> dict[str, Any]:
         """Store operator location with GIS data.
         
         Args:
@@ -119,13 +120,14 @@ class PostGISManager:
             session_id: Optional session reference
             
         Returns:
-            Location record ID
+            Dict with id, callsign, latitude, longitude, source, timestamp, etc. (avoids TOCTOU refetch).
         """
+        callsign_upper = callsign.upper()
         async with self.async_session() as session:
             # Create Point geometry in WGS 84
             # Note: PostGIS Point format is (longitude, latitude)
             location = OperatorLocation(
-                callsign=callsign.upper(),
+                callsign=callsign_upper,
                 location=f"SRID=4326;POINT({longitude} {latitude})",
                 altitude_meters=altitude_meters,
                 accuracy_meters=accuracy_meters,
@@ -134,7 +136,18 @@ class PostGISManager:
             )
             session.add(location)
             await session.commit()
-            return location.id
+            await session.refresh(location)
+        return {
+            "id": location.id,
+            "callsign": location.callsign,
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude_meters": location.altitude_meters,
+            "accuracy_meters": location.accuracy_meters,
+            "source": location.source,
+            "timestamp": location.timestamp.isoformat() if location.timestamp else None,
+            "session_id": location.session_id,
+        }
     
     async def find_operators_nearby(
         self,
@@ -164,14 +177,15 @@ class PostGISManager:
             # Build point geometry
             point = f"SRID=4326;POINT({longitude} {latitude})"
             
-            # Base query
+            # Base query (include lat/lon for each operator so callers can map or compute further)
             query = select(
                 OperatorLocation.callsign,
                 OperatorLocation.timestamp,
                 OperatorLocation.altitude_meters,
                 OperatorLocation.source,
                 OperatorLocation.session_id,
-                # Calculate distance using geography type (accurate in meters)
+                text("ST_Y(location::geometry)").label("latitude"),
+                text("ST_X(location::geometry)").label("longitude"),
                 text(
                     "ST_Distance(location::geography, ST_GeogFromText(:point))"
                 ).label("distance_meters"),
@@ -184,24 +198,27 @@ class PostGISManager:
                 )
             )
             
-            # Add recent-only filter
+            # Add recent-only filter: use make_interval so recent_hours is a proper bind (no interpolation)
             if recent_only:
                 query = query.where(
-                    text(
-                        f"timestamp > NOW() - INTERVAL '{recent_hours} hours'"
-                    )
+                    text("timestamp > NOW() - make_interval(hours => :recent_hours)")
                 )
             
             # Order by most recent first
             query = query.order_by(OperatorLocation.timestamp.desc())
             query = query.limit(max_results)
             
-            # Execute with point parameter
-            result = await session.execute(query, {"point": point})
+            # Execute with bound parameters
+            params: dict[str, Any] = {"point": point}
+            if recent_only:
+                params["recent_hours"] = recent_hours
+            result = await session.execute(query, params)
             
             return [
                 {
                     "callsign": row.callsign,
+                    "latitude": float(row.latitude) if row.latitude is not None else None,
+                    "longitude": float(row.longitude) if row.longitude is not None else None,
                     "timestamp": row.timestamp.isoformat() if row.timestamp else None,
                     "altitude_meters": row.altitude_meters,
                     "source": row.source,
@@ -236,7 +253,44 @@ class PostGISManager:
             if location:
                 return location.to_dict()
             return None
-    
+
+    async def get_latest_location_decoded(
+        self,
+        callsign: str,
+    ) -> dict[str, Any] | None:
+        """Get the most recent location for a callsign with explicit latitude/longitude.
+
+        Returns a dict with id, callsign, latitude, longitude, source, timestamp,
+        altitude_meters, accuracy_meters, session_id (no raw geometry).
+        """
+        async with self.async_session() as session:
+            query = text("""
+                SELECT id, callsign,
+                       ST_Y(location::geometry) AS latitude,
+                       ST_X(location::geometry) AS longitude,
+                       altitude_meters, accuracy_meters, source, timestamp, session_id
+                FROM operator_locations
+                WHERE callsign = :callsign
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            result = await session.execute(query, {"callsign": callsign.upper()})
+            row = result.first()
+            if not row:
+                return None
+            m = row._mapping
+            return {
+                "id": m["id"],
+                "callsign": m["callsign"],
+                "latitude": float(m["latitude"]),
+                "longitude": float(m["longitude"]),
+                "altitude_meters": m["altitude_meters"],
+                "accuracy_meters": m["accuracy_meters"],
+                "source": m["source"],
+                "timestamp": m["timestamp"].isoformat() if m["timestamp"] else None,
+                "session_id": m["session_id"],
+            }
+
     async def store_transcript(
         self,
         session_id: str,
@@ -448,7 +502,7 @@ class PostGISManager:
                 status=status,
                 priority=priority,
                 notes=notes,
-                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude and longitude else None,
+                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude is not None and longitude is not None else None,
                 task_id=task_id,
             )
             session.add(event)

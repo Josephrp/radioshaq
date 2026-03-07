@@ -27,6 +27,11 @@ from radioshaq.specialized.radio_tools import SendAudioOverRadioTool
 from radioshaq.specialized.whitelist_tools import ListRegisteredCallsignsTool, RegisterCallsignTool
 from radioshaq.specialized.memory_tools import RecallMemoryTool, ReflectMemoryTool
 from radioshaq.specialized.relay_tools import RelayMessageTool
+from radioshaq.specialized.gis_tools import (
+    GetOperatorLocationTool,
+    OperatorsNearbyTool,
+    SetOperatorLocationTool,
+)
 from radioshaq.callsign import get_callsign_repository
 
 
@@ -346,6 +351,14 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
         logger.debug("Registered whitelist tools: list_registered_callsigns, register_callsign")
     except Exception as e:
         logger.warning("Could not register whitelist tools: %s", e)
+    if db is not None:
+        try:
+            registry.register(SetOperatorLocationTool(db))
+            registry.register(GetOperatorLocationTool(db))
+            registry.register(OperatorsNearbyTool(db))
+            logger.debug("Registered GIS tools: set_operator_location, get_operator_location, operators_nearby")
+        except Exception as e:
+            logger.warning("Could not register GIS tools: %s", e)
     if getattr(config, "memory", None) and getattr(config.memory, "enabled", False):
         try:
             from types import SimpleNamespace
@@ -441,6 +454,7 @@ def create_orchestrator(
         tool_registry=tool_registry,
         llm_client=llm_client,
         memory_manager=memory_manager,
+        db=db,
     )
     setattr(orchestrator, "_config", config)
     if message_bus is not None:
