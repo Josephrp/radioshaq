@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
     _cron_task = None
 
     try:
-        if config.database.postgres_url and "localhost" in config.database.postgres_url:
+        if config.database.postgres_url:
             try:
                 from radioshaq.database.postgres_gis import PostGISManager
                 app.state.db = PostGISManager(config.database.postgres_url)

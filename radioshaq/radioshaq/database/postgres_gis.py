@@ -177,14 +177,15 @@ class PostGISManager:
             # Build point geometry
             point = f"SRID=4326;POINT({longitude} {latitude})"
             
-            # Base query
+            # Base query (include lat/lon for each operator so callers can map or compute further)
             query = select(
                 OperatorLocation.callsign,
                 OperatorLocation.timestamp,
                 OperatorLocation.altitude_meters,
                 OperatorLocation.source,
                 OperatorLocation.session_id,
-                # Calculate distance using geography type (accurate in meters)
+                text("ST_Y(location::geometry)").label("latitude"),
+                text("ST_X(location::geometry)").label("longitude"),
                 text(
                     "ST_Distance(location::geography, ST_GeogFromText(:point))"
                 ).label("distance_meters"),
@@ -216,6 +217,8 @@ class PostGISManager:
             return [
                 {
                     "callsign": row.callsign,
+                    "latitude": float(row.latitude) if row.latitude is not None else None,
+                    "longitude": float(row.longitude) if row.longitude is not None else None,
                     "timestamp": row.timestamp.isoformat() if row.timestamp else None,
                     "altitude_meters": row.altitude_meters,
                     "source": row.source,

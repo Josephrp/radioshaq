@@ -61,9 +61,19 @@ class GISAgent(SpecializedAgent):
     async def _operators_nearby(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Find operators within radius of a point."""
-        lat = float(task.get("latitude", 0))
-        lon = float(task.get("longitude", 0))
+        """Find operators within radius of a point. Falls back to stored location when center coords omitted."""
+        lat_raw = task.get("latitude")
+        lon_raw = task.get("longitude")
+        center_provided = lat_raw is not None and lon_raw is not None
+        if not center_provided and self.db:
+            callsign = (task.get("callsign") or "").strip().upper()
+            if callsign:
+                stored = await self.db.get_latest_location_decoded(callsign)
+                if stored:
+                    lat_raw = lat_raw if lat_raw is not None else stored["latitude"]
+                    lon_raw = lon_raw if lon_raw is not None else stored["longitude"]
+        lat = float(lat_raw) if lat_raw is not None else 0.0
+        lon = float(lon_raw) if lon_raw is not None else 0.0
         radius_meters = float(task.get("radius_meters", 50000))
         max_results = int(task.get("max_results", 50))
         recent_hours = int(task.get("recent_hours", 24))
@@ -112,7 +122,7 @@ class GISAgent(SpecializedAgent):
     async def _get_location(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Get latest location for a callsign."""
+        """Get latest location for a callsign (decoded lat/lon, JSON-serializable)."""
         callsign = (task.get("callsign") or "").strip().upper()
         if not callsign:
             return {"success": False, "error": "callsign is required"}
@@ -128,7 +138,7 @@ class GISAgent(SpecializedAgent):
             }
 
         try:
-            location = await self.db.get_latest_location(callsign)
+            location = await self.db.get_latest_location_decoded(callsign)
             await self.emit_result(upstream_callback, {"location": location})
             return {
                 "success": True,
