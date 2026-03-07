@@ -130,6 +130,11 @@ async def play_transcript_over_radio(
         result = await radio_tx.execute(task)
         if not result.get("success", False):
             raise HTTPException(status_code=500, detail=result.get("error", "TX failed"))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS unavailable or synthesis failed: {e}",
+        ) from e
     finally:
         Path(temp_path).unlink(missing_ok=True)
     return {"ok": True, "transcript_id": transcript_id}
