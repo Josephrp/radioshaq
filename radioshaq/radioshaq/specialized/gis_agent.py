@@ -159,7 +159,7 @@ class GISAgent(SpecializedAgent):
             return {"success": False, "error": "Database not configured"}
 
         try:
-            await self.db.store_operator_location(
+            loc = await self.db.store_operator_location(
                 callsign=callsign,
                 latitude=lat,
                 longitude=lon,
@@ -167,18 +167,6 @@ class GISAgent(SpecializedAgent):
                 accuracy_meters=task.get("accuracy_meters"),
                 source="user_disclosed",
             )
-            loc = await self.db.get_latest_location_decoded(callsign)
-            if not loc:
-                await self.emit_result(upstream_callback, {"stored": True, "callsign": callsign})
-                return {
-                    "success": True,
-                    "id": None,
-                    "callsign": callsign,
-                    "latitude": lat,
-                    "longitude": lon,
-                    "source": "user_disclosed",
-                    "timestamp": None,
-                }
             await self.emit_result(upstream_callback, {"location": loc})
             return {
                 "success": True,
@@ -197,14 +185,18 @@ class GISAgent(SpecializedAgent):
     async def _propagation_prediction(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Simple propagation: distance between two points and band suggestion. Uses stored location as origin when omitted."""
-        lat1 = float(task.get("latitude_origin", 0))
-        lon1 = float(task.get("longitude_origin", 0))
+        """Simple propagation: distance between two points and band suggestion. Uses stored location as origin only when origin not provided."""
+        # Use explicit sentinel: only fall back when origin keys are missing (not when 0.0, which is valid)
+        lat1_raw = task.get("latitude_origin")
+        lon1_raw = task.get("longitude_origin")
+        origin_provided = lat1_raw is not None and lon1_raw is not None
+        lat1 = float(lat1_raw) if lat1_raw is not None else 0.0
+        lon1 = float(lon1_raw) if lon1_raw is not None else 0.0
         lat2 = float(task.get("latitude_destination", 0))
         lon2 = float(task.get("longitude_destination", 0))
 
-        # Fallback: use stored operator location as origin when coords missing/zero and callsign present
-        if (lat1 == 0 and lon1 == 0) and self.db:
+        # Fallback: use stored operator location as origin only when caller did not provide origin coords
+        if not origin_provided and self.db:
             callsign = (task.get("callsign") or "").strip().upper()
             if callsign:
                 stored = await self.db.get_latest_location_decoded(callsign)

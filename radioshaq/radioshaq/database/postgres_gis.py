@@ -39,11 +39,12 @@ class PostGISManager:
         await manager.init_db()
         
         # Store operator location
-        location_id = await manager.store_operator_location(
+        loc = await manager.store_operator_location(
             callsign="N0CALL",
             latitude=40.7128,
             longitude=-74.0060,
         )
+        location_id = loc["id"]
         
         # Find nearby operators
         nearby = await manager.find_operators_nearby(
@@ -106,7 +107,7 @@ class PostGISManager:
         accuracy_meters: float | None = None,
         source: str = "manual",
         session_id: str | None = None,
-    ) -> int:
+    ) -> dict[str, Any]:
         """Store operator location with GIS data.
         
         Args:
@@ -119,13 +120,14 @@ class PostGISManager:
             session_id: Optional session reference
             
         Returns:
-            Location record ID
+            Dict with id, callsign, latitude, longitude, source, timestamp, etc. (avoids TOCTOU refetch).
         """
+        callsign_upper = callsign.upper()
         async with self.async_session() as session:
             # Create Point geometry in WGS 84
             # Note: PostGIS Point format is (longitude, latitude)
             location = OperatorLocation(
-                callsign=callsign.upper(),
+                callsign=callsign_upper,
                 location=f"SRID=4326;POINT({longitude} {latitude})",
                 altitude_meters=altitude_meters,
                 accuracy_meters=accuracy_meters,
@@ -134,7 +136,18 @@ class PostGISManager:
             )
             session.add(location)
             await session.commit()
-            return location.id
+            await session.refresh(location)
+        return {
+            "id": location.id,
+            "callsign": location.callsign,
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude_meters": location.altitude_meters,
+            "accuracy_meters": location.accuracy_meters,
+            "source": location.source,
+            "timestamp": location.timestamp.isoformat() if location.timestamp else None,
+            "session_id": location.session_id,
+        }
     
     async def find_operators_nearby(
         self,
@@ -184,20 +197,21 @@ class PostGISManager:
                 )
             )
             
-            # Add recent-only filter
+            # Add recent-only filter: bind parameter for count, constant for interval (no interpolation)
             if recent_only:
                 query = query.where(
-                    text(
-                        f"timestamp > NOW() - INTERVAL '{recent_hours} hours'"
-                    )
+                    text("timestamp > NOW() - INTERVAL '1 hour' * :recent_hours")
                 )
             
             # Order by most recent first
             query = query.order_by(OperatorLocation.timestamp.desc())
             query = query.limit(max_results)
             
-            # Execute with point parameter
-            result = await session.execute(query, {"point": point})
+            # Execute with bound parameters
+            params: dict[str, Any] = {"point": point}
+            if recent_only:
+                params["recent_hours"] = recent_hours
+            result = await session.execute(query, params)
             
             return [
                 {

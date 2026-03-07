@@ -436,7 +436,7 @@ async def test_inject_agent_context_injects_callsign_for_gis(mock_judge):
 
 @pytest.mark.asyncio
 async def test_gis_propagation_fallback_uses_stored_location():
-    """GISAgent._propagation_prediction uses stored location as origin when lat/lon origin are 0,0 and callsign present."""
+    """GISAgent._propagation_prediction uses stored location as origin when origin coords are omitted (not when 0,0)."""
     from radioshaq.specialized.gis_agent import GISAgent
 
     mock_db = MagicMock()
@@ -444,9 +444,8 @@ async def test_gis_propagation_fallback_uses_stored_location():
         return_value={"latitude": 48.8566, "longitude": 2.3522, "callsign": "K5ABC"}
     )
     agent = GISAgent(db=mock_db)
+    # Omit latitude_origin/longitude_origin so fallback runs; explicit (0,0) would be valid and not trigger fallback
     task = {
-        "latitude_origin": 0,
-        "longitude_origin": 0,
         "latitude_destination": 40.0,
         "longitude_destination": -74.0,
         "callsign": "K5ABC",
@@ -456,3 +455,28 @@ async def test_gis_propagation_fallback_uses_stored_location():
     assert result["origin"]["latitude"] == 48.8566
     assert result["origin"]["longitude"] == 2.3522
     mock_db.get_latest_location_decoded.assert_awaited_once_with("K5ABC")
+
+
+@pytest.mark.asyncio
+async def test_gis_propagation_explicit_zero_zero_origin_not_overridden():
+    """Explicit (0, 0) origin is used as-is; stored location is not substituted (0.0 is valid)."""
+    from radioshaq.specialized.gis_agent import GISAgent
+
+    mock_db = MagicMock()
+    mock_db.get_latest_location_decoded = AsyncMock(
+        return_value={"latitude": 48.8566, "longitude": 2.3522, "callsign": "K5ABC"}
+    )
+    agent = GISAgent(db=mock_db)
+    task = {
+        "latitude_origin": 0.0,
+        "longitude_origin": 0.0,
+        "latitude_destination": 40.0,
+        "longitude_destination": -74.0,
+        "callsign": "K5ABC",
+    }
+    result = await agent._propagation_prediction(task, None)
+    assert result["success"] is True
+    # Origin must remain (0, 0), not the stored location
+    assert result["origin"]["latitude"] == 0.0
+    assert result["origin"]["longitude"] == 0.0
+    mock_db.get_latest_location_decoded.assert_not_awaited()

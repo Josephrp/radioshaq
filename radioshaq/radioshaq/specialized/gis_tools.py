@@ -69,7 +69,7 @@ class SetOperatorLocationTool:
         if not cs:
             return json.dumps({"error": "callsign is required"})
         try:
-            await self.db.store_operator_location(
+            loc = await self.db.store_operator_location(
                 callsign=cs,
                 latitude=float(latitude),
                 longitude=float(longitude),
@@ -77,17 +77,14 @@ class SetOperatorLocationTool:
                 accuracy_meters=accuracy_meters,
                 source="user_disclosed",
             )
-            loc = await self.db.get_latest_location_decoded(cs)
-            if loc:
-                return json.dumps({
-                    "id": loc["id"],
-                    "callsign": loc["callsign"],
-                    "latitude": loc["latitude"],
-                    "longitude": loc["longitude"],
-                    "source": loc["source"],
-                    "timestamp": loc["timestamp"],
-                })
-            return json.dumps({"callsign": cs, "stored": True})
+            return json.dumps({
+                "id": loc["id"],
+                "callsign": loc["callsign"],
+                "latitude": loc["latitude"],
+                "longitude": loc["longitude"],
+                "source": loc["source"],
+                "timestamp": loc["timestamp"],
+            })
         except Exception as e:
             return json.dumps({"error": str(e)})
 

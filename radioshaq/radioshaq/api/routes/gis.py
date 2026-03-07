@@ -64,7 +64,7 @@ async def post_location(
     lat, lon = body.latitude, body.longitude
     if lat is not None and lon is not None:
         # Explicit coords: store and return
-        await db.store_operator_location(
+        loc = await db.store_operator_location(
             callsign=callsign,
             latitude=lat,
             longitude=lon,
@@ -72,9 +72,6 @@ async def post_location(
             accuracy_meters=body.accuracy_meters,
             source="user_disclosed",
         )
-        loc = await db.get_latest_location_decoded(callsign)
-        if not loc:
-            raise HTTPException(status_code=500, detail="Location stored but retrieval failed")
         return {
             "id": loc["id"],
             "callsign": loc["callsign"],
