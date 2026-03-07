@@ -361,6 +361,7 @@ module.exports = {
   // ==========================================
   // PM2 Deployment Configuration
   // ==========================================
+  // For production with local ASR/TTS, use: pip install -e ".[audio]" or pip install -e ".[audio,tts_kokoro]"
   deploy: {
     production: {
       user: 'radioshaq',

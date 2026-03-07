@@ -112,6 +112,7 @@ export function SettingsPage() {
               <option value="openai">openai</option>
               <option value="anthropic">anthropic</option>
               <option value="custom">custom</option>
+              <option value="huggingface">huggingface</option>
             </select>
             <label style={LABEL_STYLE}>{t('settings.model')}</label>
             <input
@@ -123,16 +124,37 @@ export function SettingsPage() {
               placeholder={t('settings.modelPlaceholder')}
               disabled={!!saving}
             />
-            <label style={LABEL_STYLE}>{t('settings.customApiBase')}</label>
-            <input
-              style={INPUT_STYLE}
-              type="url"
-              value={llm.custom_api_base ?? ''}
-              onChange={(e) => setLlm((p) => (p ? { ...p, custom_api_base: e.target.value || null } : p))}
-              onBlur={(e) => handleLlmChange('custom_api_base', e.target.value || null)}
-              placeholder={t('settings.customApiBasePlaceholder')}
-              disabled={!!saving}
-            />
+            {(llm.provider ?? 'mistral') === 'custom' && (
+              <>
+                <label style={LABEL_STYLE}>{t('settings.customApiBase')}</label>
+                <input
+                  style={INPUT_STYLE}
+                  type="url"
+                  value={llm.custom_api_base ?? ''}
+                  onChange={(e) => setLlm((p) => (p ? { ...p, custom_api_base: e.target.value || null } : p))}
+                  onBlur={(e) => handleLlmChange('custom_api_base', e.target.value || null)}
+                  placeholder={t('settings.customApiBasePlaceholder')}
+                  disabled={!!saving}
+                />
+              </>
+            )}
+            {(llm.provider ?? 'mistral') === 'huggingface' && (
+              <>
+                <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--muted)', maxWidth: 420 }}>
+                  {t('settings.huggingfaceApiKeyNote')}
+                </p>
+                <label style={LABEL_STYLE}>{t('settings.huggingfaceApiBase')}</label>
+                <input
+                  style={INPUT_STYLE}
+                  type="url"
+                  value={llm.huggingface_api_base ?? ''}
+                  onChange={(e) => setLlm((p) => (p ? { ...p, huggingface_api_base: e.target.value || null } : p))}
+                  onBlur={(e) => handleLlmChange('huggingface_api_base', e.target.value || null)}
+                  placeholder={t('settings.huggingfaceApiBasePlaceholder')}
+                  disabled={!!saving}
+                />
+              </>
+            )}
             <label style={LABEL_STYLE}>{t('settings.temperature')}</label>
             <input
               style={INPUT_STYLE}

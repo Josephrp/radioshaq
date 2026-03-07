@@ -73,6 +73,10 @@ wheels/
 *.egg-info
 MANIFEST
 .pytest_cache/
+.ruff_cache/
+.tmp_build/
+.tmp_pytest/
+dist-investigate/
 .coverage
 .coverage.*
 htmlcov/
@@ -159,11 +163,24 @@ botpy.log
 # --- Jupyter ---
 .ipynb_checkpoints/
 
+# --- Cache and temp folders ---
+.cache/
+cache/
+tmp/
+temp/
+.tmp/
+.temp/
+*.cache
+.sass-cache/
+.stylelintcache
+.vite/
+.astro/
+.rollup.cache/
+
 # --- Misc ---
 *.bak
 *.tmp
 *.temp
-.cache/
 result
 result-*
 *.dump

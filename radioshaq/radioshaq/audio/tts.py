@@ -1,9 +1,10 @@
-"""Text-to-speech using ElevenLabs API."""
+"""Text-to-speech: ElevenLabs API and Kokoro (via tts_plugin)."""
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
+
+from radioshaq.audio.tts_plugin import synthesize_speech
 
 
 def text_to_speech_elevenlabs(
@@ -15,7 +16,7 @@ def text_to_speech_elevenlabs(
     output_path: str | Path | None = None,
 ) -> bytes:
     """
-    Convert text to speech using ElevenLabs API.
+    Convert text to speech using ElevenLabs API (via TTS plugin).
 
     Args:
         text: Text to speak.
@@ -27,33 +28,13 @@ def text_to_speech_elevenlabs(
 
     Returns:
         Audio bytes (e.g. MP3).
-
-    Requires: httpx (already in radioshaq deps).
     """
-    import httpx
-
-    key = api_key or os.environ.get("ELEVENLABS_API_KEY")
-    if not key:
-        raise RuntimeError(
-            "Set ELEVENLABS_API_KEY or pass api_key= to use ElevenLabs TTS."
-        )
-
-    url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
-    headers = {
-        "xi-api-key": key,
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "text": text,
-        "model_id": model_id,
-    }
-    params = {"output_format": output_format}
-
-    with httpx.Client(timeout=60.0) as client:
-        r = client.post(url, json=payload, headers=headers, params=params)
-        r.raise_for_status()
-        data = r.content
-
-    if output_path:
-        Path(output_path).write_bytes(data)
-    return data
+    return synthesize_speech(
+        text,
+        "elevenlabs",
+        output_path=output_path,
+        voice=voice_id,
+        api_key=api_key,
+        model_id=model_id,
+        output_format=output_format,
+    )

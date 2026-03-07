@@ -193,13 +193,28 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "notes": f"Audio file not found: {play_path}",
                 }
         elif (((use_tts is True) or (use_tts is None and voice_use_tts)) and message):
+            play_path: str | None = None
             try:
-                from radioshaq.audio.tts import text_to_speech_elevenlabs
                 import tempfile
-                with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
-                    text_to_speech_elevenlabs(message, output_path=f.name)
+                from radioshaq.audio.tts_plugin import synthesize_speech
+                tts_cfg = getattr(self.config, "tts", None) if self.config else None
+                provider = getattr(tts_cfg, "provider", "elevenlabs") if tts_cfg else "elevenlabs"
+                suffix = ".wav" if provider == "kokoro" else ".mp3"
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
                     play_path = f.name
+                kwargs: dict[str, Any] = {}
+                if tts_cfg and provider == "elevenlabs":
+                    kwargs["voice"] = getattr(tts_cfg, "elevenlabs_voice_id", None)
+                    kwargs["model_id"] = getattr(tts_cfg, "elevenlabs_model_id", None)
+                    kwargs["output_format"] = getattr(tts_cfg, "elevenlabs_output_format", None)
+                elif tts_cfg and provider == "kokoro":
+                    kwargs["voice"] = getattr(tts_cfg, "kokoro_voice", None)
+                    kwargs["lang_code"] = getattr(tts_cfg, "kokoro_lang_code", None)
+                    kwargs["speed"] = getattr(tts_cfg, "kokoro_speed", None)
+                synthesize_speech(message, provider, output_path=play_path, **kwargs)
             except Exception as e:
+                if play_path:
+                    Path(play_path).unlink(missing_ok=True)
                 logger.warning("TTS failed for voice TX: %s", e)
                 return {
                     "success": False,

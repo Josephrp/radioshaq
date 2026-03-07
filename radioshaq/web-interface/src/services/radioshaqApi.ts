@@ -87,6 +87,8 @@ export interface LlmConfigResponse {
   provider?: string;
   model?: string;
   custom_api_base?: string | null;
+  huggingface_api_key?: string | null;
+  huggingface_api_base?: string | null;
   temperature?: number;
   max_tokens?: number;
   _meta?: ConfigResponseMeta;

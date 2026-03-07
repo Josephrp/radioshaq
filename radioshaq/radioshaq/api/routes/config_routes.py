@@ -18,7 +18,13 @@ from radioshaq.config.schema import Config
 router = APIRouter(prefix="", tags=["config"])
 
 # Keys to redact in LLM config responses
-_LLM_SECRET_KEYS = {"mistral_api_key", "openai_api_key", "anthropic_api_key", "custom_api_key"}
+_LLM_SECRET_KEYS = {
+    "mistral_api_key",
+    "openai_api_key",
+    "anthropic_api_key",
+    "custom_api_key",
+    "huggingface_api_key",
+}
 
 
 def _llm_config_dict(config: Config, redact: bool = True) -> dict[str, Any]:

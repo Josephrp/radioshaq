@@ -22,6 +22,8 @@ From the **radioshaq** directory:
 uv sync --extra dev --extra test
 ```
 
+**Optional voice/audio:** For TTS, use **ElevenLabs** (set `ELEVENLABS_API_KEY`) or **Kokoro** (local: `uv sync --extra tts_kokoro`). For ASR, use **Voxtral/Whisper** (local: `uv sync --extra audio`) or **Scribe** (ElevenLabs API). See [Configuration](https://radioshaq.readthedocs.io/configuration/) for `tts.*` and `audio.asr_model`.
+
 **Recommended first-time setup (cross-platform):** run interactive setup from the `radioshaq/` directory to create `.env` and `config.yaml`, optionally start Docker Postgres and run migrations:
 
 ```bash

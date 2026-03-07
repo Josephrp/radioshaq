@@ -566,7 +566,7 @@ def setup(
     llm_provider: Optional[str] = typer.Option(
         None,
         "--llm-provider",
-        help="LLM provider for --no-input: mistral | openai | anthropic | custom.",
+        help="LLM provider for --no-input: mistral | openai | anthropic | custom | huggingface.",
     ),
     llm_model: Optional[str] = typer.Option(
         None,
@@ -577,6 +577,11 @@ def setup(
         None,
         "--custom-api-base",
         help="Custom LLM API base URL (e.g. http://localhost:11434 for Ollama). Used with --no-input.",
+    ),
+    huggingface_api_base: Optional[str] = typer.Option(
+        None,
+        "--huggingface-api-base",
+        help="Hugging Face Inference Providers API base (default https://router.huggingface.co/v1). Used with --no-input when provider is huggingface.",
     ),
     hindsight_url: Optional[str] = typer.Option(
         None,
@@ -639,6 +644,7 @@ def setup(
         llm_provider=llm_provider,
         llm_model=llm_model,
         custom_api_base=custom_api_base,
+        huggingface_api_base=huggingface_api_base,
         hindsight_url=hindsight_url,
         memory_enabled=memory_enabled,
         radio_reply_tx_enabled=radio_reply_tx_enabled,

@@ -47,11 +47,12 @@ class LogLevel(StrEnum):
 
 class LLMProvider(StrEnum):
     """Supported LLM providers."""
-    
+
     MISTRAL = "mistral"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     CUSTOM = "custom"
+    HUGGINGFACE = "huggingface"
 
 
 class RadioMode(StrEnum):
@@ -187,7 +188,14 @@ class LLMConfig(BaseModel):
     # Custom provider
     custom_api_base: str | None = Field(default=None)
     custom_api_key: str | None = Field(default=None)
-    
+
+    # Hugging Face Inference Providers (https://router.huggingface.co/v1)
+    huggingface_api_key: str | None = Field(default=None)
+    huggingface_api_base: str | None = Field(
+        default=None,
+        description="Default: https://router.huggingface.co/v1 when provider is huggingface.",
+    )
+
     # Generation parameters
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1, le=100000)
@@ -438,8 +446,11 @@ class AudioConfig(BaseModel):
     max_speech_duration_ms: int = Field(default=30000, ge=5000, le=60000)
     silence_duration_ms: int = Field(default=800, ge=200, le=2000)
 
-    # ASR
-    asr_model: str = Field(default="voxtral")
+    # ASR (voxtral, whisper = local; scribe = ElevenLabs API)
+    asr_model: str = Field(
+        default="voxtral",
+        description="ASR backend: voxtral (local, default), whisper (local), scribe (ElevenLabs API).",
+    )
     asr_language: str = Field(
         default="en",
         description="ASR language: en, fr, es, or auto (detect).",
@@ -502,6 +513,40 @@ class AudioConfig(BaseModel):
         default=None,
         description="Default sender_id for voice segments when not parsed from transcript (e.g. 'VOICE'). None = use 'UNKNOWN'.",
     )
+
+
+class TTSConfig(BaseModel):
+    """Text-to-speech provider and options (used when voice_use_tts or use_tts is true)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["elevenlabs", "kokoro"] = Field(
+        default="elevenlabs",
+        description="TTS provider: elevenlabs (API) or kokoro (local).",
+    )
+    # ElevenLabs
+    elevenlabs_voice_id: str = Field(
+        default="21m00Tcm4TlvDq8ikWAM",
+        description="ElevenLabs voice ID (e.g. Rachel). List voices: GET /v1/voices.",
+    )
+    elevenlabs_model_id: str = Field(
+        default="eleven_multilingual_v2",
+        description="ElevenLabs model: eleven_multilingual_v2, eleven_turbo_v2_5, eleven_flash_v2_5, etc.",
+    )
+    elevenlabs_output_format: str = Field(
+        default="mp3_44100_128",
+        description="ElevenLabs output format, e.g. mp3_44100_128, wav_22050.",
+    )
+    # Kokoro (local)
+    kokoro_voice: str = Field(
+        default="af_heart",
+        description="Kokoro voice name (e.g. af_heart, am_michael). Requires uv sync --extra tts_kokoro.",
+    )
+    kokoro_lang_code: str = Field(
+        default="a",
+        description="Kokoro language code: a (US English), b (UK English), e (es), f (fr), etc.",
+    )
+    kokoro_speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Kokoro speech rate.")
 
 
 class PendingResponse(BaseModel):
@@ -655,6 +700,7 @@ class Config(BaseSettings):
     radio: RadioConfig = Field(default_factory=RadioConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    tts: TTSConfig = Field(default_factory=TTSConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
 
     # Per-role overrides: keys e.g. orchestrator, judge, whitelist, daily_summary, memory
@@ -756,6 +802,7 @@ __all__ = [
     "AudioActivationMode",
     "AudioConfig",
     "Config",
+    "TTSConfig",
     "MemoryConfig",
     "DatabaseConfig",
     "FieldConfig",
