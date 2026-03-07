@@ -5,7 +5,7 @@ description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception Sy
 readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
 license = {text = "GPL-2.0-only"}
-license-files = ["LICENSE.md"]
+license-files = ["../LICENSE.md"]
 authors = [
     {name = "RadioShaq Contributors"}
 ]

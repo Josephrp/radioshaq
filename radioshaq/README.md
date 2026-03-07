@@ -7,7 +7,7 @@ A specialized AI-powered orchestrator for ham radio operations, emergency commun
 **Documentation:** [Quick Start](https://radioshaq.readthedocs.io/quick-start/), [Configuration](https://radioshaq.readthedocs.io/configuration/), [API Reference](https://radioshaq.readthedocs.io/api-reference/) (Read the Docs). In-repo source: [../docs/](../docs/) (MkDocs Material).
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](LICENSE.md)
+[![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](../LICENSE.md)
 
 ## Install (get everything correctly)
 
@@ -117,6 +117,18 @@ uv run mypy radioshaq
 # Lint / format
 uv run ruff check . && uv run ruff format .
 ```
+
+### Serving the web UI from the API (local)
+
+To test the API serving the same UI as the built bundle (e.g. before packaging or in CI):
+
+```bash
+cd web-interface && npm run build
+mkdir -p ../radioshaq/web_ui && cp -r dist/. ../radioshaq/web_ui/
+cd .. && uv run python -m radioshaq.api.server
+```
+
+Then open http://localhost:8000/. CI (test-ci, publish-pypi, publish-nightly) builds the web UI and copies it to `radioshaq/radioshaq/web_ui` so the served artifact matches the source for the same commit.
 
 ## License
 

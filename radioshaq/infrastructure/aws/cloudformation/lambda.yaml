@@ -1,6 +1,6 @@
-# SHAKODS Lambda functions: API handler, message handler
+# RadioShaq Lambda functions: API handler, message handler
 AWSTemplateFormatVersion: "2010-09-09"
-Description: SHAKODS Lambda - API and message handlers
+Description: RadioShaq Lambda - API and message handlers
 
 Parameters:
   Environment:

@@ -47,7 +47,7 @@ This will: check health, get token (subject `demo-op1`), inject a message on 40m
 
 ## inject_audio.py – user injection for audio/message
 
-Injects a message into the SHAKODS RX path (in-memory queue) for demo without hardware. Optionally relays the message to another band and stores both transcripts.
+Injects a message into the RadioShaq RX path (in-memory queue) for demo without hardware. Optionally relays the message to another band and stores both transcripts.
 
 **Requires:** `httpx` (included in project deps; use `uv run`).
 

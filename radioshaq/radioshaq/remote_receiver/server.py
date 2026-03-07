@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
 
 
-app = FastAPI(title="SHAKODS Remote Receiver", lifespan=lifespan)
+app = FastAPI(title="RadioShaq Remote Receiver", lifespan=lifespan)
 
 
 @app.websocket("/ws/stream")

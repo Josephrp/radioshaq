@@ -1,6 +1,6 @@
-# SHAKODS API Gateway REST API - routes to Lambda
+# RadioShaq API Gateway REST API - routes to Lambda
 AWSTemplateFormatVersion: "2010-09-09"
-Description: SHAKODS API Gateway
+Description: RadioShaq API Gateway
 
 Parameters:
   Environment:
@@ -15,7 +15,7 @@ Resources:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: !Sub "radioshaq-${Environment}-api"
-      Description: SHAKODS REST API
+      Description: RadioShaq REST API
       EndpointConfiguration:
         Types: [REGIONAL]
 

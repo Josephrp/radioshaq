@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   listCallsigns,
   registerCallsign,
@@ -8,6 +9,7 @@ import {
 } from '../../services/radioshaqApi';
 
 export function CallsignsPage() {
+  const { t } = useTranslation();
   const [list, setList] = useState<CallsignEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export function CallsignsPage() {
       const res = await listCallsigns();
       setList(res.registered ?? []);
     } catch (e) {
-      if (!silent) setError(e instanceof Error ? e.message : 'Failed to load');
+      if (!silent) setError(e instanceof Error ? e.message : t('callsigns.failedToLoad'));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -50,7 +52,7 @@ export function CallsignsPage() {
       setAddCallsign('');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to add');
+      setError(e instanceof Error ? e.message : t('callsigns.failedToAdd'));
     } finally {
       setSubmitting(false);
     }
@@ -64,14 +66,14 @@ export function CallsignsPage() {
       await unregisterCallsign(cs);
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to remove');
+      setError(e instanceof Error ? e.message : t('callsigns.failedToRemove'));
     }
   };
 
   const handleRegisterFromAudio = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!audioFile) {
-      setError('Select an audio file');
+      setError(t('callsigns.selectAudio'));
       return;
     }
     setSubmitting(true);
@@ -82,21 +84,21 @@ export function CallsignsPage() {
       setAudioCallsign('');
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to register from audio');
+      setError(e instanceof Error ? e.message : t('callsigns.failedRegisterAudio'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading) return <p>Loading…</p>;
+  if (loading) return <p>{t('common.loading')}</p>;
 
   return (
     <div className="callsigns-page">
-      <h1>Callsigns (whitelist)</h1>
+      <h1>{t('callsigns.whitelistTitle')}</h1>
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2>Add callsign</h2>
+        <h2>{t('callsigns.addCallsign')}</h2>
         <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
@@ -105,47 +107,47 @@ export function CallsignsPage() {
             placeholder="e.g. K5ABC"
             maxLength={10}
             style={{ padding: '0.4rem', width: 120 }}
-            aria-label="Callsign to add"
+            aria-label={t('callsigns.addPlaceholder')}
           />
           <button type="submit" disabled={submitting || !addCallsign.trim()}>
-            {submitting ? 'Adding…' : 'Add'}
+            {submitting ? t('callsigns.adding') : t('callsigns.add')}
           </button>
         </form>
       </section>
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2>Register from audio</h2>
+        <h2>{t('callsigns.registerFromAudio')}</h2>
         <form onSubmit={handleRegisterFromAudio} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxWidth: 400 }}>
           <input
             type="file"
             accept="audio/*"
             onChange={(e) => setAudioFile(e.target.files?.[0] ?? null)}
-            aria-label="Audio file"
+            aria-label={t('callsigns.selectAudio')}
           />
           <input
             type="text"
             value={audioCallsign}
             onChange={(e) => setAudioCallsign(e.target.value)}
-            placeholder="Optional: confirm callsign (else from ASR)"
+            placeholder={t('callsigns.confirmCallsignPlaceholder')}
             maxLength={10}
             style={{ padding: '0.4rem' }}
           />
           <button type="submit" disabled={submitting || !audioFile}>
-            {submitting ? 'Uploading…' : 'Register from audio'}
+            {submitting ? t('callsigns.uploading') : t('callsigns.submitAudio')}
           </button>
         </form>
       </section>
 
       <section>
-        <h2>Registered ({list.length})</h2>
+        <h2>{t('callsigns.registeredCount', { count: list.length })}</h2>
         <p style={{ marginTop: 0, fontSize: '0.9rem' }}>
           <button type="button" onClick={() => load()} disabled={loading}>
-            {loading ? 'Refreshing…' : 'Refresh'}
+            {loading ? t('callsigns.refreshing') : t('common.refresh')}
           </button>
-          <span style={{ marginLeft: '0.5rem', color: '#666' }}>Auto-refresh every 20s</span>
+          <span style={{ marginLeft: '0.5rem', color: '#666' }}>{t('callsigns.autoRefresh20')}</span>
         </p>
         {list.length === 0 ? (
-          <p>No callsigns registered.</p>
+          <p>{t('callsigns.noCallsigns')}</p>
         ) : (
           <ul style={{ listStyle: 'none', padding: 0 }}>
             {list.map((entry, i) => {
@@ -155,7 +157,7 @@ export function CallsignsPage() {
                 <li key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
                   <span>{String(cs)}</span>
                   <button type="button" onClick={() => handleRemove(String(cs))} style={{ fontSize: '0.85rem' }}>
-                    Remove
+                    {t('callsigns.remove')}
                   </button>
                 </li>
               );

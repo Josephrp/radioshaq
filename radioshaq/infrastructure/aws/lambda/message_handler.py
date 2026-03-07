@@ -1,5 +1,5 @@
 """
-Lambda handler for SHAKODS message ingestion (e.g. SQS, API Gateway webhook).
+Lambda handler for RadioShaq message ingestion (e.g. SQS, API Gateway webhook).
 Processes incoming messages (WhatsApp, SMS, etc.) and forwards to HQ API when
 RADIOSHAQ_HQ_URL is set. Expects body with InboundMessage-compatible fields:
 channel, sender_id, chat_id, content; optional media, metadata.

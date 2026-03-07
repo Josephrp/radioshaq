@@ -1,4 +1,4 @@
-# SHAKODS Examples
+# RadioShaq Examples
 
 ## Config sample
 

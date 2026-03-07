@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-User injection script for SHAKODS demo: inject message (and optional audio path) into the RX path.
+User injection script for RadioShaq demo: inject message (and optional audio path) into the RX path.
 
 Use for:
 - Two local machines + one remote: simulate one user "emitting" so another can receive.
@@ -19,7 +19,7 @@ Usage:
   # Get token by subject/role (no existing token)
   python scripts/demo/inject_audio.py --base-url http://REMOTE:8000 --subject op1 --role field --text "Hello" --band 2m
 
-  # ASR: transcribe with Voxtral (shakods/voxtral-asr-en) then inject (uv sync --extra audio)
+  # ASR: transcribe with Voxtral (RadioShaq HF model) then inject (uv sync --extra audio)
   python scripts/demo/inject_audio.py --base-url http://localhost:8000 --subject op1 --audio-path recording.wav --stt --asr voxtral --band 40m
 
   # TTS: generate speech from text with ElevenLabs and save (set ELEVENLABS_API_KEY)
@@ -55,11 +55,11 @@ def transcribe_audio_whisper(audio_path: str) -> str:
 
 
 def transcribe_audio(audio_path: str, asr: str = "voxtral") -> str:
-    """Return transcribed text. asr: voxtral (shakods/voxtral-asr-en) or whisper."""
+    """Return transcribed text. asr: voxtral (RadioShaq Voxtral ASR) or whisper."""
     if asr == "voxtral":
         try:
             from radioshaq.audio.asr import transcribe_audio_voxtral
-            return transcribe_audio_voxtral(audio_path, model_id="shakods/voxtral-asr-en", language="en")
+            return transcribe_audio_voxtral(audio_path, language="en")
         except ImportError:
             raise RuntimeError(
                 "Install ASR deps: uv sync --extra audio (transformers, peft, mistral-common[audio])."
@@ -146,7 +146,7 @@ BAND_DEFAULT_FREQ = {
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Inject message (and optional audio) for SHAKODS demo")
+    ap = argparse.ArgumentParser(description="Inject message (and optional audio) for RadioShaq demo")
     ap.add_argument("--base-url", default="http://localhost:8000", help="API base URL")
     ap.add_argument("--token", help="Bearer token (if not using --subject)")
     ap.add_argument("--subject", help="User subject for /auth/token")
@@ -160,7 +160,7 @@ def main() -> int:
     ap.add_argument("--destination-callsign", default=None, help="Destination callsign")
     ap.add_argument("--audio-path", default=None, help="Path to audio file (stored with transcript)")
     ap.add_argument("--stt", action="store_true", help="Transcribe --audio-path and use as message text")
-    ap.add_argument("--asr", choices=("voxtral", "whisper"), default="voxtral", help="ASR: voxtral (shakods/voxtral-asr-en) or whisper")
+    ap.add_argument("--asr", choices=("voxtral", "whisper"), default="voxtral", help="ASR: voxtral (RadioShaq Voxtral) or whisper")
     ap.add_argument("--tts", choices=("elevenlabs",), default=None, help="TTS: generate speech with ElevenLabs from text")
     ap.add_argument("--tts-voice-id", default="21m00Tcm4TlvDq8ikWAM", help="ElevenLabs voice ID (default: Rachel)")
     ap.add_argument("--tts-out", default=None, help="Output path for TTS audio (e.g. output.mp3)")
