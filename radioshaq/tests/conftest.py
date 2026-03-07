@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from typing import Any, Generator
+from urllib.parse import urlparse
 
 import pytest
 
@@ -14,10 +15,40 @@ _TEST_DB_URL = os.environ.get(
 )
 
 
+def _ensure_test_database_exists(url: str) -> None:
+    """Create the test database if it does not exist (connect to 'postgres' to run CREATE DATABASE)."""
+    parsed = urlparse(url)
+    path = (parsed.path or "/").lstrip("/")
+    db_name = (path.split("/")[0] or "radioshaq").split("?")[0]
+    try:
+        import psycopg2
+        from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+    except ImportError:
+        return  # no psycopg2, skip create; let migration fail with real error
+    try:
+        conn = psycopg2.connect(
+            host=parsed.hostname or "127.0.0.1",
+            port=parsed.port or 5434,
+            user=parsed.username or "radioshaq",
+            password=parsed.password or "radioshaq",
+            dbname="postgres",
+        )
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        if cur.fetchone() is None:
+            cur.execute(f'CREATE DATABASE "{db_name}"')
+        cur.close()
+        conn.close()
+    except Exception:
+        pass  # e.g. connection refused; migration will fail with clearer error
+
+
 @pytest.fixture(scope="session")
 def _run_db_migrations() -> None:
     """Run Alembic migrations so test DB has current schema (e.g. notify_opt_out_at_sms)."""
     try:
+        _ensure_test_database_exists(_TEST_DB_URL)
         prev = os.environ.get("DATABASE_URL")
         os.environ["DATABASE_URL"] = _TEST_DB_URL
         from radioshaq.scripts.alembic_runner import upgrade
