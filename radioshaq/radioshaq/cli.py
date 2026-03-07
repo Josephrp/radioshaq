@@ -598,6 +598,16 @@ def setup(
         "--radio-reply-use-tts/--radio-reply-no-tts",
         help="Use TTS for outbound MessageBus radio replies (used with --no-input).",
     ),
+    restricted_bands_region: Optional[str] = typer.Option(
+        None,
+        "--restricted-bands-region",
+        help="Compliance region/country (e.g. FCC, CA, CEPT, AU, ZA, NZ). Used with --no-input.",
+    ),
+    band_plan_region: Optional[str] = typer.Option(
+        None,
+        "--band-plan-region",
+        help="Optional band plan override (ITU_R1, ITU_R3). Used with --no-input.",
+    ),
     llm_overrides: Optional[str] = typer.Option(
         None,
         "--llm-overrides",
@@ -633,6 +643,8 @@ def setup(
         memory_enabled=memory_enabled,
         radio_reply_tx_enabled=radio_reply_tx_enabled,
         radio_reply_use_tts=radio_reply_use_tts,
+        restricted_bands_region=restricted_bands_region,
+        band_plan_region=band_plan_region,
         llm_overrides=llm_overrides,
     )
     raise typer.Exit(exit_code)

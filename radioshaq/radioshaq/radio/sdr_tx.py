@@ -63,7 +63,16 @@ class HackRFTransmitter:
         """Raise ValueError if TX not allowed on this frequency."""
         if is_restricted(frequency_hz, region=self.restricted_region):
             raise ValueError(f"Frequency {frequency_hz} Hz is in a restricted band (no TX allowed)")
-        plans = self._band_plan_source if self._band_plan_source is not None else BAND_PLANS
+        plans = self._band_plan_source
+        if plans is None:
+            from radioshaq.compliance_plugin import get_backend
+
+            b = get_backend(self.restricted_region)
+            plans = (
+                b.get_band_plans()
+                if b is not None and b.get_band_plans() is not None
+                else BAND_PLANS
+            )
         if self.allow_bands_only and not is_tx_allowed(
             frequency_hz,
             band_plan_source=plans,

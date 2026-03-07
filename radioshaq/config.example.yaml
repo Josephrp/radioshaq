@@ -117,8 +117,9 @@ radio:
   radio_reply_use_tts: true
   tx_audit_log_path: null
   tx_allowed_bands_only: true
-  restricted_bands_region: FCC   # FCC | CEPT | FR | ITU_R1 (compliance backend key)
-  band_plan_region: null        # Override band plan (e.g. ITU_R1, ITU_R2). null = use backend from restricted_bands_region
+  # Compliance: set region/country so TX uses correct restricted bands and band plan (see docs/compliance-regulatory.md)
+  restricted_bands_region: FCC   # e.g. FCC (US), CA (Canada), CEPT|FR|UK|ES (EU), AU (Australia), ZA (South Africa), NZ|JP|IN, or country code (AR, MX, NG, …)
+  band_plan_region: null        # Optional: ITU_R1 (Europe/Africa 2m 144–146), ITU_R3 (Asia–Pacific). null = use backend default
   allowed_callsigns: null        # e.g. [K1ABC, W2XYZ]; merged with DB registry
   callsign_registry_required: false
   sdr_tx_enabled: false

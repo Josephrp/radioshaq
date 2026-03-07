@@ -217,7 +217,7 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
-| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Compliance backend key: `FCC` (US), `CEPT` or `FR` (EU/France), `ITU_R1` (band-plan only). |
+| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Compliance backend key: `FCC`, `CA`, `CEPT`, `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`, `ITU_R1`, `ITU_R3`, `MX`, `AR`, `CL`, … (Americas), `AU`, `ZA`, `NG`, `KE`, … (Africa), `NZ`, `JP`, `IN`. |
 | `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R2`). If null, uses the backend from `restricted_bands_region`. |
 | `radio.allowed_callsigns` | (list in YAML) | `null` | Static list of allowed callsigns; merged with DB registry. |
 | `radio.callsign_registry_required` | `RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED` | `false` | If true, only registered or allowed callsigns for store/relay. |
@@ -247,12 +247,28 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 
 | Backend key | Restricted bands | Band plan | Typical use |
 |-------------|------------------|-----------|--------------|
-| `FCC` | US 47 CFR §15.205 | Default (ITU R2) | US, Canada (Americas) |
-| `CEPT` | EU harmonised | IARU R1 (2m 144–146 MHz, 70cm 430–440 MHz) | France, EU, Spain |
+| `FCC` | US 47 CFR §15.205 | Default (ITU R2) | United States |
+| `CA` | FCC baseline (ISED/RBR-4) | Default (ITU R2) | Canada |
+| `CEPT` | EU harmonised (ERC 70-03, ETSI) | IARU R1 (2m 144–146 MHz, 70cm 430–440 MHz) | EU general |
 | `FR` | Same as CEPT | Same as CEPT | France |
+| `UK` | Same as CEPT | Same as CEPT | United Kingdom |
+| `ES` | Same as CEPT | Same as CEPT | Spain |
+| `BE` | Same as CEPT | Same as CEPT | Belgium |
+| `CH` | Same as CEPT | Same as CEPT | Switzerland |
+| `LU` | Same as CEPT | Same as CEPT | Luxembourg |
+| `MC` | Same as CEPT | Same as CEPT | Monaco |
 | `ITU_R1` | None (band-plan only) | IARU R1 | Override band plan only |
+| `ITU_R3` | None (band-plan only) | IARU R3 (2m 144–148, 70cm 430–440 MHz) | Override band plan for Asia–Pacific |
+| `MX` | FCC baseline (IFT may vary) | Default (ITU R2) | Mexico |
+| `AR`, `CL`, `CO`, `PE`, `VE`, `EC`, `UY`, `PY`, `BO`, `CR`, `PA`, `GT`, `DO` | FCC baseline | Default (ITU R2) | Argentina, Chile, Colombia, Peru, Venezuela, Ecuador, Uruguay, Paraguay, Bolivia, Costa Rica, Panama, Guatemala, Dominican Republic |
+| `AU` | Enforced (ACMA conservative) | IARU R3 | Australia |
+| `ZA` | Enforced (ICASA NRFP) | IARU R1 | South Africa |
+| `NG`, `KE`, `EG`, `MA`, … (see compliance-regulatory.md) | Enforced (R1 conservative) | IARU R1 | Nigeria, Kenya, Egypt, Morocco, etc. |
+| `NZ` | Enforced (RSM PIB 21 conservative) | IARU R3 | New Zealand |
+| `JP` | Enforced (conservative set) | IARU R3 | Japan |
+| `IN` | Enforced (conservative set) | IARU R3 | India |
 
-Set `restricted_bands_region: CEPT` (or `FR`) for France/EU to enforce CEPT-style restricted bands and R1 band edges. Use `band_plan_region: ITU_R1` to force R1 band plan while keeping another restricted-band backend. Operators must still verify national rules (e.g. ANFR).
+Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`) for EU/EEA to enforce CEPT-style restricted bands and R1 band edges. For Americas use `CA`, `MX`, or country code (`AR`, `CL`, etc.). For Australia/Asia–Pacific use `AU` or `ITU_R3`. For Africa use country code (`ZA`, `NG`, `KE`, etc.) — R1 band plan, national rules apply. Use `band_plan_region: ITU_R1` or `ITU_R3` to override band plan. See [Compliance and regulatory references](compliance-regulatory.md) for official sources. Operators must verify national rules (e.g. ANFR, Ofcom, ACMA, IFT, ISED, ICASA, NCC).
 
 ---
 

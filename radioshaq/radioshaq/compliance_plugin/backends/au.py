@@ -1,9 +1,9 @@
-"""FCC restricted bands backend (47 CFR §15.205).
+"""Australia (ITU R3): IARU R3 band plan; restricted bands from ACMA Spectrum Plan (conservative set).
 
-Official source: 47 CFR §15.205 Restricted bands of operation.
-- https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.205
-- https://www.law.cornell.edu/cfr/text/47/15.205
-Intentional radiators may not operate in these bands; only spurious emissions limits apply.
+Restricted bands from ACMA Australian Radiofrequency Spectrum Plan and related
+apparatus/embargo rules (RALI SM26, etc.). No single FCC-style list; this is a
+conservative set (aeronautical, radionavigation, COSPAS-SARSAT, marine, etc.).
+Operator must verify national rules (ACMA).
 """
 
 from __future__ import annotations
@@ -11,11 +11,11 @@ from __future__ import annotations
 from radioshaq.radio.bands import BandPlan
 
 from ..base import ComplianceBackend
+from .itu_r3 import BAND_PLANS_R3
 
-# FCC 47 CFR §15.205 restricted bands (MHz and GHz). Intentional radiation prohibited.
-# Source: https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-C/section-15.205
-# Stored as (low_hz, high_hz).
-RESTRICTED_BANDS_FCC_HZ: list[tuple[float, float]] = [
+# Conservative set aligned with ITU/ACMA: aeronautical, radionav, COSPAS-SARSAT, marine, etc.
+# Source: ACMA Australian Radiofrequency Spectrum Plan; operator must verify.
+RESTRICTED_BANDS_AU_HZ: list[tuple[float, float]] = [
     (0.090e6, 0.110e6),
     (0.495e6, 0.505e6),
     (2.1735e6, 2.1905e6),
@@ -40,15 +40,14 @@ RESTRICTED_BANDS_FCC_HZ: list[tuple[float, float]] = [
     (37.5e6, 38.25e6),
     (73e6, 74.6e6),
     (74.8e6, 75.2e6),
-    (108e6, 121.94e6),
+    (108e6, 121.94e6),  # Aeronautical
     (123e6, 138e6),
     (149.9e6, 150.05e6),
     (156.52475e6, 156.52525e6),
     (156.7e6, 156.9e6),
     (162.0125e6, 167.17e6),
     (167.72e6, 173.2e6),
-    (240e6, 285e6),
-    (322e6, 335.4e6),
+    (406.0e6, 406.1e6),  # COSPAS-SARSAT
     (399.9e6, 410e6),
     (608e6, 614e6),
     (960e6, 1240e6),
@@ -65,32 +64,20 @@ RESTRICTED_BANDS_FCC_HZ: list[tuple[float, float]] = [
     (3332e6, 3339e6),
     (3345.8e6, 3358e6),
     (3600e6, 4400e6),
-    (4.5e9, 5.15e9),
-    (5.35e9, 5.46e9),
-    (7.25e9, 7.75e9),
-    (8.025e9, 8.5e9),
-    (9.0e9, 9.2e9),
-    (9.3e9, 9.5e9),
-    (10.6e9, 12.7e9),
-    (13.25e9, 13.4e9),
-    (14.47e9, 14.5e9),
-    (15.35e9, 16.2e9),
-    (17.7e9, 21.4e9),
-    (22.01e9, 23.12e9),
-    (23.6e9, 24.0e9),
-    (31.2e9, 31.8e9),
-    (36.43e9, 36.5e9),
-    (38.6e9, 100e9),
 ]
 
 
-class FCCBackend:
-    """FCC (US) restricted bands; band plan from default R2."""
+class AUBackend:
+    """
+    Australia: ITU Region 3. IARU R3 band plan (2m 144–148 MHz, 70cm 430–440 MHz;
+    ACMA/WIA may allow 420–450 on 70cm nationally). Restricted bands: conservative
+    set from ACMA Spectrum Plan; operator must verify.
+    """
 
-    region_key: str = "FCC"
+    region_key: str = "AU"
 
     def get_restricted_bands_hz(self) -> list[tuple[float, float]]:
-        return RESTRICTED_BANDS_FCC_HZ
+        return RESTRICTED_BANDS_AU_HZ
 
     def get_band_plans(self) -> dict[str, BandPlan] | None:
-        return None
+        return BAND_PLANS_R3

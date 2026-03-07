@@ -1,4 +1,14 @@
-"""CEPT/EU harmonised restricted bands. Sources: EU 2006/771/EC, 2013/752/EU, ETSI. National (e.g. ANFR) may vary."""
+"""CEPT/EU harmonised restricted bands and R1 band plan.
+
+Regulatory sources (intentional radiation / protected bands):
+- ERC/REC 70-03 (Short Range Devices): https://docdb.cept.org/document/845 — Annexes define
+  allowed SRD bands; Appendix 3 lists national restrictions. EFIS: https://efis.cept.org/
+- EU Commission Decision 2006/771/EC (as amended): harmonised SRD spectrum; annex lists
+  allowed bands and conditions. EUR-Lex CELEX 32006D0771.
+- ETSI EN 300 220: permitted SRD bands 25–1000 MHz (e.g. 433.04–434.79, 863–876, 915–921 MHz).
+  Restricted = bands not in harmonised SRD/amateur allocations; safety (aeronautical, COSPAS-SARSAT,
+  marine) protected. National (e.g. ANFR France) may add further restrictions.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +17,13 @@ from radioshaq.radio.bands import BandPlan
 from ..base import ComplianceBackend
 from .itu_r1 import BAND_PLANS_R1
 
-# Conservative harmonised list: bands where intentional radiation is generally prohibited or
-# not allowed for SRD/amateur in CEPT. Aligned with FCC §15.205 for overlapping ranges;
-# EU uses harmonised SRD allowed bands rather than a single "restricted" list.
-# Source: EU Decision 2006/771/EC as amended, ETSI EN 300 220. Operator must verify national rules.
+# CEPT/EU restricted bands derived from ECC/ETSI harmonised framework (ERC/REC 70-03,
+# EU Decision 2006/771/EC as amended, ETSI EN 300 220). This list does NOT mirror FCC §15.205:
+# - FCC-only ranges (e.g. 240–285 MHz, 322–335.4 MHz, US GHz blocks) are omitted.
+# - EU may restrict additional ISM/SRD sub-bands; national implementations (e.g. ANFR) may add more.
+# Operator must verify national rules. Reference: https://efis.cept.org/
 RESTRICTED_BANDS_CEPT_HZ: list[tuple[float, float]] = [
+    # Aeronautical, radionavigation, safety
     (0.090e6, 0.110e6),
     (0.495e6, 0.505e6),
     (2.1735e6, 2.1905e6),
@@ -36,15 +48,14 @@ RESTRICTED_BANDS_CEPT_HZ: list[tuple[float, float]] = [
     (37.5e6, 38.25e6),
     (73e6, 74.6e6),
     (74.8e6, 75.2e6),
-    (108e6, 121.94e6),
+    (108e6, 121.94e6),  # Aeronautical
     (123e6, 138e6),
     (149.9e6, 150.05e6),
     (156.52475e6, 156.52525e6),
-    (156.7e6, 156.9e6),
+    (156.7e6, 156.9e6),  # Marine mobile
     (162.0125e6, 167.17e6),
     (167.72e6, 173.2e6),
-    (240e6, 285e6),
-    (322e6, 335.4e6),
+    (406.0e6, 406.1e6),  # COSPAS-SARSAT (CEPT/EU protected)
     (399.9e6, 410e6),
     (608e6, 614e6),
     (960e6, 1240e6),
@@ -61,22 +72,9 @@ RESTRICTED_BANDS_CEPT_HZ: list[tuple[float, float]] = [
     (3332e6, 3339e6),
     (3345.8e6, 3358e6),
     (3600e6, 4400e6),
-    (4.5e9, 5.15e9),
-    (5.35e9, 5.46e9),
-    (7.25e9, 7.75e9),
-    (8.025e9, 8.5e9),
-    (9.0e9, 9.2e9),
-    (9.3e9, 9.5e9),
-    (10.6e9, 12.7e9),
-    (13.25e9, 13.4e9),
-    (14.47e9, 14.5e9),
-    (15.35e9, 16.2e9),
-    (17.7e9, 21.4e9),
-    (22.01e9, 23.12e9),
-    (23.6e9, 24.0e9),
-    (31.2e9, 31.8e9),
-    (36.43e9, 36.5e9),
-    (38.6e9, 100e9),
+    # No US-specific GHz blocks (4.5–5.15, 5.35–5.46, 7.25–7.75, 8.025–8.5, 9–9.2, 9.3–9.5,
+    # 10.6–12.7, 13.25–13.4, 14.47–14.5, 15.35–16.2, 17.7–21.4, 22.01–23.12, 23.6–24,
+    # 31.2–31.8, 36.43–36.5, 38.6–100 GHz) — CEPT allocations differ; add per ECC if needed.
 ]
 
 
@@ -96,3 +94,39 @@ class FRBackend(CEPTBackend):
     """France: same as CEPT (EU harmonised + R1 band plan)."""
 
     region_key: str = "FR"
+
+
+class UKBackend(CEPTBackend):
+    """United Kingdom: CEPT-aligned (Ofcom); R1 band plan."""
+
+    region_key: str = "UK"
+
+
+class ESBackend(CEPTBackend):
+    """Spain: CEPT (EU) + IARU R1 band plan."""
+
+    region_key: str = "ES"
+
+
+class BEBackend(CEPTBackend):
+    """Belgium: CEPT (TR 61-01/61-02) + IARU R1 band plan."""
+
+    region_key: str = "BE"
+
+
+class CHBackend(CEPTBackend):
+    """Switzerland: CEPT + IARU R1 band plan."""
+
+    region_key: str = "CH"
+
+
+class LUBackend(CEPTBackend):
+    """Luxembourg: CEPT + IARU R1 band plan."""
+
+    region_key: str = "LU"
+
+
+class MCBackend(CEPTBackend):
+    """Monaco: CEPT + IARU R1 band plan."""
+
+    region_key: str = "MC"

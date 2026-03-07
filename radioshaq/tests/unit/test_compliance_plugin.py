@@ -87,6 +87,55 @@ def test_is_restricted_unknown_region_false():
     assert is_restricted(115e6, region="UNKNOWN") is False
 
 
+def test_get_backend_uk_es_mx_au():
+    """UK, ES, MX, AU backends are registered and return expected data."""
+    uk = get_backend("UK")
+    assert uk is not None
+    assert uk.region_key == "UK"
+    assert uk.get_band_plans() is not None
+    assert uk.get_band_plans()["2m"].freq_end_hz == 146.0e6
+    es = get_backend("ES")
+    assert es is not None
+    assert es.region_key == "ES"
+    mx = get_backend("MX")
+    assert mx is not None
+    assert mx.region_key == "MX"
+    assert mx.get_band_plans() is None
+    assert len(mx.get_restricted_bands_hz()) > 0
+    au = get_backend("AU")
+    assert au is not None
+    assert au.region_key == "AU"
+    assert au.get_band_plans() is not None
+    assert au.get_band_plans()["2m"].freq_end_hz == 148.0e6  # R3
+    assert au.get_band_plans()["70cm"].freq_end_hz == 440.0e6
+    assert len(au.get_restricted_bands_hz()) > 0
+
+
+def test_get_backend_be_ch_lu_mc_ca():
+    """French/European CEPT and Canada backends are registered."""
+    for key in ("BE", "CH", "LU", "MC"):
+        b = get_backend(key)
+        assert b is not None, key
+        assert b.region_key == key
+        assert b.get_band_plans() is not None
+        assert b.get_band_plans()["2m"].freq_end_hz == 146.0e6
+    ca = get_backend("CA")
+    assert ca is not None
+    assert ca.region_key == "CA"
+    assert ca.get_band_plans() is None
+    assert len(ca.get_restricted_bands_hz()) > 0
+
+
+def test_get_backend_r2_americas():
+    """R2 Americas country backends (AR, CL, CO, PE, etc.) are registered."""
+    for key in ("AR", "CL", "CO", "PE", "VE", "EC", "UY", "DO"):
+        b = get_backend(key)
+        assert b is not None, key
+        assert b.region_key == key
+        assert b.get_band_plans() is None
+        assert len(b.get_restricted_bands_hz()) > 0
+
+
 def test_get_band_plan_source_for_config():
     """Effective band plan respects restricted_region and band_plan_region."""
     # FCC: no backend band plan → BAND_PLANS (R2)
@@ -99,3 +148,63 @@ def test_get_band_plan_source_for_config():
     # Override band_plan_region to ITU_R1 when restricted is FCC
     plans_r1 = get_band_plan_source_for_config("FCC", "ITU_R1")
     assert plans_r1["2m"].freq_end_hz == 146.0e6
+    # AU: R3 band plan (2m 144-148, 70cm 430-440)
+    plans_au = get_band_plan_source_for_config("AU", None)
+    assert plans_au["2m"].freq_end_hz == 148.0e6
+    assert plans_au["70cm"].freq_end_hz == 440.0e6
+    # ITU_R3 band-plan-only
+    r3 = get_backend("ITU_R3")
+    assert r3 is not None
+    assert r3.get_band_plans()["2m"].freq_end_hz == 148.0e6
+    assert r3.get_band_plans()["70cm"].freq_end_hz == 440.0e6
+
+
+def test_au_restricted_bands_enforced():
+    """AU backend enforces restricted bands (ACMA conservative set)."""
+    au = get_backend("AU")
+    assert au is not None
+    assert len(au.get_restricted_bands_hz()) > 0
+    assert is_restricted(115e6, region="AU") is True   # aeronautical
+    assert is_restricted(145e6, region="AU") is False  # amateur 2m R3
+
+
+def test_ng_restricted_bands_enforced():
+    """NG (and other R1 Africa) enforce R1 conservative restricted list."""
+    ng = get_backend("NG")
+    assert ng is not None
+    assert len(ng.get_restricted_bands_hz()) > 0
+    assert is_restricted(115e6, region="NG") is True
+    assert is_restricted(145e6, region="NG") is False
+
+
+def test_za_restricted_bands_enforced():
+    """ZA backend enforces restricted bands (ICASA NRFP conservative set)."""
+    za = get_backend("ZA")
+    assert za is not None
+    assert len(za.get_restricted_bands_hz()) > 0
+    assert is_restricted(115e6, region="ZA") is True   # aeronautical
+    assert is_restricted(145e6, region="ZA") is False   # amateur 2m R1
+
+
+def test_get_backend_nz_jp_in():
+    """NZ, JP, IN backends are registered with R3 band plan and enforced restricted bands."""
+    for key in ("NZ", "JP", "IN"):
+        b = get_backend(key)
+        assert b is not None, key
+        assert b.region_key == key
+        assert b.get_band_plans() is not None
+        assert b.get_band_plans()["2m"].freq_end_hz == 148.0e6
+        assert len(b.get_restricted_bands_hz()) > 0
+    assert is_restricted(115e6, region="NZ") is True
+    assert is_restricted(145e6, region="JP") is False
+
+
+def test_get_backend_r1_africa():
+    """R1 Africa country backends (ZA, NG, KE, etc.) have R1 band plan and enforced restricted bands."""
+    for key in ("ZA", "NG", "KE", "EG", "MA", "SN", "CI"):
+        b = get_backend(key)
+        assert b is not None, key
+        assert b.region_key == key
+        assert b.get_band_plans() is not None
+        assert b.get_band_plans()["2m"].freq_end_hz == 146.0e6  # R1
+        assert len(b.get_restricted_bands_hz()) > 0

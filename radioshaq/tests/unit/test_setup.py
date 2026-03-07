@@ -164,6 +164,7 @@ def test_run_setup_interactive_mocked_writes_config(tmp_path: Path) -> None:
         patch("radioshaq.setup._prompt_memory", return_value=(True, "http://localhost:8888")),
         patch("radioshaq.setup._prompt_field_hq", return_value=("FIELD-01", None, None, None, None)),
         patch("radioshaq.setup._prompt_station_callsign_trigger", return_value=(None, [])),
+        patch("radioshaq.setup._prompt_compliance_region", return_value=("FCC", None)),
         patch("radioshaq.setup._prompt_llm_overrides", return_value={}),
         patch("radioshaq.setup.typer.confirm", return_value=False),
         patch("radioshaq.setup._docker_available", return_value=False),
@@ -211,7 +212,11 @@ def test_run_setup_reconfigure_mocked_merges_config(tmp_path: Path) -> None:
     )
     with (
         patch("radioshaq.setup._run_reconfigure_prompts") as mock_reconfig,
+        patch("radioshaq.setup._prompt_radio_audio", return_value=(False, 1, "COM1", False, True, True)),
+        patch("radioshaq.setup._prompt_memory", return_value=(True, "http://localhost:8888")),
+        patch("radioshaq.setup._prompt_field_hq", return_value=("FIELD-01", None, None, None, None)),
         patch("radioshaq.setup._prompt_station_callsign_trigger", return_value=(None, [])),
+        patch("radioshaq.setup._prompt_compliance_region", return_value=("FCC", None)),
         patch("radioshaq.setup._prompt_llm_overrides", return_value={}),
         patch("radioshaq.setup.typer.confirm", return_value=False),
         patch("radioshaq.setup._docker_available", return_value=False),
