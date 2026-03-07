@@ -38,33 +38,10 @@ except ImportError:
     httpx = None
 
 
-def transcribe_audio_whisper(audio_path: str) -> str:
-    """Return transcribed text using Whisper (fallback when voxtral not used)."""
-    path = Path(audio_path)
-    if not path.exists():
-        raise FileNotFoundError(audio_path)
-    try:
-        import whisper
-        model = whisper.load_model("base")
-        result = model.transcribe(str(path), fp16=False)
-        return (result.get("text") or "").strip()
-    except ImportError:
-        raise RuntimeError(
-            "Install whisper: pip install openai-whisper. Or use --asr voxtral with uv sync --extra audio."
-        ) from None
-
-
 def transcribe_audio(audio_path: str, asr: str = "voxtral") -> str:
-    """Return transcribed text. asr: voxtral (RadioShaq Voxtral ASR) or whisper."""
-    if asr == "voxtral":
-        try:
-            from radioshaq.audio.asr import transcribe_audio_voxtral
-            return transcribe_audio_voxtral(audio_path, language="en")
-        except ImportError:
-            raise RuntimeError(
-                "Install ASR deps: uv sync --extra audio (transformers, peft, mistral-common[audio])."
-            ) from None
-    return transcribe_audio_whisper(audio_path)
+    """Return transcribed text. asr: voxtral, whisper (local), or scribe (ElevenLabs API)."""
+    from radioshaq.audio.asr_plugin import transcribe_audio as _transcribe
+    return _transcribe(audio_path, model_id=asr, language="en")
 
 
 def get_token(base_url: str, subject: str, role: str = "field", station_id: str | None = None) -> str:
@@ -160,11 +137,14 @@ def main() -> int:
     ap.add_argument("--destination-callsign", default=None, help="Destination callsign")
     ap.add_argument("--audio-path", default=None, help="Path to audio file (stored with transcript)")
     ap.add_argument("--stt", action="store_true", help="Transcribe --audio-path and use as message text")
-    ap.add_argument("--asr", choices=("voxtral", "whisper"), default="voxtral", help="ASR: voxtral (RadioShaq Voxtral) or whisper")
-    ap.add_argument("--tts", choices=("elevenlabs",), default=None, help="TTS: generate speech with ElevenLabs from text")
+    ap.add_argument("--asr", choices=("voxtral", "whisper", "scribe"), default="voxtral", help="ASR: voxtral, whisper (local), or scribe (ElevenLabs API)")
+    ap.add_argument("--tts", choices=("elevenlabs", "kokoro"), default=None, help="TTS: elevenlabs (API) or kokoro (local)")
     ap.add_argument("--tts-voice-id", default="21m00Tcm4TlvDq8ikWAM", help="ElevenLabs voice ID (default: Rachel)")
-    ap.add_argument("--tts-out", default=None, help="Output path for TTS audio (e.g. output.mp3)")
+    ap.add_argument("--tts-out", default=None, help="Output path for TTS audio (e.g. output.mp3 or output.wav)")
     ap.add_argument("--tts-model", default="eleven_multilingual_v2", help="ElevenLabs model id")
+    ap.add_argument("--tts-voice", default="af_heart", help="Kokoro voice name (e.g. af_heart, am_michael)")
+    ap.add_argument("--tts-lang-code", default="a", help="Kokoro lang code: a (US en), b (UK en), e, f, etc.")
+    ap.add_argument("--tts-speed", type=float, default=1.0, help="Kokoro speed (0.5–2.0)")
     ap.add_argument("--relay-to-band", default=None, help="After inject, relay message to this band and store both")
     ap.add_argument("--relay-target-freq", type=float, default=0, help="Target frequency for relay (Hz)")
     args = ap.parse_args()
@@ -186,12 +166,27 @@ def main() -> int:
         print("Provide --text or --audio-path with --stt", file=sys.stderr)
         return 1
 
-    # TTS with ElevenLabs (optional; can run without token for TTS-only)
-    if args.tts == "elevenlabs":
+    # TTS (optional; can run without token for TTS-only)
+    if args.tts in ("elevenlabs", "kokoro"):
         try:
-            from radioshaq.audio.tts import text_to_speech_elevenlabs
-            out_path = args.tts_out or "tts_output.mp3"
-            text_to_speech_elevenlabs(text, voice_id=args.tts_voice_id, model_id=args.tts_model, output_path=out_path)
+            from radioshaq.audio.tts_plugin import synthesize_speech
+            default_ext = ".wav" if args.tts == "kokoro" else ".mp3"
+            out_path = args.tts_out or ("tts_output" + default_ext)
+            if args.tts == "elevenlabs":
+                synthesize_speech(
+                    text, "elevenlabs",
+                    output_path=out_path,
+                    voice=args.tts_voice_id,
+                    model_id=args.tts_model,
+                )
+            else:
+                synthesize_speech(
+                    text, "kokoro",
+                    output_path=out_path,
+                    voice=args.tts_voice,
+                    lang_code=args.tts_lang_code,
+                    speed=args.tts_speed,
+                )
             print(f"TTS saved: {out_path}", file=sys.stderr)
         except Exception as e:
             print(f"TTS failed: {e}", file=sys.stderr)

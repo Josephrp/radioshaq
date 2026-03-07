@@ -44,13 +44,15 @@ jwt:
 # LLM (set API key in env or here; prefer env for secrets)
 # -----------------------------------------------------------------------------
 llm:
-  provider: mistral             # mistral | openai | anthropic | custom
+  provider: mistral             # mistral | openai | anthropic | custom | huggingface
   model: mistral-large-latest
   mistral_api_key: null
   openai_api_key: null
   anthropic_api_key: null
   custom_api_base: null
   custom_api_key: null
+  huggingface_api_key: null     # For provider: huggingface; or set HF_TOKEN
+  huggingface_api_base: null   # Optional; default https://router.huggingface.co/v1
   temperature: 0.1
   max_tokens: 4096
   timeout_seconds: 60.0
@@ -184,6 +186,18 @@ audio:
   # Voice → MessageBus (default capture path for orchestrator)
   voice_publish_to_bus: true     # Publish transcribed voice segments to MessageBus
   voice_source_callsign_default: null   # Sender for voice when not parsed (null = UNKNOWN)
+
+# -----------------------------------------------------------------------------
+# TTS (text-to-speech when voice_use_tts or use_tts is true)
+# -----------------------------------------------------------------------------
+tts:
+  provider: elevenlabs          # elevenlabs (API, set ELEVENLABS_API_KEY) | kokoro (local, uv sync --extra tts_kokoro)
+  elevenlabs_voice_id: "21m00Tcm4TlvDq8ikWAM"
+  elevenlabs_model_id: eleven_multilingual_v2
+  elevenlabs_output_format: mp3_44100_128
+  kokoro_voice: af_heart
+  kokoro_lang_code: a           # a (US en), b (UK en), e (es), f (fr), etc.
+  kokoro_speed: 1.0
 
 # -----------------------------------------------------------------------------
 # Field mode (when mode: field)

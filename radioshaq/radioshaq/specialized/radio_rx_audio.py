@@ -547,15 +547,16 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                 sf.write(f.name, segment.audio, segment.sample_rate)
                 temp_path = f.name
             try:
-                if self.config.asr_model == "voxtral":
-                    from radioshaq.audio.asr import transcribe_audio_voxtral
-                    out = transcribe_audio_voxtral(
-                        temp_path, language=self.config.asr_language
-                    )
-                else:
-                    model = self._get_whisper_model()
-                    result = model.transcribe(temp_path)
-                    out = result.get("text", "")
+                from radioshaq.audio.asr_plugin import transcribe_audio
+                loop = asyncio.get_event_loop()
+                out = await loop.run_in_executor(
+                    None,
+                    lambda: transcribe_audio(
+                        temp_path,
+                        model_id=self.config.asr_model,
+                        language=self.config.asr_language,
+                    ),
+                )
                 return (out or "").strip() or None
             finally:
                 Path(temp_path).unlink(missing_ok=True)
@@ -606,15 +607,13 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "audio_path required"}
         await self.emit_progress(upstream_callback, "transcribing", audio_path=audio_path)
         try:
-            if self.config.asr_model == "voxtral":
-                from radioshaq.audio.asr import transcribe_audio_voxtral
-                transcript = transcribe_audio_voxtral(
-                    audio_path, language=self.config.asr_language
-                )
-            else:
-                model = self._get_whisper_model()
-                result = model.transcribe(audio_path)
-                transcript = result.get("text", "").strip()
+            from radioshaq.audio.asr_plugin import transcribe_audio
+            transcript = await asyncio.to_thread(
+                transcribe_audio,
+                audio_path,
+                self.config.asr_model,
+                language=self.config.asr_language,
+            )
             await self.emit_result(
                 upstream_callback,
                 {"type": "transcription", "transcript": transcript, "audio_path": audio_path},

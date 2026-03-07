@@ -157,6 +157,7 @@ def write_env(
             "mistral": "MISTRAL_API_KEY",
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
+            "huggingface": "HF_TOKEN",
         }.get(llm_provider.lower())
         if key_var:
             lines.append(_env_line(key_var, llm_api_key))
@@ -289,15 +290,20 @@ def _prompt_jwt_secret() -> str:
 def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
     """Prompt for LLM provider, model, optional custom API base, and optional API key. Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none)."""
     provider = typer.prompt(
-        "LLM provider (mistral / openai / anthropic / custom)",
+        "LLM provider (mistral / openai / anthropic / custom / huggingface)",
         default="mistral",
         show_default=True,
     ).strip().lower() or "mistral"
-    if provider not in ("mistral", "openai", "anthropic", "custom"):
+    if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface"):
         provider = "mistral"
+    model_default = "mistral-large-latest"
+    if provider == "custom":
+        model_default = "ollama/llama2"
+    elif provider == "huggingface":
+        model_default = "Qwen/Qwen2.5-7B-Instruct-1M"
     model: Optional[str] = typer.prompt(
-        "LLM model (e.g. mistral-large-latest, ollama/llama2)",
-        default="mistral-large-latest" if provider != "custom" else "ollama/llama2",
+        "LLM model (e.g. mistral-large-latest, ollama/llama2, Qwen/Qwen2.5-7B-Instruct-1M)",
+        default=model_default,
         show_default=True,
     ).strip() or None
     custom_base: Optional[str] = None
@@ -307,6 +313,8 @@ def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
             default="http://localhost:11434",
             show_default=True,
         ).strip() or None
+    elif provider == "huggingface":
+        typer.echo("Hugging Face: set HF_TOKEN or paste token when prompted. Token needs 'Inference Providers' permission.")
     key = typer.prompt(
         "LLM API key (optional; press Enter to skip and set later in .env)",
         default="",
@@ -480,10 +488,10 @@ def _prompt_llm_overrides() -> dict[str, Any]:
         if not typer.confirm(f"Override LLM for role '{role}'?", default=False):
             continue
         provider = typer.prompt(
-            f"  [{role}] LLM provider (mistral / openai / anthropic / custom)",
+            f"  [{role}] LLM provider (mistral / openai / anthropic / custom / huggingface)",
             default="mistral",
         ).strip().lower() or "mistral"
-        if provider not in ("mistral", "openai", "anthropic", "custom"):
+        if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface"):
             provider = "mistral"
         model = typer.prompt(
             f"  [{role}] Model (e.g. mistral-large-latest, ollama/llama2)",
@@ -615,7 +623,7 @@ def run_setup(
                 config.audio.trigger_phrases = [p.strip() for p in trigger_phrases if p and str(p).strip()]
                 if config.audio.trigger_phrases:
                     config.audio.audio_activation_phrase = config.audio.trigger_phrases[0]
-            if llm_provider and llm_provider.strip().lower() in ("mistral", "openai", "anthropic", "custom"):
+            if llm_provider and llm_provider.strip().lower() in ("mistral", "openai", "anthropic", "custom", "huggingface"):
                 config.llm.provider = LLMProvider(llm_provider.strip().lower())
             if llm_model and llm_model.strip():
                 config.llm.model = llm_model.strip()
@@ -758,6 +766,8 @@ def run_setup(
     config.llm.mistral_api_key = None
     config.llm.openai_api_key = None
     config.llm.anthropic_api_key = None
+    config.llm.custom_api_key = None
+    config.llm.huggingface_api_key = None
 
     config_path = project_root / CONFIG_FILENAME
     try:

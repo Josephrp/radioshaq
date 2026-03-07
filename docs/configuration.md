@@ -121,17 +121,19 @@ API endpoints expect a Bearer JWT. Tokens are issued by `POST /auth/token` (subj
 
 ## LLM
 
-The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`); the client passes `api_base` to LiteLLM so custom endpoints work without code changes.
+The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`). For **[Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers)** (serverless models from Groq, Together, etc.), set `provider: huggingface`, `model` (e.g. `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`), and **`huggingface_api_key`** or `HF_TOKEN`; the client uses the HF router URL as `api_base`.
 
 | Option | Env var | Default | Description |
 |--------|---------|---------|-------------|
-| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`. |
-| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`). |
+| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`, `huggingface`. |
+| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`; for **huggingface**: `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`). |
 | `llm.mistral_api_key` | `RADIOSHAQ_LLM__MISTRAL_API_KEY` | `null` | Mistral API key (or set `MISTRAL_API_KEY` if your code reads it). |
 | `llm.openai_api_key` | `RADIOSHAQ_LLM__OPENAI_API_KEY` | `null` | OpenAI API key. |
 | `llm.anthropic_api_key` | `RADIOSHAQ_LLM__ANTHROPIC_API_KEY` | `null` | Anthropic API key. |
 | `llm.custom_api_base` | `RADIOSHAQ_LLM__CUSTOM_API_BASE` | `null` | **Custom provider base URL** (e.g. `http://localhost:11434` for Ollama). Passed to LiteLLM. |
 | `llm.custom_api_key` | `RADIOSHAQ_LLM__CUSTOM_API_KEY` | `null` | Custom provider API key. |
+| `llm.huggingface_api_key` | `RADIOSHAQ_LLM__HUGGINGFACE_API_KEY` | `null` | **Hugging Face** token for [Inference Providers](https://huggingface.co/docs/inference-providers) (or set `HF_TOKEN`). Token needs "Inference Providers" permission. |
+| `llm.huggingface_api_base` | `RADIOSHAQ_LLM__HUGGINGFACE_API_BASE` | `null` | Optional; default `https://router.huggingface.co/v1` when provider is `huggingface`. |
 | `llm.temperature` | `RADIOSHAQ_LLM__TEMPERATURE` | `0.1` | Sampling temperature (0–2). |
 | `llm.max_tokens` | `RADIOSHAQ_LLM__MAX_TOKENS` | `4096` | Max tokens per response. |
 | `llm.timeout_seconds` | `RADIOSHAQ_LLM__TIMEOUT_SECONDS` | `60.0` | Request timeout. |
@@ -272,6 +274,24 @@ Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`
 
 ---
 
+## TTS (text-to-speech)
+
+When `radio.voice_use_tts` is true or a task sets `use_tts: true`, speech is generated from text using the configured TTS provider. Options live under `tts.*`.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `tts.provider` | `RADIOSHAQ_TTS__PROVIDER` | `elevenlabs` | `elevenlabs` (API; set `ELEVENLABS_API_KEY`) or `kokoro` (local; run `uv sync --extra tts_kokoro`). |
+| `tts.elevenlabs_voice_id` | `RADIOSHAQ_TTS__ELEVENLABS_VOICE_ID` | (Rachel) | ElevenLabs voice ID. |
+| `tts.elevenlabs_model_id` | `RADIOSHAQ_TTS__ELEVENLABS_MODEL_ID` | `eleven_multilingual_v2` | ElevenLabs model (e.g. `eleven_turbo_v2_5`, `eleven_flash_v2_5`). |
+| `tts.elevenlabs_output_format` | `RADIOSHAQ_TTS__ELEVENLABS_OUTPUT_FORMAT` | `mp3_44100_128` | Output format. |
+| `tts.kokoro_voice` | `RADIOSHAQ_TTS__KOKORO_VOICE` | `af_heart` | Kokoro voice name (e.g. `am_michael`, `bf_emma`). |
+| `tts.kokoro_lang_code` | `RADIOSHAQ_TTS__KOKORO_LANG_CODE` | `a` | Language code: `a` (US English), `b` (UK English), `e`, `f`, etc. |
+| `tts.kokoro_speed` | `RADIOSHAQ_TTS__KOKORO_SPEED` | `1.0` | Speech rate (0.5–2.0). |
+
+**Kokoro (local TTS):** Install with `uv sync --extra tts_kokoro`. This pulls in `kokoro`, `soundfile`, and Kokoro’s own dependencies (e.g. `torch`, `transformers`, `misaki[en]`). On Linux, the `soundfile` package may require the system library **libsndfile** (e.g. `apt install libsndfile1` or `dnf install libsndfile`).
+
+---
+
 ## Audio (voice_rx pipeline)
 
 When `radio.audio_input_enabled` is true, the voice_rx pipeline captures audio from the rig, runs VAD and ASR, applies trigger/phrase filtering, and optionally queues a response for human approval or auto-responds. These settings live under `audio.*`.
@@ -298,8 +318,8 @@ When `radio.audio_input_enabled` is true, the voice_rx pipeline captures audio f
 | `audio.min_speech_duration_ms` | `RADIOSHAQ_AUDIO__MIN_SPEECH_DURATION_MS` | `500` | Min segment length. |
 | `audio.max_speech_duration_ms` | `RADIOSHAQ_AUDIO__MAX_SPEECH_DURATION_MS` | `30000` | Max segment length. |
 | `audio.silence_duration_ms` | `RADIOSHAQ_AUDIO__SILENCE_DURATION_MS` | `800` | Silence to end segment. |
-| `audio.asr_model` | `RADIOSHAQ_AUDIO__ASR_MODEL` | `voxtral` | ASR model name. |
-| `audio.asr_language` | `RADIOSHAQ_AUDIO__ASR_LANGUAGE` | `en` | ASR language. |
+| `audio.asr_model` | `RADIOSHAQ_AUDIO__ASR_MODEL` | `voxtral` | ASR backend: `voxtral`, `whisper` (local; install with `uv sync --extra audio`), or `scribe` (ElevenLabs API; set `ELEVENLABS_API_KEY`). |
+| `audio.asr_language` | `RADIOSHAQ_AUDIO__ASR_LANGUAGE` | `en` | ASR language (`en`, `fr`, `es`, or `auto`). |
 | `audio.asr_min_confidence` | `RADIOSHAQ_AUDIO__ASR_MIN_CONFIDENCE` | `0.6` | Min ASR confidence (0–1). |
 | `audio.response_mode` | `RADIOSHAQ_AUDIO__RESPONSE_MODE` | `listen_only` | `listen_only`, `confirm_first`, `auto_respond`, `confirm_timeout`. |
 | `audio.response_timeout_seconds` | `RADIOSHAQ_AUDIO__RESPONSE_TIMEOUT_SECONDS` | `30.0` | Timeout for confirm_timeout mode. |
@@ -387,7 +407,8 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 - **MessageBus consumer** — The API can run an inbound message consumer in the background so external systems can push work into the REACT loop. Set **`RADIOSHAQ_BUS_CONSUMER_ENABLED=1`** (or `true`/`yes`) to enable it. If not set, the consumer is disabled.
 - **API host/port** — The server uses `API_HOST` / `API_PORT` or **`RADIOSHAQ_API_HOST`** / **`RADIOSHAQ_API_PORT`** when starting uvicorn (default from `hq.host` and `hq.port`).
 - **CLI** — Scripts that call the API use **`RADIOSHAQ_API`** (base URL, default `http://localhost:8000`) and **`RADIOSHAQ_TOKEN`** (Bearer token).
-- **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`, including MessageBus replies when `radio.radio_reply_use_tts: true`), ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
+- **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`), speech is generated per **`tts.provider`**: **`elevenlabs`** (set **`ELEVENLABS_API_KEY`**) or **`kokoro`** (local; `uv sync --extra tts_kokoro`). See [TTS (text-to-speech)](#tts-text-to-speech).
+- **ASR** — Voice pipeline and audio upload use **`audio.asr_model`**: **`voxtral`** / **`whisper`** (local; `uv sync --extra audio`) or **`scribe`** (ElevenLabs API; **`ELEVENLABS_API_KEY`**).
 - **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](reference/.env.example)).
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

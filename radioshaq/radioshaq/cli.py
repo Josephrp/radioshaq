@@ -566,7 +566,7 @@ def setup(
     llm_provider: Optional[str] = typer.Option(
         None,
         "--llm-provider",
-        help="LLM provider for --no-input: mistral | openai | anthropic | custom.",
+        help="LLM provider for --no-input: mistral | openai | anthropic | custom | huggingface.",
     ),
     llm_model: Optional[str] = typer.Option(
         None,

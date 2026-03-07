@@ -4,6 +4,8 @@ This guide gets the RadioShaq API running on your machine in a few minutes. By t
 
 **(Optional) Interactive setup:** Run `radioshaq setup` from the `radioshaq/` directory to be guided through mode, database (Docker or URL), JWT, LLM, and optional radio/memory/field settings. Radio setup includes prompts for MessageBus outbound radio replies and whether those replies use TTS. It writes `.env` and `config.yaml` to the project root and can start Docker Postgres and run migrations. See [Configuration](configuration.md#interactive-setup).
 
+**Voice (TTS/ASR):** TTS can use **ElevenLabs** (set `ELEVENLABS_API_KEY`) or **Kokoro** (local: `uv sync --extra tts_kokoro`). ASR can use **Voxtral/Whisper** (local: `uv sync --extra audio`) or **Scribe** (ElevenLabs API). See [Configuration → TTS and Audio](configuration.md#tts-text-to-speech).
+
 **(Optional) Full automated setup:** From the `radioshaq/` directory, run one script to install deps, create config, start Docker Postgres (and optionally Hindsight), run migrations, and install PM2 if Node is present: **Windows** — `.\infrastructure\local\setup.ps1`; **Linux/macOS** — `./infrastructure/local/setup.sh` (or `bash infrastructure/local/setup.sh`). Then start the API with `radioshaq launch pm2` or `radioshaq run-api`. Alternatively, follow the steps below.
 
 ---

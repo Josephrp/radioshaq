@@ -62,11 +62,26 @@ def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
         return f"openai/{model}"
     if p == "anthropic" and "/" not in model:
         return f"anthropic/{model}"
+    if p == "huggingface":
+        if model.startswith("openai/"):
+            return model
+        return f"openai/{model}" if model else "openai/"
     if p == "custom":
         return f"custom/{model}" if "/" not in model else model
     if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
         return f"mistral/{model}"
     return model
+
+
+def _llm_api_base_for_provider(llm_cfg: LLMConfig) -> str | None:
+    """Return api_base for the configured provider (huggingface router or custom)."""
+    provider = getattr(llm_cfg, "provider", None)
+    p = str(provider).lower() if provider else ""
+    if p == "huggingface":
+        return getattr(llm_cfg, "huggingface_api_base", None) or "https://router.huggingface.co/v1"
+    if p == "custom":
+        return getattr(llm_cfg, "custom_api_base", None)
+    return None
 
 
 def _llm_api_key(config: Config) -> str | None:
@@ -75,15 +90,19 @@ def _llm_api_key(config: Config) -> str | None:
 
 
 def _llm_api_key_from_llm_config(llm: LLMConfig) -> str | None:
-    """Get API key from an LLMConfig."""
-    if getattr(llm, "mistral_api_key", None):
-        return llm.mistral_api_key
-    if getattr(llm, "openai_api_key", None):
-        return llm.openai_api_key
-    if getattr(llm, "anthropic_api_key", None):
-        return llm.anthropic_api_key
-    if getattr(llm, "custom_api_key", None):
-        return llm.custom_api_key
+    """Get API key for the configured provider (provider-matched key only)."""
+    provider = getattr(llm, "provider", None)
+    p = str(provider).lower() if provider else ""
+    if p == "huggingface":
+        return getattr(llm, "huggingface_api_key", None)
+    if p == "custom":
+        return getattr(llm, "custom_api_key", None)
+    if p == "anthropic":
+        return getattr(llm, "anthropic_api_key", None)
+    if p == "openai":
+        return getattr(llm, "openai_api_key", None)
+    if p == "mistral":
+        return getattr(llm, "mistral_api_key", None)
     return None
 
 
@@ -108,7 +127,7 @@ def create_judge(config: Config) -> JudgeSystem:
     provider = LLMClient(
         model=model,
         api_key=api_key,
-        api_base=getattr(llm_cfg, "custom_api_base", None),
+        api_base=_llm_api_base_for_provider(llm_cfg),
         temperature=getattr(llm_cfg, "temperature", 0.1),
         max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
@@ -328,7 +347,7 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
     llm_client = LLMClient(
         model=_llm_model_string_from_llm_config(llm_cfg),
         api_key=_llm_api_key_from_llm_config(llm_cfg),
-        api_base=getattr(llm_cfg, "custom_api_base", None),
+        api_base=_llm_api_base_for_provider(llm_cfg),
         temperature=getattr(llm_cfg, "temperature", 0.1),
         max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
@@ -446,7 +465,7 @@ def create_orchestrator(
         llm_client = LLMClient(
             model=_llm_model_string_from_llm_config(llm_cfg),
             api_key=_llm_api_key_from_llm_config(llm_cfg),
-            api_base=getattr(llm_cfg, "custom_api_base", None),
+            api_base=_llm_api_base_for_provider(llm_cfg),
             temperature=getattr(llm_cfg, "temperature", 0.1),
             max_tokens=getattr(llm_cfg, "max_tokens", 4096),
         )

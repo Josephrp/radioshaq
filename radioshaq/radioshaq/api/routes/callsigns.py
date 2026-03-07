@@ -141,13 +141,14 @@ async def register_from_audio(
         temp_path = f.name
     try:
         try:
-            from radioshaq.audio.asr import transcribe_audio_voxtral
+            from radioshaq.audio.asr_plugin import transcribe_audio
             asr_lang = getattr(config.audio, "asr_language", "en") or "en"
-            transcript = transcribe_audio_voxtral(temp_path, language=asr_lang)
-        except ImportError:
+            asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
+            transcript = transcribe_audio(temp_path, model_id=asr_model, language=asr_lang)
+        except (ImportError, RuntimeError) as e:
             raise HTTPException(
                 status_code=503,
-                detail="ASR not available (install with uv sync --extra audio)",
+                detail=f"ASR not available: {e!s}",
             )
         transcript = (transcript or "").strip()
         # Use query param if provided; else take first word or try to parse "CALLSIGN de OTHER"

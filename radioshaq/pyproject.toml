@@ -148,6 +148,13 @@ voice_rx = [
     "noisereduce>=3.0",
 ]
 
+# Local TTS: Kokoro-82M (no API key). Kokoro pulls in torch, transformers, misaki[en], etc.
+# On Linux, soundfile may need libsndfile: apt install libsndfile1 (or equivalent).
+tts_kokoro = [
+    "kokoro>=0.9.4",
+    "soundfile>=0.12.1",
+]
+
 [project.scripts]
 radioshaq = "radioshaq.cli:main"
 run-receiver = "radioshaq.remote_receiver.server:main"

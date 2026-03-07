@@ -57,7 +57,8 @@ def split_base(version: str) -> tuple[int, int, int]:
     match = SEMVER_RE.match(base)
     if not match:
         raise ValueError(f"Expected semantic version X.Y.Z, got: {version}")
-    return tuple(int(p) for p in match.groups())
+    major, minor, patch = (int(p) for p in match.groups())
+    return major, minor, patch
 
 
 def bump_semver(version: tuple[int, int, int], bump_type: str) -> tuple[int, int, int]:

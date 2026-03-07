@@ -155,13 +155,14 @@ async def whitelist_request(
                     f.write(content)
                     temp_path = f.name
                 try:
-                    from radioshaq.audio.asr import transcribe_audio_voxtral
+                    from radioshaq.audio.asr_plugin import transcribe_audio
                     asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+                    asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
                     request_text = await asyncio.to_thread(
-                        transcribe_audio_voxtral, temp_path, language=asr_lang
+                        transcribe_audio, temp_path, asr_model, language=asr_lang
                     )
-                except ImportError:
-                    raise HTTPException(status_code=503, detail="ASR not available")
+                except (ImportError, RuntimeError) as e:
+                    raise HTTPException(status_code=503, detail=f"ASR not available: {e!s}")
                 finally:
                     Path(temp_path).unlink(missing_ok=True)
                 request_text = (request_text or "").strip()
@@ -263,15 +264,16 @@ async def message_from_audio(
         f.write(content)
         temp_path = f.name
     try:
-        from radioshaq.audio.asr import transcribe_audio_voxtral
+        from radioshaq.audio.asr_plugin import transcribe_audio
         asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+        asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
         transcript_text = await asyncio.to_thread(
-            transcribe_audio_voxtral, temp_path, language=asr_lang
+            transcribe_audio, temp_path, asr_model, language=asr_lang
         )
-    except ImportError:
+    except (ImportError, RuntimeError) as e:
         raise HTTPException(
             status_code=503,
-            detail="ASR not available (uv sync --extra audio)",
+            detail=f"ASR not available: {e!s}",
         )
     finally:
         Path(temp_path).unlink(missing_ok=True)
