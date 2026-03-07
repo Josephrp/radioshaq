@@ -64,13 +64,13 @@ export function VADVisualizer({ sessionId }: VADVisualizerProps) {
   return (
     <div className="vad-visualizer" aria-live="polite">
       <div className="vad-status">
-        WebSocket: {connected ? 'connected' : 'disconnected'}
+        {t('audio.vadStatusWebSocket')}: {connected ? t('audio.vadConnected') : t('audio.vadDisconnected')}
       </div>
       {metrics && !isPlaceholder && (
         <div className="vad-metrics">
-          <span>VAD: {metrics.vad_active ? 'active' : 'idle'}</span>
-          {metrics.snr_db != null && <span>SNR: {metrics.snr_db.toFixed(1)} dB</span>}
-          {metrics.state && <span>State: {metrics.state}</span>}
+          <span>{t('audio.vadLabel')}: {metrics.vad_active ? t('audio.vadActive') : t('audio.vadIdle')}</span>
+          {metrics.snr_db != null && <span>{t('audio.snrLabel')}: {metrics.snr_db.toFixed(1)} dB</span>}
+          {metrics.state && <span>{t('audio.stateLabel')}: {metrics.state}</span>}
         </div>
       )}
       {metrics && isPlaceholder && (

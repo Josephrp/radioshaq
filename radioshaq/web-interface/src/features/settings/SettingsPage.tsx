@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   getConfigLlm,
   updateConfigLlm,
@@ -98,10 +98,10 @@ export function SettingsPage() {
       )}
 
       <section style={SECTION_STYLE}>
-        <h2>LLM</h2>
+        <h2>{t('settings.llm')}</h2>
         {llm && (
           <>
-            <label style={LABEL_STYLE}>Provider</label>
+            <label style={LABEL_STYLE}>{t('settings.provider')}</label>
             <select
               style={INPUT_STYLE}
               value={llm.provider ?? 'mistral'}
@@ -113,27 +113,27 @@ export function SettingsPage() {
               <option value="anthropic">anthropic</option>
               <option value="custom">custom</option>
             </select>
-            <label style={LABEL_STYLE}>Model</label>
+            <label style={LABEL_STYLE}>{t('settings.model')}</label>
             <input
               style={INPUT_STYLE}
               type="text"
               value={llm.model ?? ''}
               onChange={(e) => setLlm((p) => (p ? { ...p, model: e.target.value } : p))}
               onBlur={(e) => handleLlmChange('model', e.target.value)}
-              placeholder="e.g. mistral-large-latest, ollama/llama2"
+              placeholder={t('settings.modelPlaceholder')}
               disabled={!!saving}
             />
-            <label style={LABEL_STYLE}>Custom API base (e.g. Ollama)</label>
+            <label style={LABEL_STYLE}>{t('settings.customApiBase')}</label>
             <input
               style={INPUT_STYLE}
               type="url"
               value={llm.custom_api_base ?? ''}
               onChange={(e) => setLlm((p) => (p ? { ...p, custom_api_base: e.target.value || null } : p))}
               onBlur={(e) => handleLlmChange('custom_api_base', e.target.value || null)}
-              placeholder="http://localhost:11434"
+              placeholder={t('settings.customApiBasePlaceholder')}
               disabled={!!saving}
             />
-            <label style={LABEL_STYLE}>Temperature</label>
+            <label style={LABEL_STYLE}>{t('settings.temperature')}</label>
             <input
               style={INPUT_STYLE}
               type="number"
@@ -145,7 +145,7 @@ export function SettingsPage() {
               onBlur={(e) => handleLlmChange('temperature', parseFloat(e.target.value) || 0.1)}
               disabled={!!saving}
             />
-            <label style={LABEL_STYLE}>Max tokens</label>
+            <label style={LABEL_STYLE}>{t('settings.maxTokens')}</label>
             <input
               style={INPUT_STYLE}
               type="number"
@@ -160,7 +160,7 @@ export function SettingsPage() {
       </section>
 
       <section style={SECTION_STYLE}>
-        <h2>Memory (Hindsight)</h2>
+        <h2>{t('settings.memoryHindsight')}</h2>
         {memory && (
           <>
             <label style={LABEL_STYLE}>
@@ -170,16 +170,16 @@ export function SettingsPage() {
                 onChange={(e) => handleMemoryChange('enabled', e.target.checked)}
                 disabled={!!saving}
               />{' '}
-              Enabled
+              {t('settings.enabled')}
             </label>
-            <label style={LABEL_STYLE}>Hindsight base URL</label>
+            <label style={LABEL_STYLE}>{t('settings.hindsightBaseUrl')}</label>
             <input
               style={INPUT_STYLE}
               type="url"
               value={memory.hindsight_base_url ?? ''}
               onChange={(e) => setMemory((p) => (p ? { ...p, hindsight_base_url: e.target.value } : p))}
               onBlur={(e) => handleMemoryChange('hindsight_base_url', e.target.value)}
-              placeholder="http://localhost:8888"
+              placeholder={t('settings.hindsightBaseUrlPlaceholder')}
               disabled={!!saving}
             />
             <label style={LABEL_STYLE}>
@@ -189,16 +189,16 @@ export function SettingsPage() {
                 onChange={(e) => handleMemoryChange('hindsight_enabled', e.target.checked)}
                 disabled={!!saving}
               />{' '}
-              Hindsight enabled
+              {t('settings.hindsightEnabled')}
             </label>
-            <label style={LABEL_STYLE}>Embedding model (optional)</label>
+            <label style={LABEL_STYLE}>{t('settings.embeddingModelOptional')}</label>
             <input
               style={INPUT_STYLE}
               type="text"
               value={memory.hindsight_embedding_model ?? ''}
               onChange={(e) => setMemory((p) => (p ? { ...p, hindsight_embedding_model: e.target.value || null } : p))}
               onBlur={(e) => handleMemoryChange('hindsight_embedding_model', e.target.value || null)}
-              placeholder="If Hindsight supports it"
+              placeholder={t('settings.embeddingModelPlaceholder')}
               disabled={!!saving}
             />
           </>
@@ -206,9 +206,9 @@ export function SettingsPage() {
       </section>
 
       <section style={SECTION_STYLE}>
-        <h2>Per-role overrides</h2>
+        <h2>{t('settings.overrides')}</h2>
         <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-          Roles: orchestrator, judge, whitelist, daily_summary, memory. You can also use any <strong>agent name</strong> (e.g. whitelist, gis, radio_tx, scheduler) for per-subagent LLM; only whitelist uses an LLM today.
+          <Trans i18nKey="settings.perRoleOverridesIntro" components={{ strong: <strong /> }} />
         </p>
         {overrides && (
           <pre style={{ background: '#f5f5f5', padding: '0.75rem', borderRadius: 4, overflow: 'auto', fontSize: '0.85rem' }}>

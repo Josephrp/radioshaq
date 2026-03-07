@@ -17,10 +17,11 @@ const STORAGE_KEY = 'radioshaq_ui_lang';
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, fr: { translation: fr }, es: { translation: es } },
   lng: (() => {
+    const codes = SUPPORTED_LANGUAGES.map((l) => l.code) as string[];
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && ['en', 'fr', 'es'].includes(stored)) return stored;
+    if (stored && codes.includes(stored)) return stored;
     const browser = navigator.language.split('-')[0];
-    return ['en', 'fr', 'es'].includes(browser) ? browser : 'en';
+    return codes.includes(browser) ? browser : 'en';
   })(),
   fallbackLng: 'en',
   interpolation: { escapeValue: false },

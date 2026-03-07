@@ -262,17 +262,23 @@ class RadioAudioReceptionAgent(SpecializedAgent):
     def set_metrics_callback(self, callback: Callable[[dict[str, Any]], None] | None) -> None:
         """Set callback for live VAD/metrics (vad_active, snr_db, state). Used by API to feed websocket."""
         self._metrics_callback = callback
-        if self.stream_processor and callback is not None:
-            def forward(vad_active: bool, snr_db: float | None, state: str) -> None:
-                callback({
-                    "type": "metrics",
-                    "vad_active": vad_active,
-                    "snr_db": snr_db,
-                    "state": state,
-                })
-            self.stream_processor.set_metrics_callback(forward)
-        elif self.stream_processor:
-            self.stream_processor.set_metrics_callback(None)
+        if self.stream_processor:
+            if callback is not None:
+                def forward(vad_active: bool, snr_db: float | None, state: str) -> None:
+                    callback({
+                        "type": "metrics",
+                        "vad_active": vad_active,
+                        "snr_db": snr_db,
+                        "state": state,
+                    })
+                self.stream_processor.set_metrics_callback(forward)
+            else:
+                self.stream_processor.set_metrics_callback(None)
+        elif callback is not None:
+            logger.warning(
+                "set_metrics_callback called but stream_processor is None; "
+                "callback will not be forwarded until stream_processor is set."
+            )
 
     async def execute(
         self,
