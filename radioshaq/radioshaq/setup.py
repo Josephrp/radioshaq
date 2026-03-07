@@ -431,6 +431,27 @@ def _prompt_field_hq(mode_val: str) -> tuple[Optional[str], Optional[str], Optio
     return station_id, hq_base_url, hq_auth_token, hq_host, hq_port
 
 
+def _prompt_compliance_region(
+    default_restricted: str = "FCC",
+    default_band_plan: Optional[str] = None,
+) -> tuple[str, Optional[str]]:
+    """Prompt for compliance region/country (restricted bands + band plan). Returns (restricted_bands_region, band_plan_region)."""
+    typer.echo(
+        "Compliance region: where you operate (restricted bands + band plan). "
+        "Examples: FCC (US), CA (Canada), CEPT or FR (EU), AU (Australia), ZA (South Africa), NZ/JP/IN, or country code (AR, MX, NG…). "
+        "See docs/compliance-regulatory.md."
+    )
+    restricted = typer.prompt(
+        "Restricted bands region (country/region code)",
+        default=default_restricted or "FCC",
+    ).strip() or "FCC"
+    override = typer.prompt(
+        "Band plan override (ITU_R1, ITU_R3, or leave blank to use region default)",
+        default=default_band_plan or "",
+    ).strip() or None
+    return restricted, override
+
+
 def _prompt_station_callsign_trigger() -> tuple[Optional[str], list[str]]:
     """Prompt for station callsign and trigger phrases. Returns (station_callsign, trigger_phrases)."""
     station_callsign = typer.prompt(
@@ -494,10 +515,10 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
     llm_model_val: Optional[str] = getattr(config.llm, "model", None)
     custom_api_base_val: Optional[str] = getattr(config.llm, "custom_api_base", None)
 
-    sections = ["mode", "database", "jwt", "llm", "memory", "overrides", "done"]
+    sections = ["mode", "database", "jwt", "llm", "memory", "radio", "overrides", "done"]
     while True:
         choice = typer.prompt(
-            "What to change? (mode / database / jwt / llm / memory / overrides / done)",
+            "What to change? (mode / database / jwt / llm / memory / radio / overrides / done)",
             default="done",
         ).strip().lower() or "done"
         if choice == "done":
@@ -519,6 +540,15 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
             config.memory.enabled = memory_enabled
             if hindsight_url:
                 config.memory.hindsight_base_url = hindsight_url
+        elif choice == "radio":
+            current_restricted = getattr(config.radio, "restricted_bands_region", "FCC") or "FCC"
+            current_band_plan = getattr(config.radio, "band_plan_region", None) or ""
+            restricted_region, band_plan_region = _prompt_compliance_region(
+                default_restricted=current_restricted,
+                default_band_plan=current_band_plan,
+            )
+            config.radio.restricted_bands_region = restricted_region
+            config.radio.band_plan_region = band_plan_region if band_plan_region else None
         elif choice == "overrides":
             overrides = _prompt_llm_overrides()
             config.llm_overrides = overrides if overrides else None
@@ -544,6 +574,8 @@ def run_setup(
     memory_enabled: Optional[bool] = None,
     radio_reply_tx_enabled: Optional[bool] = None,
     radio_reply_use_tts: Optional[bool] = None,
+    restricted_bands_region: Optional[str] = None,
+    band_plan_region: Optional[str] = None,
     llm_overrides: Optional[str] = None,
 ) -> int:
     """Run setup: non-interactive writes .env + config.yaml; interactive will prompt (Phase 2+).
@@ -597,6 +629,10 @@ def run_setup(
                 config.radio.radio_reply_tx_enabled = radio_reply_tx_enabled
             if radio_reply_use_tts is not None:
                 config.radio.radio_reply_use_tts = radio_reply_use_tts
+            if restricted_bands_region and restricted_bands_region.strip():
+                config.radio.restricted_bands_region = restricted_bands_region.strip()
+            if band_plan_region is not None and str(band_plan_region).strip():
+                config.radio.band_plan_region = str(band_plan_region).strip()
             if llm_overrides and llm_overrides.strip():
                 try:
                     parsed = json.loads(llm_overrides.strip())
@@ -709,6 +745,10 @@ def run_setup(
         if trigger_phrases:
             config.audio.trigger_phrases = trigger_phrases
             config.audio.audio_activation_phrase = trigger_phrases[0]
+        restricted_region, band_plan_region = _prompt_compliance_region()
+        config.radio.restricted_bands_region = restricted_region
+        if band_plan_region:
+            config.radio.band_plan_region = band_plan_region
         overrides = _prompt_llm_overrides()
         if overrides:
             config.llm_overrides = overrides

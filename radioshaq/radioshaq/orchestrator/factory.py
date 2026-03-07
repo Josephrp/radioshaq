@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.resolve import get_llm_config_for_role, get_memory_config_for_role
 from radioshaq.config.schema import Config, LLMConfig
 from radioshaq.llm.client import LLMClient
@@ -179,6 +180,10 @@ def _create_sdr_transmitter(config: Config) -> Any:
         return None
     try:
         from radioshaq.radio.sdr_tx import HackRFTransmitter
+        band_plan = get_band_plan_source_for_config(
+            getattr(config.radio, "restricted_bands_region", "FCC"),
+            getattr(config.radio, "band_plan_region", None),
+        )
         return HackRFTransmitter(
             device_index=getattr(config.radio, "sdr_tx_device_index", 0),
             serial_number=getattr(config.radio, "sdr_tx_serial", None),
@@ -186,6 +191,7 @@ def _create_sdr_transmitter(config: Config) -> Any:
             allow_bands_only=getattr(config.radio, "sdr_tx_allow_bands_only", True),
             audit_log_path=getattr(config.radio, "tx_audit_log_path", None),
             restricted_region=getattr(config.radio, "restricted_bands_region", "FCC"),
+            band_plan_source=band_plan,
         )
     except Exception as e:
         logger.warning("SDR TX (HackRF) not available: %s", e)

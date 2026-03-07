@@ -9,9 +9,9 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.middleware.upstream import UpstreamEvent
 from radioshaq.radio.compliance import is_tx_allowed, log_tx
-from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.specialized.base import SpecializedAgent
 
 
@@ -73,11 +73,16 @@ class RadioTransmissionAgent(SpecializedAgent):
         # Compliance: do not TX on restricted or out-of-band frequencies
         radio_cfg = getattr(self.config, "radio", None) if self.config else None
         if frequency and radio_cfg and getattr(radio_cfg, "tx_allowed_bands_only", True):
+            restricted_region = getattr(radio_cfg, "restricted_bands_region", "FCC")
+            band_plan_source = get_band_plan_source_for_config(
+                restricted_region,
+                getattr(radio_cfg, "band_plan_region", None),
+            )
             if not is_tx_allowed(
                 frequency,
-                band_plan_source=BAND_PLANS,
+                band_plan_source=band_plan_source,
                 allow_tx_only_amateur_bands=True,
-                restricted_region=getattr(radio_cfg, "restricted_bands_region", "FCC"),
+                restricted_region=restricted_region,
             ):
                 err = {
                     "success": False,

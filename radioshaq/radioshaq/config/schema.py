@@ -240,6 +240,10 @@ class RadioConfig(BaseModel):
     tx_audit_log_path: str | None = Field(default=None, description="Path to JSONL file for TX audit log")
     tx_allowed_bands_only: bool = Field(default=True, description="Only allow TX in band_plan bands")
     restricted_bands_region: str = Field(default="FCC", description="Region for restricted bands (FCC, CEPT)")
+    band_plan_region: str | None = Field(
+        default=None,
+        description="Band plan region override (e.g. ITU_R1, ITU_R2). None = use backend from restricted_bands_region.",
+    )
 
     # Multi-band listening (Project 1)
     default_band: str | None = Field(default=None, description="Default band when listen_bands not set (e.g. 40m, 2m)")

@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.bands import BAND_PLANS
 
 
@@ -27,6 +28,14 @@ async def run_outbound_radio_handler(
     radio_cfg = getattr(config, "radio", None)
     tx_enabled = getattr(radio_cfg, "radio_reply_tx_enabled", True) if radio_cfg else True
     reply_use_tts = getattr(radio_cfg, "radio_reply_use_tts", True) if radio_cfg else True
+    band_plans = (
+        get_band_plan_source_for_config(
+            getattr(radio_cfg, "restricted_bands_region", "FCC"),
+            getattr(radio_cfg, "band_plan_region", None),
+        )
+        if radio_cfg
+        else BAND_PLANS
+    )
 
     while not stop_event.is_set():
         try:
@@ -44,7 +53,7 @@ async def run_outbound_radio_handler(
             if not band and freq is None:
                 logger.warning("Outbound radio_rx: no band or frequency_hz, skipping")
                 continue
-            plan = BAND_PLANS.get(band) if band else None
+            plan = band_plans.get(band) if band else None
             if plan:
                 if freq is None or freq <= 0:
                     freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2

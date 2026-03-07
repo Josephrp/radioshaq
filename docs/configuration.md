@@ -217,7 +217,8 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
-| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Region for restricted bands: `FCC`, `CEPT`. |
+| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Country/region for restricted-band enforcement: `FCC`, `CA`, `CEPT`, `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`, `MX`, `AR`, `CL`, … (Americas), `AU`, `ZA`, `NG`, `KE`, … (Africa), `NZ`, `JP`, `IN`. **Do not use `ITU_R1` or `ITU_R3`** here — they are band-plan-only (no restricted bands); use `band_plan_region` for those. |
+| `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R3`). If null, uses the backend from `restricted_bands_region`. Use this for ITU region plans; keep `restricted_bands_region` as a country. |
 | `radio.allowed_callsigns` | (list in YAML) | `null` | Static list of allowed callsigns; merged with DB registry. |
 | `radio.callsign_registry_required` | `RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED` | `false` | If true, only registered or allowed callsigns for store/relay. |
 | `radio.sdr_tx_enabled` | `RADIOSHAQ_RADIO__SDR_TX_ENABLED` | `false` | Enable HackRF (or other SDR) TX. |
@@ -241,6 +242,33 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.relay_tx_target_band` | `RADIOSHAQ_RADIO__RELAY_TX_TARGET_BAND` | `false` | When relaying (no deliver_at), transmit the relayed message on the target band via radio_tx. |
 
 **Relay:** Relay is **store-only by default**. Recipients get messages by **polling** `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. When `relay_inject_target_band` or `relay_tx_target_band` is enabled, they apply to both the API and the orchestrator relay tool.
+
+**Compliance and region support:** TX is checked against restricted bands and (when `tx_allowed_bands_only` is true) the effective band plan. The **compliance plugin** provides region-specific backends:
+
+| Backend key | Restricted bands | Band plan | Typical use |
+|-------------|------------------|-----------|--------------|
+| `FCC` | US 47 CFR §15.205 | Default (ITU R2) | United States |
+| `CA` | FCC baseline (ISED/RBR-4) | Default (ITU R2) | Canada |
+| `CEPT` | EU harmonised (ERC 70-03, ETSI) | IARU R1 (2m 144–146 MHz, 70cm 430–440 MHz) | EU general |
+| `FR` | Same as CEPT | Same as CEPT | France |
+| `UK` | Same as CEPT | Same as CEPT | United Kingdom |
+| `ES` | Same as CEPT | Same as CEPT | Spain |
+| `BE` | Same as CEPT | Same as CEPT | Belgium |
+| `CH` | Same as CEPT | Same as CEPT | Switzerland |
+| `LU` | Same as CEPT | Same as CEPT | Luxembourg |
+| `MC` | Same as CEPT | Same as CEPT | Monaco |
+| `ITU_R1` | None (band-plan only) | IARU R1 | Override band plan only |
+| `ITU_R3` | None (band-plan only) | IARU R3 (2m 144–148, 70cm 430–440 MHz) | Override band plan for Asia–Pacific |
+| `MX` | FCC baseline (IFT may vary) | Default (ITU R2) | Mexico |
+| `AR`, `CL`, `CO`, `PE`, `VE`, `EC`, `UY`, `PY`, `BO`, `CR`, `PA`, `GT`, `DO` | FCC baseline | Default (ITU R2) | Argentina, Chile, Colombia, Peru, Venezuela, Ecuador, Uruguay, Paraguay, Bolivia, Costa Rica, Panama, Guatemala, Dominican Republic |
+| `AU` | Enforced (ACMA conservative) | IARU R3 | Australia |
+| `ZA` | Enforced (ICASA NRFP) | IARU R1 | South Africa |
+| `NG`, `KE`, `EG`, `MA`, … (see compliance-regulatory.md) | Enforced (R1 conservative) | IARU R1 | Nigeria, Kenya, Egypt, Morocco, etc. |
+| `NZ` | Enforced (RSM PIB 21 conservative) | IARU R3 | New Zealand |
+| `JP` | Enforced (conservative set) | IARU R3 | Japan |
+| `IN` | Enforced (conservative set) | IARU R3 | India |
+
+Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`) for EU/EEA to enforce CEPT-style restricted bands and R1 band edges. For Americas use `CA`, `MX`, or country code (`AR`, `CL`, etc.). For Australia/Asia–Pacific use `AU` or `ITU_R3`. For Africa use country code (`ZA`, `NG`, `KE`, etc.) — R1 band plan, national rules apply. Use `band_plan_region: ITU_R1` or `ITU_R3` to override band plan. See [Compliance and regulatory references](compliance-regulatory.md) for official sources. Operators must verify national rules (e.g. ANFR, Ofcom, ACMA, IFT, ISED, ICASA, NCC).
 
 ---
 
