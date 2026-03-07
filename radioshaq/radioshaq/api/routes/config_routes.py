@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
+from radioshaq.api.config_semantics import (
+    CONFIG_APPLIES_AFTER_RESTART,
+    X_CONFIG_EFFECTIVE_AFTER,
+)
 from radioshaq.api.dependencies import get_config, get_current_user
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.config.schema import Config
@@ -51,13 +56,16 @@ async def get_config_llm(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get current LLM configuration (API keys redacted). Runtime overrides merged if set."""
+    """Get current LLM configuration (API keys redacted). Runtime overrides merged if set.
+    Runtime overrides do not affect active orchestrator/agents until process restart.
+    """
     out = _llm_config_dict(config, redact=True)
     override = getattr(request.app.state, "llm_config_override", None)
     if override:
         for k in _LLM_SECRET_KEYS:
             override.pop(k, None)
         out = {**out, **override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
     return out
 
 
@@ -68,14 +76,18 @@ async def update_config_llm(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Update LLM configuration (runtime overlay only; does not persist to file). API keys in body are not stored."""
+    """Update LLM configuration (runtime overlay only; does not persist to file).
+    API keys in body are not stored. Restart required for changes to affect orchestrator/agents.
+    """
     if not hasattr(request.app.state, "llm_config_override"):
         request.app.state.llm_config_override = {}
     for k in _LLM_SECRET_KEYS:
         body.pop(k, None)
     request.app.state.llm_config_override.update(body)
     base = _llm_config_dict(config, redact=True)
-    return {**base, **request.app.state.llm_config_override}
+    out = {**base, **request.app.state.llm_config_override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
+    return JSONResponse(content=out, headers={X_CONFIG_EFFECTIVE_AFTER: CONFIG_APPLIES_AFTER_RESTART})
 
 
 @router.get("/config/memory")
@@ -84,11 +96,14 @@ async def get_config_memory(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get current memory/Hindsight configuration. Runtime overrides merged if set."""
+    """Get current memory/Hindsight configuration. Runtime overrides merged if set.
+    Runtime overrides do not affect active components until process restart.
+    """
     out = _memory_config_dict(config)
     override = getattr(request.app.state, "memory_config_override", None)
     if override:
         out = {**out, **override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
     return out
 
 
@@ -99,12 +114,16 @@ async def update_config_memory(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Update memory configuration (runtime overlay only; does not persist to file)."""
+    """Update memory configuration (runtime overlay only; does not persist to file).
+    Restart required for changes to affect active components.
+    """
     if not hasattr(request.app.state, "memory_config_override"):
         request.app.state.memory_config_override = {}
     request.app.state.memory_config_override.update(body)
     base = _memory_config_dict(config)
-    return {**base, **request.app.state.memory_config_override}
+    out = {**base, **request.app.state.memory_config_override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
+    return JSONResponse(content=out, headers={X_CONFIG_EFFECTIVE_AFTER: CONFIG_APPLIES_AFTER_RESTART})
 
 
 @router.get("/config/overrides")
@@ -113,11 +132,14 @@ async def get_config_overrides(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get per-role LLM and memory overrides. Keys: orchestrator, judge, whitelist, daily_summary, memory."""
+    """Get per-role LLM and memory overrides. Keys: orchestrator, judge, whitelist, daily_summary, memory.
+    Runtime overrides do not affect active orchestrator/agents until process restart.
+    """
     out = _overrides_dict(config)
     override = getattr(request.app.state, "config_overrides_override", None)
     if override:
         out = {**out, **override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
     return out
 
 
@@ -128,7 +150,9 @@ async def update_config_overrides(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Update per-role overrides (runtime overlay only; does not persist to file)."""
+    """Update per-role overrides (runtime overlay only; does not persist to file).
+    Restart required for changes to affect orchestrator/agents.
+    """
     if not hasattr(request.app.state, "config_overrides_override"):
         request.app.state.config_overrides_override = {"llm_overrides": {}, "memory_overrides": {}}
     if "llm_overrides" in body and isinstance(body["llm_overrides"], dict):
@@ -137,4 +161,6 @@ async def update_config_overrides(
         request.app.state.config_overrides_override.setdefault("memory_overrides", {}).update(body["memory_overrides"])
     base = _overrides_dict(config)
     o = request.app.state.config_overrides_override
-    return {"llm_overrides": {**base.get("llm_overrides", {}), **o.get("llm_overrides", {})}, "memory_overrides": {**base.get("memory_overrides", {}), **o.get("memory_overrides", {})}}
+    out = {"llm_overrides": {**base.get("llm_overrides", {}), **o.get("llm_overrides", {})}, "memory_overrides": {**base.get("memory_overrides", {}), **o.get("memory_overrides", {})}}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
+    return JSONResponse(content=out, headers={X_CONFIG_EFFECTIVE_AFTER: CONFIG_APPLIES_AFTER_RESTART})

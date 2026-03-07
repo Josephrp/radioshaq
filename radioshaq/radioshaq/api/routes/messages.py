@@ -27,6 +27,7 @@ from radioshaq.api.dependencies import (
     get_transcript_storage,
 )
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
 
@@ -75,6 +76,7 @@ async def process_message(
 @router.post("/whitelist-request")
 async def whitelist_request(
     request: Request,
+    config: Config = Depends(get_config),
     user: TokenPayload = Depends(get_current_user),
     orchestrator: Any = Depends(get_orchestrator),
     radio_tx_agent: Any = Depends(get_radio_tx_agent),
@@ -153,7 +155,10 @@ async def whitelist_request(
                     temp_path = f.name
                 try:
                     from radioshaq.audio.asr import transcribe_audio_voxtral
-                    request_text = await asyncio.to_thread(transcribe_audio_voxtral, temp_path, language="en")
+                    asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+                    request_text = await asyncio.to_thread(
+                        transcribe_audio_voxtral, temp_path, language=asr_lang
+                    )
                 except ImportError:
                     raise HTTPException(status_code=503, detail="ASR not available")
                 finally:
@@ -254,8 +259,9 @@ async def message_from_audio(
         temp_path = f.name
     try:
         from radioshaq.audio.asr import transcribe_audio_voxtral
+        asr_lang = getattr(config.audio, "asr_language", "en") or "en"
         transcript_text = await asyncio.to_thread(
-            transcribe_audio_voxtral, temp_path, language="en"
+            transcribe_audio_voxtral, temp_path, language=asr_lang
         )
     except ImportError:
         raise HTTPException(

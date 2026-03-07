@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { connectMetricsWebSocket } from '../../services/radioshaqApi';
 import type { AudioMetrics } from '../../types/audio';
 
@@ -11,6 +12,7 @@ interface VADVisualizerProps {
 }
 
 export function VADVisualizer({ sessionId }: VADVisualizerProps) {
+  const { t } = useTranslation();
   const [metrics, setMetrics] = useState<AudioMetrics | null>(null);
   const [connected, setConnected] = useState(false);
   const reconnectDelay = useRef(RECONNECT_DELAY_MS);
@@ -57,16 +59,28 @@ export function VADVisualizer({ sessionId }: VADVisualizerProps) {
     };
   }, [sessionId]);
 
+  const isPlaceholder = metrics?.placeholder === true || (metrics?.type === 'heartbeat' && metrics?.state === 'idle' && metrics?.snr_db == null);
+
   return (
     <div className="vad-visualizer" aria-live="polite">
       <div className="vad-status">
         WebSocket: {connected ? 'connected' : 'disconnected'}
+        {isPlaceholder && connected && (
+          <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.9rem' }}>
+            ({t('audio.vadPlaceholder')})
+          </span>
+        )}
       </div>
-      {metrics && (
+      {metrics && !isPlaceholder && (
         <div className="vad-metrics">
           <span>VAD: {metrics.vad_active ? 'active' : 'idle'}</span>
           {metrics.snr_db != null && <span>SNR: {metrics.snr_db.toFixed(1)} dB</span>}
           {metrics.state && <span>State: {metrics.state}</span>}
+        </div>
+      )}
+      {metrics && isPlaceholder && (
+        <div className="vad-metrics" style={{ color: '#666', fontSize: '0.9rem' }}>
+          {t('audio.vadPlaceholder')}
         </div>
       )}
     </div>

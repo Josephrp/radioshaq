@@ -1,6 +1,6 @@
-# SHAKODS database layer: DynamoDB (sessions/state). RDS PostGIS optional.
+# RadioShaq database layer: DynamoDB (sessions/state). RDS PostGIS optional.
 AWSTemplateFormatVersion: "2010-09-09"
-Description: SHAKODS database - DynamoDB state/sessions
+Description: RadioShaq database - DynamoDB state/sessions
 
 Parameters:
   Environment:

@@ -1,7 +1,13 @@
-"""Configuration schema for SHAKODS using Pydantic.
+"""Configuration schema for RadioShaq using Pydantic.
 
-This module defines all configuration models for the SHAKODS system,
+This module defines all configuration models for the RadioShaq system,
 supporting file-based config, environment variables, and validation.
+
+Runtime overrides applied via the config API (PATCH /config/audio, etc.) are
+stored in app state only and merged into GET responses; they do not modify
+the Config instance used at startup. Agents and the orchestrator are created
+with the startup Config and do not see API overrides until process restart.
+See radioshaq.api.config_semantics for API semantics.
 """
 
 from __future__ import annotations
@@ -15,9 +21,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from radioshaq.constants import ASR_LANGUAGE_AUTO, ASR_LANGUAGE_VALUES
+
 
 class Mode(StrEnum):
-    """Operational mode for SHAKODS."""
+    """Operational mode for RadioShaq."""
     
     FIELD = "field"  # Edge/field station mode
     HQ = "hq"  # Headquarters/central mode
@@ -425,8 +433,21 @@ class AudioConfig(BaseModel):
 
     # ASR
     asr_model: str = Field(default="voxtral")
-    asr_language: str = Field(default="en")
+    asr_language: str = Field(
+        default="en",
+        description="ASR language: en, fr, es, or auto (detect).",
+    )
     asr_min_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+
+    @field_validator("asr_language", mode="before")
+    @classmethod
+    def _normalize_asr_language(cls, v: Any) -> str:
+        raw = (v or "").strip().lower()
+        if raw in ("", ASR_LANGUAGE_AUTO):
+            return ASR_LANGUAGE_AUTO
+        if raw in ASR_LANGUAGE_VALUES:
+            return raw
+        return "en"
 
     # Response behavior
     auto_respond: bool = Field(default=False)  # Legacy; prefer response_mode

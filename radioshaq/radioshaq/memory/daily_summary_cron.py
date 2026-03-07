@@ -14,14 +14,14 @@ from radioshaq.llm.client import LLMClient
 from radioshaq.orchestrator.factory import _llm_api_key_from_llm_config, _llm_model_string_from_llm_config
 
 DEFAULT_TZ = ZoneInfo("America/New_York")
-SUMMARY_PROMPT = """You are summarizing a day's conversation between a ham radio operator and SHAKODS (an AI assistant for ham radio operations).
+SUMMARY_PROMPT = """You are summarizing a day's conversation between a ham radio operator and RadioShaq (an AI assistant for ham radio operations).
 
 Below are the messages from this operator's conversation today. Write a concise daily summary (3-8 sentences) covering:
 - Key topics discussed
 - Tasks or requests handled
 - Anything worth remembering for future context
 
-Be factual and concise. Write in third person ("The operator asked...", "SHAKODS helped...").
+Be factual and concise. Write in third person ("The operator asked...", "RadioShaq helped...").
 
 Messages:
 {messages}

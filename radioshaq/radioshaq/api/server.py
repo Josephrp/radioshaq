@@ -94,6 +94,9 @@ async def lifespan(app: FastAPI):
                 tool_registry=getattr(app.state, "tool_registry", None),
             )
             app.state.agent_registry = getattr(app.state.orchestrator, "agent_registry", None)
+            rx_audio = app.state.agent_registry.get_agent("radio_rx_audio") if app.state.agent_registry else None
+            if rx_audio and hasattr(rx_audio, "set_metrics_callback"):
+                rx_audio.set_metrics_callback(lambda d: setattr(app.state, "audio_metrics_latest", d))
         except Exception as e:
             logger.warning("Orchestrator not created (messages/process will be unavailable): %s", e)
 

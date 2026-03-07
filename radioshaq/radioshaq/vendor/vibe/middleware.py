@@ -1,4 +1,4 @@
-"""Middleware system for SHAKODS (adapted from vibe).
+"""Middleware system for RadioShaq (adapted from vibe).
 
 Provides a middleware pipeline for processing conversations through
 the REACT loop with support for context management, limits, and

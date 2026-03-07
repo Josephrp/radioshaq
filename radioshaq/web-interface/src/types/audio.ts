@@ -32,6 +32,11 @@ export enum PendingResponseStatus {
   AUTO_SENT = 'auto_sent',
 }
 
+/** API config responses may include _meta indicating when changes take effect (e.g. after restart). */
+export interface ConfigResponseMeta {
+  config_applies_after?: string;
+}
+
 export interface AudioConfig {
   input_device: string | number | null;
   input_sample_rate: number;
@@ -101,4 +106,6 @@ export interface AudioMetrics {
   vad_active?: boolean;
   snr_db?: number | null;
   state?: string;
+  /** When true, no audio pipeline is feeding metrics; UI should show "Placeholder" / "No live signal". */
+  placeholder?: boolean;
 }

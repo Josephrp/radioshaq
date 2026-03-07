@@ -1,4 +1,4 @@
-"""Pytest configuration and shared fixtures for SHAKODS tests."""
+"""Pytest configuration and shared fixtures for RadioShaq tests."""
 
 from __future__ import annotations
 

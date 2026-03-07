@@ -5,7 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi.responses import JSONResponse
 
+from radioshaq.api.config_semantics import (
+    CONFIG_APPLIES_AFTER_RESTART,
+    X_CONFIG_EFFECTIVE_AFTER,
+)
 from radioshaq.api.dependencies import get_audio_agent, get_config, get_current_user
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.config.schema import AudioConfig, Config
@@ -25,7 +30,9 @@ async def get_audio_config(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Get current audio configuration (env/file + optional runtime overrides)."""
+    """Get current audio configuration (env/file + optional runtime overrides).
+    Runtime overrides do not affect active agents until process restart.
+    """
     audio = getattr(config, "audio", None)
     if not audio:
         raise HTTPException(status_code=503, detail="Audio config not available")
@@ -33,6 +40,7 @@ async def get_audio_config(
     override = getattr(request.app.state, "audio_config_override", None)
     if override:
         out = {**out, **override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
     return out
 
 
@@ -43,7 +51,9 @@ async def update_audio_config(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Update audio configuration (runtime overlay only; does not persist to file)."""
+    """Update audio configuration (runtime overlay only; does not persist to file).
+    Restart required for changes to affect active agents (voice_rx, etc.).
+    """
     audio = getattr(config, "audio", None)
     if not audio:
         raise HTTPException(status_code=503, detail="Audio config not available")
@@ -51,7 +61,9 @@ async def update_audio_config(
         request.app.state.audio_config_override = {}
     request.app.state.audio_config_override.update(body)
     base = _audio_config_dict(audio)
-    return {**base, **request.app.state.audio_config_override}
+    out = {**base, **request.app.state.audio_config_override}
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
+    return JSONResponse(content=out, headers={X_CONFIG_EFFECTIVE_AFTER: CONFIG_APPLIES_AFTER_RESTART})
 
 
 @router.post("/config/audio/reset")
@@ -60,13 +72,15 @@ async def reset_audio_config(
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Clear runtime audio config overrides."""
+    """Clear runtime audio config overrides. Restart required for agents to use file/env config."""
     if hasattr(request.app.state, "audio_config_override"):
         request.app.state.audio_config_override = {}
     audio = getattr(config, "audio", None)
     if not audio:
         raise HTTPException(status_code=503, detail="Audio config not available")
-    return _audio_config_dict(audio)
+    out = _audio_config_dict(audio)
+    out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
+    return JSONResponse(content=out, headers={X_CONFIG_EFFECTIVE_AFTER: CONFIG_APPLIES_AFTER_RESTART})
 
 
 @router.get("/audio/devices")
@@ -187,8 +201,9 @@ async def websocket_audio_metrics(websocket: WebSocket, session_id: str) -> None
     """
     WebSocket for real-time audio metrics (VAD, SNR, state).
     When the voice_rx pipeline is wired, set app.state.audio_metrics_latest to a dict with
-    vad_active, snr_db, state (and optional type); this handler sends that when present,
-    otherwise sends a placeholder heartbeat.
+    vad_active, snr_db, state (and optional type); this handler sends that when present.
+    Otherwise sends placeholder heartbeats with placeholder=True so clients can show
+    "No live signal" / "Waiting for audio pipeline" instead of implying real metrics.
     """
     await websocket.accept()
     import asyncio
@@ -202,6 +217,7 @@ async def websocket_audio_metrics(websocket: WebSocket, session_id: str) -> None
                     "vad_active": latest.get("vad_active", False),
                     "snr_db": latest.get("snr_db"),
                     "state": latest.get("state", "idle"),
+                    "placeholder": False,
                 }
             else:
                 payload = {
@@ -210,6 +226,7 @@ async def websocket_audio_metrics(websocket: WebSocket, session_id: str) -> None
                     "vad_active": False,
                     "snr_db": None,
                     "state": "idle",
+                    "placeholder": True,
                 }
             await websocket.send_json(payload)
             await asyncio.sleep(1.0)

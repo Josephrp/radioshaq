@@ -1,7 +1,7 @@
-# SHAKODS base infrastructure: VPC (optional), security groups
+# RadioShaq base infrastructure: VPC (optional), security groups
 # Use default VPC for minimal serverless; this stack can export subnet/security group for Lambda if needed.
 AWSTemplateFormatVersion: "2010-09-09"
-Description: SHAKODS base - shared resources (optional VPC, security groups)
+Description: RadioShaq base - shared resources (optional VPC, security groups)
 
 Parameters:
   Environment:

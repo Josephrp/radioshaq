@@ -1,4 +1,4 @@
-"""SQLAlchemy models for SHAKODS database.
+"""SQLAlchemy models for RadioShaq database.
 
 Defines the core database schema with PostGIS support for
 location-based operations and ham radio coordination.

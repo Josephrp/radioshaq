@@ -1,4 +1,4 @@
-"""PostGIS database manager for SHAKODS.
+"""PostGIS database manager for RadioShaq.
 
 Provides high-level operations for geographic data storage
 and spatial queries using SQLAlchemy and PostGIS.
@@ -77,7 +77,7 @@ class PostGISManager:
         
         Creates:
         - PostGIS extension
-        - All SHAKODS tables
+        - All RadioShaq tables
         - Spatial indexes
         """
         async with self.engine.begin() as conn:

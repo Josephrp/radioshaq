@@ -257,6 +257,22 @@ class RadioAudioReceptionAgent(SpecializedAgent):
 
         if self.stream_processor:
             self.stream_processor.set_segment_callback(self._on_segment_ready)
+        self._metrics_callback: Callable[[dict[str, Any]], None] | None = None
+
+    def set_metrics_callback(self, callback: Callable[[dict[str, Any]], None] | None) -> None:
+        """Set callback for live VAD/metrics (vad_active, snr_db, state). Used by API to feed websocket."""
+        self._metrics_callback = callback
+        if self.stream_processor and callback is not None:
+            def forward(vad_active: bool, snr_db: float | None, state: str) -> None:
+                callback({
+                    "type": "metrics",
+                    "vad_active": vad_active,
+                    "snr_db": snr_db,
+                    "state": state,
+                })
+            self.stream_processor.set_metrics_callback(forward)
+        elif self.stream_processor:
+            self.stream_processor.set_metrics_callback(None)
 
     async def execute(
         self,

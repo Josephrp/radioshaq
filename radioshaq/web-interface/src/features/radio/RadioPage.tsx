@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { listBands, sendTts } from '../../services/radioshaqApi';
 
 export function RadioPage() {
+  const { t } = useTranslation();
   const [bands, setBands] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -11,7 +13,7 @@ export function RadioPage() {
   const loadBands = () => {
     listBands()
       .then((res) => setBands(res.bands ?? []))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load bands'))
+      .catch((e) => setError(e instanceof Error ? e.message : t('common.failedToLoad')))
       .finally(() => setLoading(false));
   };
 
@@ -34,7 +36,7 @@ export function RadioPage() {
       await sendTts({ message: ttsMessage.trim() });
       setTtsMessage('');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to send TTS');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -42,15 +44,15 @@ export function RadioPage() {
 
   return (
     <div className="radio-page">
-      <h1>Radio</h1>
+      <h1>{t('radio.title')}</h1>
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
 
       <section style={{ marginBottom: '1.5rem' }}>
         <h2>Bands</h2>
         <p style={{ marginTop: 0 }}>
-          {loading ? <span>Loading…</span> : <span>{bands.length ? bands.join(', ') : 'None'}</span>}
+          {loading ? <span>{t('common.loading')}</span> : <span>{bands.length ? bands.join(', ') : 'None'}</span>}
           <button type="button" onClick={loadBands} disabled={loading} style={{ marginLeft: '0.5rem' }}>
-            Refresh
+            {t('common.refresh')}
           </button>
           <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.85rem' }}>Auto-refresh every 60s</span>
         </p>
@@ -66,17 +68,15 @@ export function RadioPage() {
             onChange={(e) => setTtsMessage(e.target.value)}
             placeholder="Message to speak…"
             style={{ padding: '0.4rem', minWidth: 200, flex: 1 }}
-            aria-label="TTS message"
+            aria-label={t('messages.message')}
           />
           <button type="submit" disabled={submitting || !ttsMessage.trim()}>
-            {submitting ? 'Sending…' : 'Send TTS'}
+            {submitting ? t('messages.sending') : 'Send TTS'}
           </button>
         </form>
       </section>
 
-      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#555' }}>
-        For relay (band translation), use the <strong>Messages</strong> tab → Relay.
-      </p>
+      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#555' }} dangerouslySetInnerHTML={{ __html: t('radio.relayHint') }} />
     </div>
   );
 }

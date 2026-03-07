@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   getConfigLlm,
   updateConfigLlm,
@@ -15,6 +16,7 @@ const LABEL_STYLE: React.CSSProperties = { display: 'block', marginBottom: '0.25
 const INPUT_STYLE: React.CSSProperties = { width: '100%', maxWidth: 400, padding: '0.35rem 0.5rem', marginBottom: '0.5rem' };
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const [llm, setLlm] = useState<LlmConfigResponse | null>(null);
   const [memory, setMemory] = useState<MemoryConfigResponse | null>(null);
   const [overrides, setOverrides] = useState<ConfigOverridesResponse | null>(null);
@@ -30,7 +32,7 @@ export function SettingsPage() {
       setMemory(m);
       setOverrides(o);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load config');
+      setError(e instanceof Error ? e.message : t('settings.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -47,7 +49,7 @@ export function SettingsPage() {
       const updated = await updateConfigLlm({ ...llm, [field]: value });
       setLlm(updated);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update LLM');
+      setError(e instanceof Error ? e.message : t('settings.failedToUpdateLlm'));
     } finally {
       setSaving(null);
     }
@@ -60,7 +62,7 @@ export function SettingsPage() {
       const updated = await updateConfigMemory({ ...memory, [field]: value });
       setMemory(updated);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update memory');
+      setError(e instanceof Error ? e.message : t('settings.failedToUpdateMemory'));
     } finally {
       setSaving(null);
     }
@@ -78,15 +80,22 @@ export function SettingsPage() {
   //   // Re-enable updateConfigOverrides import and wire controls in "Per-role overrides".
   // };
 
-  if (loading) return <p>Loading…</p>;
-  if (error) return <p role="alert">Error: {error}</p>;
+  if (loading) return <p>{t('common.loading')}</p>;
+  if (error) return <p role="alert">{t('common.error')}: {error}</p>;
+
+  const showRestartNotice =
+    llm?._meta?.config_applies_after === 'restart' ||
+    memory?._meta?.config_applies_after === 'restart' ||
+    overrides?._meta?.config_applies_after === 'restart';
 
   return (
     <div className="settings-page">
-      <h1>Settings</h1>
-      <p style={{ color: '#666', marginBottom: '1rem' }}>
-        LLM, memory (Hindsight), and per-role overrides. Changes are runtime overlays and do not persist to config file until you save there.
-      </p>
+      <h1>{t('settings.title')}</h1>
+      {showRestartNotice && (
+        <p style={{ color: '#666', marginBottom: '1rem' }} role="note">
+          {t('common.configRestartNotice')} LLM, memory (Hindsight), and per-role overrides are runtime overlays and do not persist to the config file until you save there.
+        </p>
+      )}
 
       <section style={SECTION_STYLE}>
         <h2>LLM</h2>
