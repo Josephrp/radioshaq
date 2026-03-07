@@ -588,10 +588,10 @@ def _prompt_twilio() -> tuple[Optional[str], Optional[str], Optional[str], Optio
     return account_sid, auth_token, from_number, whatsapp_from
 
 
-def _prompt_tts() -> tuple[str, Optional[str]]:
-    """Prompt for TTS provider and optional API key. Returns (provider, elevenlabs_api_key_or_none)."""
+def _prompt_tts() -> tuple[str | None, Optional[str]]:
+    """Prompt for TTS provider and optional API key. Returns (None, None) when user declines."""
     if not typer.confirm("Configure TTS (for outbound radio/relay voice)?", default=False):
-        return "elevenlabs", None
+        return None, None
     provider = typer.prompt(
         "TTS provider (elevenlabs / kokoro)",
         default="elevenlabs",
@@ -673,7 +673,8 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
                 config.twilio.whatsapp_from = whatsapp
         elif choice == "tts":
             tts_provider, elevenlabs_key_tts = _prompt_tts()
-            config.tts.provider = tts_provider
+            if tts_provider is not None:
+                config.tts.provider = tts_provider
             if elevenlabs_key_tts is not None:
                 elevenlabs_key_reconfigure = elevenlabs_key_tts
         elif choice == "overrides":
@@ -911,7 +912,8 @@ def run_setup(
         if twilio_whatsapp is not None:
             config.twilio.whatsapp_from = twilio_whatsapp
         tts_provider, elevenlabs_key = _prompt_tts()
-        config.tts.provider = tts_provider
+        if tts_provider is not None:
+            config.tts.provider = tts_provider
 
     # Capture Twilio secrets from config before clearing (reconfigure path sets them on config only)
     twilio_sid = twilio_sid or getattr(config.twilio, "account_sid", None)

@@ -177,18 +177,16 @@ async def approve_emergency_event(
     if not emergency_messaging_allowed(region, getattr(config, "emergency_contact", None)):
         raise HTTPException(status_code=403, detail="Emergency SMS/WhatsApp not allowed in this region")
     db = getattr(request.app.state, "db", None)
-    if db is None or not hasattr(db, "get_coordination_event_by_id") or not hasattr(db, "update_coordination_event"):
+    if db is None or not hasattr(db, "claim_emergency_event_pending") or not hasattr(db, "get_coordination_event_by_id") or not hasattr(db, "update_coordination_event"):
         raise HTTPException(status_code=503, detail="Database not available")
-    event = await db.get_coordination_event_by_id(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    if event.get("event_type") != "emergency":
-        raise HTTPException(status_code=400, detail="Not an emergency event")
-    if event.get("status") != "pending":
+    # Atomic claim: only one concurrent approval can transition pending -> approving
+    claimed = await db.claim_emergency_event_pending(event_id)
+    if claimed is None:
         raise HTTPException(status_code=400, detail="Event already processed")
+    event = await db.get_coordination_event_by_id(event_id)
+    if not event or event.get("event_type") != "emergency":
+        raise HTTPException(status_code=400, detail="Not an emergency event")
     extra = event.get("extra_data") or {}
-    if extra.get("sent_at"):
-        raise HTTPException(status_code=400, detail="Already sent")
     phone = extra.get("emergency_contact_phone")
     channel = extra.get("emergency_contact_channel")
     if not phone or channel not in ("sms", "whatsapp"):
@@ -197,6 +195,7 @@ async def approve_emergency_event(
     now = datetime.now(timezone.utc).isoformat()
     message_bus = getattr(request.app.state, "message_bus", None)
     if not message_bus or not hasattr(message_bus, "publish_outbound"):
+        await db.update_coordination_event(event_id, status="pending")
         return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Message bus not available"}
     from radioshaq.vendor.nanobot.bus.events import OutboundMessage
     content = extra.get("message") or event.get("notes") or "Emergency notification from RadioShaq."
@@ -211,6 +210,7 @@ async def approve_emergency_event(
         )
     )
     if not ok:
+        await db.update_coordination_event(event_id, status="pending")
         return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Outbound queue full"}
     await db.update_coordination_event(
         event_id,

@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from geoalchemy2.functions import ST_DWithin, ST_GeogFromText
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -540,7 +540,28 @@ class PostGISManager:
                 row.extra_data = existing
             await session.commit()
             return True
-    
+
+    async def claim_emergency_event_pending(self, event_id: int) -> int | None:
+        """
+        Atomically set status to 'approving' only when status is 'pending'.
+        Returns event_id if claimed, None if already processed or not found.
+        Prevents TOCTOU: only one concurrent approval can succeed.
+        """
+        async with self.async_session() as session:
+            stmt = (
+                update(CoordinationEvent)
+                .where(
+                    CoordinationEvent.id == event_id,
+                    CoordinationEvent.status == "pending",
+                )
+                .values(status="approving")
+                .returning(CoordinationEvent.id)
+            )
+            result = await session.execute(stmt)
+            row = result.one_or_none()
+            await session.commit()
+            return row[0] if row else None
+
     async def get_pending_coordination_events(
         self,
         callsign: str | None = None,
