@@ -197,7 +197,7 @@ class OperatorsNearbyTool:
                 longitude=float(longitude),
                 radius_meters=float(radius_meters),
                 max_results=int(max_results),
-                recent_only=True,
+                recent_only=int(recent_hours) > 0,
                 recent_hours=int(recent_hours),
             )
             return json.dumps({
