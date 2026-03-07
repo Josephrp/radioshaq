@@ -30,6 +30,7 @@ jobs:
       - name: Build web UI and stage for API-served bundle
         run: |
           cd radioshaq/web-interface && npm ci --no-audit --no-fund && npm run build
+          cd "${{ github.workspace }}"
           mkdir -p radioshaq/radioshaq/web_ui
           cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
       - uses: actions/setup-python@v6
