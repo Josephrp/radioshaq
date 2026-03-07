@@ -18,8 +18,16 @@ def transcribe_audio_voxtral(
     """
     Transcribe audio file using Voxtral ASR (base: mistralai/Voxtral-Mini-3B-2507).
 
-    When model_id is the RadioShaq Voxtral ASR HF repo, loads the PEFT adapter on top of
-    the base Voxtral model for English ASR.
+    Language behavior:
+    - "auto": no language is passed to the processor; the base model does automatic
+      language detection (Voxtral supports 13 languages). The English PEFT adapter
+      is not loaded so multilingual/auto works correctly.
+    - "en", "fr", "es": passed to the processor. For "en" only, the RadioShaq
+      PEFT adapter (voxtral-asr-en) is loaded for better English accuracy; for
+      "fr"/"es" the base model is used so transcription works for those languages.
+
+    When model_id is the RadioShaq Voxtral ASR HF repo and language is "en", loads
+    the PEFT adapter on top of the base model for best English ASR.
 
     Requires: transformers, peft, accelerate, torch, mistral-common[audio]
     (install with: uv sync --extra audio)
@@ -37,7 +45,13 @@ def transcribe_audio_voxtral(
         ) from e
 
     base_id = "mistralai/Voxtral-Mini-3B-2507"
-    use_peft = model_id.strip().lower() == VOXTRAL_ASR_HF_MODEL_ID.lower()
+    lang_normalized = (language or "").strip().lower()
+    # Only use the English PEFT adapter when language is explicitly English;
+    # for auto/fr/es use base model so multilingual and auto-detect work correctly.
+    use_peft = (
+        model_id.strip().lower() == VOXTRAL_ASR_HF_MODEL_ID.lower()
+        and lang_normalized == "en"
+    )
 
     device_map = "auto"  # uses GPU if available, else CPU
     processor = AutoProcessor.from_pretrained(base_id)
@@ -57,8 +71,8 @@ def transcribe_audio_voxtral(
         except Exception:
             pass  # adapter load failed, use base
 
-    # apply_transcription_request: omit language for auto-detect (Voxtral supports this)
-    if (language or "").strip().lower() == ASR_LANGUAGE_AUTO:
+    # Omit language for auto-detect (base Voxtral supports 13 languages + auto-detect)
+    if lang_normalized == ASR_LANGUAGE_AUTO:
         inputs = processor.apply_transcription_request(
             audio=str(path),
             model_id=base_id,
