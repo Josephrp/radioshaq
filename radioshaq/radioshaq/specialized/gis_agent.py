@@ -102,7 +102,7 @@ class GISAgent(SpecializedAgent):
                 longitude=lon,
                 radius_meters=radius_meters,
                 max_results=max_results,
-                recent_only=True,
+                recent_only=recent_hours > 0,
                 recent_hours=recent_hours,
             )
             await self.emit_result(upstream_callback, {"operators": operators})

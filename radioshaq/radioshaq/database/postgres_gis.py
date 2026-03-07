@@ -198,10 +198,10 @@ class PostGISManager:
                 )
             )
             
-            # Add recent-only filter: bind parameter for count, constant for interval (no interpolation)
+            # Add recent-only filter: use make_interval so recent_hours is a proper bind (no interpolation)
             if recent_only:
                 query = query.where(
-                    text("timestamp > NOW() - INTERVAL '1 hour' * :recent_hours")
+                    text("timestamp > NOW() - make_interval(hours => :recent_hours)")
                 )
             
             # Order by most recent first
