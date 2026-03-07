@@ -21,21 +21,21 @@ def test_normalize_callsign() -> None:
 
 @pytest.fixture
 def db_url() -> str:
+    """Same default as tests/conftest._TEST_DB_URL so migrations apply to this DB."""
     return os.environ.get(
         "TEST_DATABASE_URL",
         os.environ.get(
             "RADIOSHAQ_DATABASE__POSTGRES_URL",
-            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq_test",
+            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
         ),
     )
 
 
 @pytest.fixture
-async def memory_manager(db_url: str):
-    """MemoryManager with test DB; skip if tables don't exist."""
+async def memory_manager(_run_db_migrations: None, db_url: str):
+    """MemoryManager with test DB; migrations run first so memory_* tables exist."""
     try:
         mgr = MemoryManager(db_url)
-        # Probe: get_core_blocks will fail if tables don't exist
         await mgr.get_core_blocks("TESTCALL")
     except Exception as e:
         pytest.skip(f"MemoryManager requires migrated DB: {e}")
