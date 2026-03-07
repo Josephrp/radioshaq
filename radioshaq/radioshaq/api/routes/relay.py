@@ -18,6 +18,9 @@ from radioshaq.relay.service import relay_message_between_bands_service
 
 router = APIRouter()
 
+# E.164: optional +, 10–15 digits (compiled once at module load)
+E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
+
 
 class RelayBody(BaseModel):
     """Body for POST /messages/relay (band translation or SMS/WhatsApp)."""
@@ -80,8 +83,7 @@ async def relay_message_between_bands(
             raise HTTPException(status_code=400, detail="destination_phone required when target_channel is sms or whatsapp")
         _raw_phone = re.sub(r"\D", "", (body.destination_phone or "").strip())
         destination_phone_e164 = "+" + _raw_phone if _raw_phone else ""
-        _E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
-        if not _E164_PATTERN.match(destination_phone_e164):
+        if not E164_PATTERN.match(destination_phone_e164):
             raise HTTPException(status_code=400, detail="destination_phone must be E.164 (10–15 digits)")
     if source_band not in band_plans:
         raise HTTPException(status_code=400, detail="Unknown source_band; use e.g. 40m, 2m, 20m")

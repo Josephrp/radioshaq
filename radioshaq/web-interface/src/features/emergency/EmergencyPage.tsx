@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getEmergencyPendingCount,
@@ -7,7 +7,6 @@ import {
   rejectEmergencyEvent,
   type EmergencyEvent as EmergencyEventType,
 } from '../../services/radioshaqApi';
-import { playEmergencyAlertSound, showEmergencyBrowserNotification } from './emergencyAlerts';
 
 const POLL_INTERVAL_MS = 12_000;
 
@@ -19,9 +18,6 @@ export function EmergencyPage() {
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [notes, setNotes] = useState<Record<number, string>>({});
-  const prevCountRef = useRef<number>(0);
-  const hasNotifiedRef = useRef(false);
-
   const load = useCallback(async () => {
     try {
       const [countRes, listRes] = await Promise.all([
@@ -32,15 +28,6 @@ export function EmergencyPage() {
       setPendingCount(count);
       setEvents(listRes.events ?? []);
       setError(null);
-
-      // First time we see count > 0 after 0: audio + push
-      if (count > 0 && prevCountRef.current === 0 && !hasNotifiedRef.current) {
-        hasNotifiedRef.current = true;
-        playEmergencyAlertSound();
-        showEmergencyBrowserNotification(count);
-      }
-      prevCountRef.current = count;
-      if (count === 0) hasNotifiedRef.current = false;
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.failedToLoad'));
       setEvents([]);

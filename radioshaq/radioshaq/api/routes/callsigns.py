@@ -43,7 +43,7 @@ def _normalize_e164(phone: str) -> str:
     digits = re.sub(r"\D", "", (phone or "").strip())
     if not digits:
         return ""
-    return "+" + digits if not digits.startswith("+") else digits
+    return "+" + digits
 
 
 class PatchContactPreferencesBody(BaseModel):

@@ -544,12 +544,14 @@ class PostGISManager:
     async def get_pending_coordination_events(
         self,
         callsign: str | None = None,
+        event_type: str | None = None,
         max_results: int = 100,
     ) -> list[dict[str, Any]]:
         """Get pending coordination events.
         
         Args:
             callsign: Filter by callsign (initiator or target)
+            event_type: Filter by event_type (e.g. emergency)
             max_results: Maximum results
             
         Returns:
@@ -569,6 +571,8 @@ class PostGISManager:
                     (CoordinationEvent.initiator_callsign == callsign_upper)
                     | (CoordinationEvent.target_callsign == callsign_upper)
                 )
+            if event_type:
+                query = query.where(CoordinationEvent.event_type == event_type)
             
             result = await session.execute(query)
             return [row.to_dict() for row in result.scalars()]

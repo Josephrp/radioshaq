@@ -3,9 +3,11 @@
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from radioshaq.api.dependencies import get_current_user
+from radioshaq.auth.jwt import TokenPayload
 from radioshaq.vendor.nanobot.bus.events import InboundMessage
 
 router = APIRouter()
@@ -64,10 +66,12 @@ async def publish_inbound(
 async def opt_out(
     request: Request,
     body: OptOutBody,
+    _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Record opt-out for notify-on-relay (§8.1). Call when user sends STOP via SMS/WhatsApp.
     Provide either callsign or phone + channel (sms/whatsapp). Clears that contact and sets opt_out_at.
+    Requires a valid Bearer token (e.g. service JWT used by your Twilio webhook handler or Lambda).
     """
     if body.channel not in ("sms", "whatsapp"):
         raise HTTPException(status_code=400, detail="channel must be sms or whatsapp")

@@ -97,8 +97,8 @@ async def _get_pending_emergency_count(request: Request) -> int:
     db = getattr(request.app.state, "db", None)
     if db is None or not hasattr(db, "get_pending_coordination_events"):
         return 0
-    events = await db.get_pending_coordination_events(max_results=1000)
-    return sum(1 for e in events if e.get("event_type") == "emergency" and e.get("status") == "pending")
+    events = await db.get_pending_coordination_events(max_results=1000, event_type="emergency")
+    return len(events)
 
 
 @router.get("/pending-count")
@@ -155,11 +155,10 @@ async def list_emergency_events(
     db = getattr(request.app.state, "db", None)
     if db is None or not hasattr(db, "get_pending_coordination_events"):
         return {"events": [], "count": 0}
-    events = await db.get_pending_coordination_events(max_results=100)
-    emergency_only = [e for e in events if e.get("event_type") == "emergency"]
+    events = await db.get_pending_coordination_events(max_results=1000, event_type="emergency")
     if status:
-        emergency_only = [e for e in emergency_only if e.get("status") == status]
-    return {"events": emergency_only, "count": len(emergency_only)}
+        events = [e for e in events if e.get("status") == status]
+    return {"events": events, "count": len(events)}
 
 
 @router.post("/events/{event_id:int}/approve")
