@@ -45,7 +45,8 @@
     "languageEn": "English",
     "languageFr": "French",
     "languageEs": "Spanish",
-    "vadPlaceholder": "Placeholder — no live signal (audio pipeline not feeding metrics)"
+    "vadPlaceholder": "Placeholder — no live signal (audio pipeline not feeding metrics)",
+    "vadPlaceholderShort": "no live signal"
   },
   "callsigns": {
     "title": "Registered callsigns",
@@ -100,10 +101,18 @@
   },
   "radio": {
     "title": "Radio",
+    "bands": "Bands",
+    "none": "None",
+    "autoRefresh60": "Auto-refresh every 60s",
+    "sendTts": "Send TTS",
+    "sendTtsSection": "Send TTS",
+    "messageToSpeakPlaceholder": "Message to speak…",
+    "ttsDescription": "Send text as speech over the radio (requires radio TX agent).",
     "relayHint": "For relay (band translation), use the <strong>Messages</strong> tab → Relay."
   },
   "settings": {
     "title": "Settings",
+    "configRestartNoticeFull": "Configuration changes are saved as runtime overrides and take effect after API restart. LLM, memory (Hindsight), and per-role overrides are runtime overlays and do not persist to the config file until you save there.",
     "llm": "LLM",
     "memory": "Memory",
     "overrides": "Overrides",

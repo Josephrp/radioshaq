@@ -1,4 +1,4 @@
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 type LicenseGateProps = {
   onAccept: () => void;
@@ -28,7 +28,9 @@ export function LicenseGate({ onAccept }: LicenseGateProps) {
         }}
       >
         <h1 style={{ marginTop: 0 }}>{t('license.title')}</h1>
-        <p dangerouslySetInnerHTML={{ __html: t('license.intro') }} />
+        <p>
+          <Trans i18nKey="license.intro" components={{ strong: <strong /> }} />
+        </p>
         <p>
           {t('license.review')}{' '}
           <a

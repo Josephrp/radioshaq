@@ -93,7 +93,7 @@ export function SettingsPage() {
       <h1>{t('settings.title')}</h1>
       {showRestartNotice && (
         <p style={{ color: '#666', marginBottom: '1rem' }} role="note">
-          {t('common.configRestartNotice')} LLM, memory (Hindsight), and per-role overrides are runtime overlays and do not persist to the config file until you save there.
+          {t('settings.configRestartNoticeFull')}
         </p>
       )}
 

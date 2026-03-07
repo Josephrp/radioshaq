@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { listBands, sendTts } from '../../services/radioshaqApi';
 
 export function RadioPage() {
@@ -48,35 +48,37 @@ export function RadioPage() {
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
 
       <section style={{ marginBottom: '1.5rem' }}>
-        <h2>Bands</h2>
+        <h2>{t('radio.bands')}</h2>
         <p style={{ marginTop: 0 }}>
-          {loading ? <span>{t('common.loading')}</span> : <span>{bands.length ? bands.join(', ') : 'None'}</span>}
+          {loading ? <span>{t('common.loading')}</span> : <span>{bands.length ? bands.join(', ') : t('radio.none')}</span>}
           <button type="button" onClick={loadBands} disabled={loading} style={{ marginLeft: '0.5rem' }}>
             {t('common.refresh')}
           </button>
-          <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.85rem' }}>Auto-refresh every 60s</span>
+          <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.85rem' }}>{t('radio.autoRefresh60')}</span>
         </p>
       </section>
 
       <section>
-        <h2>Send TTS</h2>
-        <p style={{ fontSize: '0.9rem', color: '#555' }}>Send text as speech over the radio (requires radio TX agent).</p>
+        <h2>{t('radio.sendTtsSection')}</h2>
+        <p style={{ fontSize: '0.9rem', color: '#555' }}>{t('radio.ttsDescription')}</p>
         <form onSubmit={handleSendTts} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <input
             type="text"
             value={ttsMessage}
             onChange={(e) => setTtsMessage(e.target.value)}
-            placeholder="Message to speak…"
+            placeholder={t('radio.messageToSpeakPlaceholder')}
             style={{ padding: '0.4rem', minWidth: 200, flex: 1 }}
             aria-label={t('messages.message')}
           />
           <button type="submit" disabled={submitting || !ttsMessage.trim()}>
-            {submitting ? t('messages.sending') : 'Send TTS'}
+            {submitting ? t('messages.sending') : t('radio.sendTts')}
           </button>
         </form>
       </section>
 
-      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#555' }} dangerouslySetInnerHTML={{ __html: t('radio.relayHint') }} />
+      <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#555' }}>
+        <Trans i18nKey="radio.relayHint" components={{ strong: <strong /> }} />
+      </p>
     </div>
   );
 }

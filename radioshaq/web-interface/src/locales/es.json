@@ -45,7 +45,8 @@
     "languageEn": "Inglés",
     "languageFr": "Francés",
     "languageEs": "Español",
-    "vadPlaceholder": "Placeholder — sin señal en vivo (el pipeline de audio no envía métricas)"
+    "vadPlaceholder": "Placeholder — sin señal en vivo (el pipeline de audio no envía métricas)",
+    "vadPlaceholderShort": "sin señal en vivo"
   },
   "callsigns": {
     "title": "Indicativos registrados",
@@ -100,10 +101,18 @@
   },
   "radio": {
     "title": "Radio",
+    "bands": "Bandas",
+    "none": "Ninguna",
+    "autoRefresh60": "Actualización automática cada 60 s",
+    "sendTts": "Enviar TTS",
+    "sendTtsSection": "Enviar TTS",
+    "messageToSpeakPlaceholder": "Mensaje a decir…",
+    "ttsDescription": "Enviar texto como voz por radio (requiere agente de radio TX).",
     "relayHint": "Para relé (traducción de banda), use la pestaña <strong>Mensajes</strong> → Relé."
   },
   "settings": {
     "title": "Ajustes",
+    "configRestartNoticeFull": "Los cambios de configuración se guardan como sobreescrituras en tiempo de ejecución y tienen efecto tras reiniciar la API. LLM, memoria (Hindsight) y sobreescrituras por rol son sobreescrituras en tiempo de ejecución y no se guardan en el archivo de config hasta que guarde allí.",
     "llm": "LLM",
     "memory": "Memoria",
     "overrides": "Sobrescrituras",

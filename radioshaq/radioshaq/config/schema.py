@@ -12,6 +12,7 @@ See radioshaq.api.config_semantics for API semantics.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from enum import Enum, StrEnum
@@ -22,6 +23,8 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from radioshaq.constants import ASR_LANGUAGE_AUTO, ASR_LANGUAGE_VALUES
+
+logger = logging.getLogger(__name__)
 
 
 class Mode(StrEnum):
@@ -447,6 +450,7 @@ class AudioConfig(BaseModel):
             return ASR_LANGUAGE_AUTO
         if raw in ASR_LANGUAGE_VALUES:
             return raw
+        logger.warning("Unrecognized asr_language %r; falling back to 'en'", raw)
         return "en"
 
     # Response behavior

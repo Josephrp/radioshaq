@@ -45,7 +45,8 @@
     "languageEn": "Anglais",
     "languageFr": "Français",
     "languageEs": "Espagnol",
-    "vadPlaceholder": "Placeholder — pas de signal en direct (pipeline audio ne fournit pas de métriques)"
+    "vadPlaceholder": "Placeholder — pas de signal en direct (pipeline audio ne fournit pas de métriques)",
+    "vadPlaceholderShort": "pas de signal en direct"
   },
   "callsigns": {
     "title": "Indicatifs enregistrés",
@@ -100,10 +101,18 @@
   },
   "radio": {
     "title": "Radio",
+    "bands": "Bandes",
+    "none": "Aucune",
+    "autoRefresh60": "Actualisation auto toutes les 60 s",
+    "sendTts": "Envoyer TTS",
+    "sendTtsSection": "Envoyer TTS",
+    "messageToSpeakPlaceholder": "Message à dire…",
+    "ttsDescription": "Envoyer du texte en parole à la radio (nécessite l'agent radio TX).",
     "relayHint": "Pour le relais (traduction de bande), utilisez l'onglet <strong>Messages</strong> → Relais."
   },
   "settings": {
     "title": "Paramètres",
+    "configRestartNoticeFull": "Les changements de configuration sont enregistrés en surcharge runtime et prennent effet après redémarrage de l'API. LLM, mémoire (Hindsight) et surcharges par rôle sont des surcharges runtime et ne sont pas enregistrés dans le fichier de config tant que vous n'enregistrez pas.",
     "llm": "LLM",
     "memory": "Mémoire",
     "overrides": "Surcharges",

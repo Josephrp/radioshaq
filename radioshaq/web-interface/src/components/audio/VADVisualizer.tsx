@@ -67,7 +67,7 @@ export function VADVisualizer({ sessionId }: VADVisualizerProps) {
         WebSocket: {connected ? 'connected' : 'disconnected'}
         {isPlaceholder && connected && (
           <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.9rem' }}>
-            ({t('audio.vadPlaceholder')})
+            ({t('audio.vadPlaceholderShort')})
           </span>
         )}
       </div>
