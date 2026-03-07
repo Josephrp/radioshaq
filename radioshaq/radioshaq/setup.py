@@ -73,6 +73,29 @@ def detect_existing(
     return dotenv, config_yaml, radioshaq_config
 
 
+def _read_env_value(env_path: Path, key: str) -> Optional[str]:
+    """Read a single key's value from .env (first occurrence). Used to preserve secrets when merging."""
+    if not env_path.exists():
+        return None
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        if k.strip() == key:
+            val = v.strip()
+            if val.startswith('"') and val.endswith('"'):
+                val = val[1:-1]
+            elif val.startswith("'") and val.endswith("'"):
+                val = val[1:-1]
+            return val if val else None
+    return None
+
+
 def _parse_postgres_url(url: str) -> dict[str, str]:
     """Parse postgresql[+asyncpg]://user:pass@host:port/db into POSTGRES_* components."""
     url = url.replace("postgresql+asyncpg://", "postgresql://")
@@ -798,6 +821,12 @@ def run_setup(
         custom_api_base = custom_api_base_val
         huggingface_api_base = huggingface_api_base_val
         reconfigure_elevenlabs_key = elevenlabs_key_reconfigure
+        # When user skipped TTS section, preserve existing ELEVENLABS_API_KEY from .env so merge does not strip it
+        if reconfigure_elevenlabs_key is None and merge_env:
+            env_path = project_root / ENV_FILENAME
+            existing_key = _read_env_value(env_path, "ELEVENLABS_API_KEY")
+            if existing_key:
+                reconfigure_elevenlabs_key = existing_key
     else:
         base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config = _run_interactive_prompts_core(
             project_root, has_dotenv, has_config, force, reconfigure

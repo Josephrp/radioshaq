@@ -58,31 +58,42 @@ async def relay_message_between_bands_service(
                 "error": "Emergency SMS/WhatsApp not allowed in this region",
                 "target_channel": target_channel,
             }
-        if getattr(ec_cfg, "approval_required", True) and storage and getattr(storage, "_db", None):
-            db = storage._db
-            if hasattr(db, "store_coordination_event"):
-                dest_phone = (destination_phone or "").strip()
-                if not dest_phone:
-                    return {"ok": False, "error": "destination_phone required for emergency relay", "target_channel": target_channel}
-                event_id = await db.store_coordination_event(
-                    event_type="emergency",
-                    initiator_callsign=source_callsign or "UNKNOWN",
-                    target_callsign=destination_callsign,
-                    status="pending",
-                    priority=1,
-                    notes=message[:500] if message else None,
-                    extra_data={
-                        "emergency_contact_phone": dest_phone,
-                        "emergency_contact_channel": target_channel,
-                        "message": message,
-                    },
-                )
+        if getattr(ec_cfg, "approval_required", True):
+            if not storage or not getattr(storage, "_db", None):
                 return {
-                    "ok": True,
-                    "queued_for_approval": True,
-                    "event_id": event_id,
+                    "ok": False,
+                    "error": "Emergency approval required but database is unavailable",
                     "target_channel": target_channel,
                 }
+            db = storage._db
+            if not hasattr(db, "store_coordination_event"):
+                return {
+                    "ok": False,
+                    "error": "Emergency approval required but store_coordination_event not available",
+                    "target_channel": target_channel,
+                }
+            dest_phone = (destination_phone or "").strip()
+            if not dest_phone:
+                return {"ok": False, "error": "destination_phone required for emergency relay", "target_channel": target_channel}
+            event_id = await db.store_coordination_event(
+                event_type="emergency",
+                initiator_callsign=source_callsign or "UNKNOWN",
+                target_callsign=destination_callsign,
+                status="pending",
+                priority=1,
+                notes=message[:500] if message else None,
+                extra_data={
+                    "emergency_contact_phone": dest_phone,
+                    "emergency_contact_channel": target_channel,
+                    "message": message,
+                },
+            )
+            return {
+                "ok": True,
+                "queued_for_approval": True,
+                "event_id": event_id,
+                "target_channel": target_channel,
+            }
     if config is not None:
         radio_cfg = getattr(config, "radio", config)
         band_plans = get_band_plan_source_for_config(

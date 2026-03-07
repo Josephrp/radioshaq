@@ -60,7 +60,7 @@ class RelayMessageTool:
                         },
                         "target_band": {
                             "type": "string",
-                            "description": "Band to deliver the message to (e.g. 2m, 40m).",
+                            "description": "Band to deliver the message to (e.g. 2m, 40m). Required for radio; omit or use placeholder for sms/whatsapp.",
                         },
                         "source_callsign": {
                             "type": "string",
@@ -98,7 +98,7 @@ class RelayMessageTool:
                             "default": False,
                         },
                     },
-                    "required": ["message", "source_band", "target_band"],
+                    "required": ["message", "source_band"],
                 },
             },
         }
@@ -109,11 +109,11 @@ class RelayMessageTool:
             errors.append("message is required")
         if not params.get("source_band") or not isinstance(params.get("source_band"), str):
             errors.append("source_band is required")
-        if not params.get("target_band") or not isinstance(params.get("target_band"), str):
-            errors.append("target_band is required")
         source_band = (params.get("source_band") or "").strip()
         target_band = (params.get("target_band") or "").strip()
         target_channel = (params.get("target_channel") or "radio").strip().lower()
+        if target_channel == "radio" and (not target_band or not isinstance(params.get("target_band"), str)):
+            errors.append("target_band is required when target_channel is radio")
         destination_phone = (params.get("destination_phone") or "").strip()
         if target_channel not in ("radio", "sms", "whatsapp"):
             errors.append("target_channel must be radio, sms, or whatsapp")

@@ -127,55 +127,54 @@ async def run_relay_delivery_worker(
                             increment_relay_deliveries()
                         except Exception:
                             pass
+                        # Notify-on-relay (§8.3): only after confirmed delivery, for radio only; if destination has notify preferences, send short SMS/WhatsApp
+                        if (
+                            delivery_channel not in ("sms", "whatsapp")
+                            and dest
+                            and message_bus
+                            and hasattr(message_bus, "publish_outbound")
+                            and hasattr(db, "get_contact_preferences")
+                        ):
+                            try:
+                                prefs = await db.get_contact_preferences(dest)
+                                if not prefs:
+                                    continue
+                                if not prefs.get("notify_on_relay"):
+                                    continue
+                                region = getattr(radio_cfg, "restricted_bands_region", None) if radio_cfg else None
+                                if not _is_consent_valid_for_region(region, prefs):
+                                    continue
+                                sms_phone = prefs.get("notify_sms_phone") if not prefs.get("notify_opt_out_at_sms") else None
+                                whatsapp_phone = prefs.get("notify_whatsapp_phone") if not prefs.get("notify_opt_out_at_whatsapp") else None
+                                if not sms_phone and not whatsapp_phone:
+                                    continue
+                                band = extra.get("band") or extra.get("relay_from_band") or "radio"
+                                snippet = (text or "")[:80].replace("\n", " ")
+                                if len(text or "") > 80:
+                                    snippet += "..."
+                                notify_text = f"You have a new message on {band} from {source}: {snippet}"
+                                from radioshaq.vendor.nanobot.bus.events import OutboundMessage
+                                for ch, phone in (("sms", sms_phone), ("whatsapp", whatsapp_phone)):
+                                    if not phone:
+                                        continue
+                                    ok_pub = await message_bus.publish_outbound(
+                                        OutboundMessage(
+                                            channel=ch,
+                                            chat_id=phone,
+                                            content=notify_text,
+                                            reply_to=None,
+                                            media=[],
+                                            metadata={"notify_on_relay": True, "destination_callsign": dest, "relay_transcript_id": tid},
+                                        )
+                                    )
+                                    if ok_pub:
+                                        logger.info("Notify-on-relay sent to %s for callsign %s (transcript %s)", ch, dest, tid)
+                                    else:
+                                        logger.warning("Notify-on-relay queue full for %s %s", ch, dest)
+                            except Exception as e:
+                                logger.warning("Notify-on-relay failed for dest %s: %s", dest, e)
                     else:
                         logger.warning("Could not mark transcript %s delivered", tid)
-
-                # Notify-on-relay (§8.3): after radio delivery only, if destination_callsign has notify preferences, send short SMS/WhatsApp
-                if (
-                    delivery_channel not in ("sms", "whatsapp")
-                    and dest
-                    and message_bus
-                    and hasattr(message_bus, "publish_outbound")
-                    and hasattr(db, "get_contact_preferences")
-                ):
-                    try:
-                        prefs = await db.get_contact_preferences(dest)
-                        if not prefs:
-                            continue
-                        if not prefs.get("notify_on_relay"):
-                            continue
-                        region = getattr(radio_cfg, "restricted_bands_region", None) if radio_cfg else None
-                        if not _is_consent_valid_for_region(region, prefs):
-                            continue
-                        sms_phone = prefs.get("notify_sms_phone") if not prefs.get("notify_opt_out_at_sms") else None
-                        whatsapp_phone = prefs.get("notify_whatsapp_phone") if not prefs.get("notify_opt_out_at_whatsapp") else None
-                        if not sms_phone and not whatsapp_phone:
-                            continue
-                        band = extra.get("band") or extra.get("relay_from_band") or "radio"
-                        snippet = (text or "")[:80].replace("\n", " ")
-                        if len(text or "") > 80:
-                            snippet += "..."
-                        notify_text = f"You have a new message on {band} from {source}: {snippet}"
-                        from radioshaq.vendor.nanobot.bus.events import OutboundMessage
-                        for ch, phone in (("sms", sms_phone), ("whatsapp", whatsapp_phone)):
-                            if not phone:
-                                continue
-                            ok_pub = await message_bus.publish_outbound(
-                                OutboundMessage(
-                                    channel=ch,
-                                    chat_id=phone,
-                                    content=notify_text,
-                                    reply_to=None,
-                                    media=[],
-                                    metadata={"notify_on_relay": True, "destination_callsign": dest, "relay_transcript_id": tid},
-                                )
-                            )
-                            if ok_pub:
-                                logger.info("Notify-on-relay sent to %s for callsign %s (transcript %s)", ch, dest, tid)
-                            else:
-                                logger.warning("Notify-on-relay queue full for %s %s", ch, dest)
-                    except Exception as e:
-                        logger.warning("Notify-on-relay failed for dest %s: %s", dest, e)
         except asyncio.CancelledError:
             break
         except Exception as e:
