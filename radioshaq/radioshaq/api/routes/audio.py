@@ -50,7 +50,7 @@ async def update_audio_config(
     body: dict[str, Any],
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> JSONResponse:
     """Update audio configuration (runtime overlay only; does not persist to file).
     Restart required for changes to affect active agents (voice_rx, etc.).
     """
@@ -71,7 +71,7 @@ async def reset_audio_config(
     request: Request,
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> JSONResponse:
     """Clear runtime audio config overrides. Restart required for agents to use file/env config."""
     if hasattr(request.app.state, "audio_config_override"):
         request.app.state.audio_config_override = {}

@@ -75,7 +75,7 @@ async def update_config_llm(
     body: dict[str, Any],
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> JSONResponse:
     """Update LLM configuration (runtime overlay only; does not persist to file).
     API keys in body are not stored. Restart required for changes to affect orchestrator/agents.
     """
@@ -113,7 +113,7 @@ async def update_config_memory(
     body: dict[str, Any],
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> JSONResponse:
     """Update memory configuration (runtime overlay only; does not persist to file).
     Restart required for changes to affect active components.
     """
@@ -149,7 +149,7 @@ async def update_config_overrides(
     body: dict[str, Any],
     config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
-) -> dict[str, Any]:
+) -> JSONResponse:
     """Update per-role overrides (runtime overlay only; does not persist to file).
     Restart required for changes to affect orchestrator/agents.
     """

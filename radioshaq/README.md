@@ -7,7 +7,7 @@ A specialized AI-powered orchestrator for ham radio operations, emergency commun
 **Documentation:** [Quick Start](https://radioshaq.readthedocs.io/quick-start/), [Configuration](https://radioshaq.readthedocs.io/configuration/), [API Reference](https://radioshaq.readthedocs.io/api-reference/) (Read the Docs). In-repo source: [../docs/](../docs/) (MkDocs Material).
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](LICENSE.md)
+[![License: GPL--2.0--only](https://img.shields.io/badge/License-GPL--2.0--only-blue.svg)](../LICENSE.md)
 
 ## Install (get everything correctly)
 
