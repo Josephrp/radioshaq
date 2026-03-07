@@ -19,19 +19,22 @@ router = APIRouter()
 
 
 class RelayBody(BaseModel):
-    """Body for POST /messages/relay (band translation)."""
+    """Body for POST /messages/relay (band translation or SMS/WhatsApp)."""
 
     message: str = Field(..., min_length=1)
     source_band: str = Field(...)
-    target_band: str = Field(...)
+    target_band: str = Field(..., description="Target band (e.g. 2m) when target_channel=radio; ignored when target_channel is sms/whatsapp")
     source_frequency_hz: float | None = Field(None)
     target_frequency_hz: float | None = Field(None)
     source_callsign: str = Field("UNKNOWN")
     destination_callsign: str | None = Field(None)
     session_id: str | None = Field(None)
-    deliver_at: str | None = Field(None, description="ISO datetime when message should be delivered on target band (optional)")
+    deliver_at: str | None = Field(None, description="ISO datetime when message should be delivered (optional)")
     source_audio_path: str | None = Field(None)
     target_audio_path: str | None = Field(None)
+    target_channel: str = Field("radio", description="Delivery channel: radio, sms, or whatsapp")
+    destination_phone: str | None = Field(None, description="E.164 phone for SMS/WhatsApp when target_channel is sms or whatsapp")
+    emergency: bool = Field(False, description="If true and target_channel is sms/whatsapp, queue for human approval (Section 9)")
 
 
 @router.post("/relay")
@@ -67,13 +70,23 @@ async def relay_message_between_bands(
         radio.restricted_bands_region,
         getattr(radio, "band_plan_region", None),
     )
-    if source_band not in band_plans or target_band not in band_plans:
-        raise HTTPException(status_code=400, detail="Unknown band; use e.g. 40m, 2m, 20m")
+    target_channel = (body.target_channel or "radio").strip().lower()
+    if target_channel not in ("radio", "sms", "whatsapp"):
+        raise HTTPException(status_code=400, detail="target_channel must be radio, sms, or whatsapp")
+    if target_channel in ("sms", "whatsapp") and not (body.destination_phone and str(body.destination_phone).strip()):
+        raise HTTPException(status_code=400, detail="destination_phone required when target_channel is sms or whatsapp")
+    if source_band not in band_plans:
+        raise HTTPException(status_code=400, detail="Unknown source_band; use e.g. 40m, 2m, 20m")
+    if target_channel == "radio" and target_band not in band_plans:
+        raise HTTPException(status_code=400, detail="Unknown target_band; use e.g. 40m, 2m, 20m")
 
     source_plan = band_plans[source_band]
-    target_plan = band_plans[target_band]
     source_freq = body.source_frequency_hz or (source_plan.freq_start_hz + (source_plan.freq_end_hz - source_plan.freq_start_hz) / 2)
-    target_freq = body.target_frequency_hz or (target_plan.freq_start_hz + (target_plan.freq_end_hz - target_plan.freq_start_hz) / 2)
+    if target_channel == "radio":
+        target_plan = band_plans[target_band]
+        target_freq = body.target_frequency_hz or (target_plan.freq_start_hz + (target_plan.freq_end_hz - target_plan.freq_start_hz) / 2)
+    else:
+        target_freq = body.target_frequency_hz or 0.0
     source_callsign = (body.source_callsign or "UNKNOWN").upper()
     destination_callsign = (body.destination_callsign or "").upper() or None
     session_id = body.session_id or f"relay-{uuid.uuid4().hex[:12]}"
@@ -87,10 +100,11 @@ async def relay_message_between_bands(
     storage = get_transcript_storage(request)
     queue = get_injection_queue()
     radio_tx = get_radio_tx_agent(request)
+    target_band_val = target_band if target_channel == "radio" else target_channel
     result = await relay_message_between_bands_service(
         message=msg,
         source_band=source_band,
-        target_band=target_band,
+        target_band=target_band_val,
         source_frequency_hz=source_freq,
         target_frequency_hz=target_freq,
         source_callsign=source_callsign,
@@ -100,13 +114,23 @@ async def relay_message_between_bands(
         storage=storage,
         injection_queue=queue,
         radio_tx_agent=radio_tx,
-        config=config.radio,
+        config=config,
         source_audio_path=body.source_audio_path,
         target_audio_path=body.target_audio_path,
         store_only_relayed=getattr(config.radio, "relay_store_only_relayed", False),
+        target_channel=target_channel,
+        destination_phone=(body.destination_phone or "").strip() or None,
+        emergency=body.emergency,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Relay failed"))
+    if result.get("queued_for_approval"):
+        return {
+            "ok": result["ok"],
+            "queued_for_approval": True,
+            "event_id": result.get("event_id"),
+            "target_channel": result.get("target_channel", "radio"),
+        }
     if result.get("relay") == "no_storage":
         return result
     return {
@@ -119,4 +143,5 @@ async def relay_message_between_bands(
         "target_frequency_hz": result["target_frequency_hz"],
         "session_id": result["session_id"],
         "deliver_at": result.get("deliver_at"),
+        "target_channel": result.get("target_channel", "radio"),
     }

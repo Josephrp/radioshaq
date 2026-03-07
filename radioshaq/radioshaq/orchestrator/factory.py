@@ -243,21 +243,23 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
             except Exception as e:
                 logger.warning("PTTCoordinator not created: %s", e)
 
+    twilio_cfg = getattr(config, "twilio", None)
     sms_client = None
     sms_from = None
-    if getattr(config, "twilio_sid", None) or getattr(config, "twilio_from", None):
+    if twilio_cfg and getattr(twilio_cfg, "account_sid", None) and getattr(twilio_cfg, "auth_token", None):
         try:
             from twilio.rest import Client
-            sid = getattr(config, "twilio_sid", None) or getattr(config, "twilio_account_sid", None)
-            token = getattr(config, "twilio_token", None) or getattr(config, "twilio_auth_token", None)
-            if sid and token:
-                sms_client = Client(sid, token)
-                sms_from = getattr(config, "twilio_from", None) or getattr(config, "twilio_from_number", None)
+            sms_client = Client(twilio_cfg.account_sid, twilio_cfg.auth_token)
+            sms_from = getattr(twilio_cfg, "from_number", None)
         except ImportError:
             pass
 
     registry.register_agent(SMSAgent(twilio_client=sms_client, from_number=sms_from))
-    registry.register_agent(WhatsAppAgent(client=None))
+    whatsapp_from = getattr(twilio_cfg, "whatsapp_from", None) if twilio_cfg else None
+    if sms_client and whatsapp_from:
+        registry.register_agent(WhatsAppAgent(client=sms_client, from_number=whatsapp_from))
+    else:
+        registry.register_agent(WhatsAppAgent(client=None, from_number=None))
 
     registry.register_agent(
         RadioTransmissionAgent(

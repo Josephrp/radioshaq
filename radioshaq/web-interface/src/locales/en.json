@@ -13,12 +13,25 @@
   "nav": {
     "appName": "RadioShaq",
     "audio": "Audio",
+    "emergency": "Emergency",
     "callsigns": "Callsigns",
     "messages": "Messages",
     "transcripts": "Transcripts",
     "radio": "Radio",
     "settings": "Settings",
     "language": "Language"
+  },
+  "emergency": {
+    "title": "Emergency messages",
+    "pendingCount": "{{count}} pending",
+    "intro": "Approve to send via SMS/WhatsApp, or reject. You are notified by sound and browser notification when new requests arrive.",
+    "noPending": "No pending emergency messages.",
+    "contact": "Contact",
+    "notesPlaceholder": "Notes (optional)",
+    "approve": "Approve & send",
+    "reject": "Reject",
+    "allowNotifications": "Allow notifications",
+    "autoRefresh": "List refreshes automatically every 12s; the app also checks for new pending messages every 15s and will play an alert and show a notification when new ones arrive."
   },
   "license": {
     "title": "License Acceptance Required",

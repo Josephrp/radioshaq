@@ -61,6 +61,16 @@ See [Configuration](https://radioshaq.readthedocs.io/configuration/) or [docs/da
 
 **Memory (per-callsign):** Run the memory migration (`uv run alembic upgrade head`) to create memory tables. Optional [Hindsight](https://hindsight.vectorize.io/) for semantic memory: set `RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL` and install `hindsight-client` if needed; or set `RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED=false` for PostgreSQL-only memory. See [../MEMORY_SYSTEM.md](../MEMORY_SYSTEM.md) and [../MEMORY_IMPLEMENTATION_PLAN.md](../MEMORY_IMPLEMENTATION_PLAN.md).
 
+### Runtime topology (API process)
+
+When you run `python -m radioshaq.api.server` (or `radioshaq run-api`), a single process runs:
+
+- **API** (FastAPI), **orchestrator** (REACT), and optional **MessageBus consumer** (when `RADIOSHAQ_BUS_CONSUMER_ENABLED=1`).
+- **Outbound handler:** One dispatcher consumes outbound messages and routes by channel: `radio_rx` → radio TX, `sms` → Twilio SMS, `whatsapp` → Twilio WhatsApp. So SMS and WhatsApp outbound are handled inside the API process when the bus consumer is enabled; no separate Node bridge is required.
+- **Optional Node bridge:** PM2 can start a `radioshaq-bridge` app only if `bridge/dist/index.js` exists; if the bridge directory is absent, that app is skipped and the API runs without it.
+
+SMS/WhatsApp configuration: see [docs/twilio-sms-whatsapp.md](docs/twilio-sms-whatsapp.md) and `.env.example` (`RADIOSHAQ_TWILIO__*`).
+
 ## Authentication
 
 Most endpoints require a **Bearer JWT**. Get a token (no auth required) then send it on each request.
@@ -92,9 +102,13 @@ uv run python scripts/demo/run_demo.py
 
 The script gets its own token from `POST /auth/token` (subject `demo-op1`, role `field`) and then injects on 40m, relays to 2m, and polls `/transcripts`. No manual auth needed. To poll **your messages** on a band (messages where you are the destination), use `GET /transcripts?callsign=<your_callsign>&destination_only=true&band=<band>`; omit `band` to get messages across all bands. See [scripts/demo/README.md](scripts/demo/README.md) and [docs/demo-two-local-one-remote.md](docs/demo-two-local-one-remote.md).
 
-## Monitoring
+## Response, compliance, and monitoring
 
-**Prometheus:** `GET /metrics` (no auth) exposes uptime, callsign count, and optional GPU gauges (when `nvidia-smi` is available). Optional: `uv sync --extra metrics` for full prometheus-client support. See [Monitoring](https://radioshaq.readthedocs.io/monitoring/) in the docs.
+**Response:** Operator approval of emergency SMS/WhatsApp: poll `GET /emergency/pending-count` or `GET /emergency/events` to see pending requests, then `POST /emergency/events/{id}/approve` to send (see [Response & compliance](docs/response-compliance-and-monitoring.md)). Relay (radio/SMS/WhatsApp) and contact preferences (notify-on-relay, opt-out) are documented there as well.
+
+**Compliance:** Radio restricted bands and band plans by region (FCC, CEPT, CA, etc.); messaging consent, opt-out, and emergency region allowlist. See [docs/response-compliance-and-monitoring.md](docs/response-compliance-and-monitoring.md) (includes regulatory references, backend table, country mapping) and [notify-and-emergency-compliance-plan.md](docs/notify-and-emergency-compliance-plan.md).
+
+**Monitoring:** `GET /metrics` (no auth) exposes uptime, callsign count, relay delivery count, and optional GPU gauges (when `nvidia-smi` is available). Optional: `uv sync --extra metrics` for full prometheus-client support. See [Response & compliance](docs/response-compliance-and-monitoring.md).
 
 ## Installing from PyPI
 

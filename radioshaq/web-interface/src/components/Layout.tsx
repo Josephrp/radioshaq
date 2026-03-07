@@ -1,10 +1,12 @@
 import { Link, Outlet, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiStatus } from './ApiStatus';
+import { EmergencyNotifier } from './EmergencyNotifier';
 import { SUPPORTED_LANGUAGES, type SupportedLanguageCode } from '../i18n';
 
 const navPaths = [
   { to: '/', key: 'audio' as const },
+  { to: '/emergency', key: 'emergency' as const },
   { to: '/callsigns', key: 'callsigns' as const },
   { to: '/messages', key: 'messages' as const },
   { to: '/transcripts', key: 'transcripts' as const },
@@ -19,6 +21,7 @@ export function Layout() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <EmergencyNotifier />
       <header style={{ borderBottom: '1px solid #ccc' }}>
         <nav style={{ padding: '0.5rem 1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <strong style={{ marginRight: '0.5rem' }}>{t('nav.appName')}</strong>

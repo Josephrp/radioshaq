@@ -386,3 +386,99 @@ export async function sendTts(body: { message: string; frequency_hz?: number; mo
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to send TTS');
   return res.json();
 }
+
+// ----- Emergency (operator approval) -----
+export interface EmergencyEvent {
+  id?: number;
+  event_type?: string;
+  status?: string;
+  initiator_callsign?: string;
+  target_callsign?: string | null;
+  notes?: string | null;
+  extra_data?: {
+    emergency_contact_phone?: string;
+    emergency_contact_channel?: string;
+    message?: string;
+    approved_at?: string;
+    approved_by?: string;
+    sent_at?: string;
+    rejected_at?: string;
+    rejected_by?: string;
+  };
+  created_at?: string;
+}
+
+export async function getEmergencyPendingCount(): Promise<{ count: number }> {
+  const res = await fetch(`${API_BASE}/emergency/pending-count`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to get pending count');
+  return res.json();
+}
+
+export async function listEmergencyEvents(status?: string): Promise<{ events: EmergencyEvent[]; count: number }> {
+  const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  const res = await fetch(`${API_BASE}/emergency/events${q}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error('Failed to list emergency events');
+  return res.json();
+}
+
+export async function approveEmergencyEvent(eventId: number, notes?: string): Promise<{ ok: boolean; event_id: number; status: string; sent?: boolean }> {
+  const res = await fetch(`${API_BASE}/emergency/events/${eventId}/approve`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ notes: notes ?? null }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to approve');
+  return res.json();
+}
+
+export async function rejectEmergencyEvent(eventId: number, notes?: string): Promise<{ ok: boolean; event_id: number; status: string }> {
+  const res = await fetch(`${API_BASE}/emergency/events/${eventId}/reject`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({ notes: notes ?? null }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to reject');
+  return res.json();
+}
+
+/** Subscribe to SSE stream of pending_count (events every ~10s). Call abortController.abort() to close. */
+export function subscribeEmergencyStream(
+  onCount: (count: number) => void,
+  abortController: AbortController
+): void {
+  const token = runtimeToken ?? import.meta.env.VITE_RADIOSHAQ_TOKEN;
+  if (!token) {
+    onCount(0);
+    return;
+  }
+  const url = `${API_BASE}/emergency/events/stream`;
+  fetch(url, { headers: { ...authHeaders(), Accept: 'text/event-stream' }, signal: abortController.signal })
+    .then(async (res) => {
+      if (!res.ok || !res.body) return;
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6).trim());
+                if (typeof data.pending_count === 'number') onCount(data.pending_count);
+              } catch {
+                /* ignore */
+              }
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    })
+    .catch(() => {});
+}

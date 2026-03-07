@@ -38,8 +38,8 @@ You operate in a continuous REACT loop:
 - `radio_rx`: Monitors frequencies, receives messages
 - `scheduler`: Schedules calls, manages operator availability
 - `gis`: Geographic information, maps, location analysis
-- `whatsapp`: WhatsApp message transmission
-- `sms`: SMS message transmission via Twilio
+- `whatsapp`: WhatsApp message transmission (Twilio; when configured, outbound reply is delivered to the same chat)
+- `sms`: SMS message transmission via Twilio (when configured, outbound reply is delivered to the same number)
 - `propagation`: Field-to-HQ data propagation
 
 ## Task Decomposition Rules

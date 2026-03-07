@@ -265,12 +265,12 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `AR`, `CL`, `CO`, `PE`, `VE`, `EC`, `UY`, `PY`, `BO`, `CR`, `PA`, `GT`, `DO` | FCC baseline | Default (ITU R2) | Argentina, Chile, Colombia, Peru, Venezuela, Ecuador, Uruguay, Paraguay, Bolivia, Costa Rica, Panama, Guatemala, Dominican Republic |
 | `AU` | Enforced (ACMA conservative) | IARU R3 | Australia |
 | `ZA` | Enforced (ICASA NRFP) | IARU R1 | South Africa |
-| `NG`, `KE`, `EG`, `MA`, … (see compliance-regulatory.md) | Enforced (R1 conservative) | IARU R1 | Nigeria, Kenya, Egypt, Morocco, etc. |
+| `NG`, `KE`, `EG`, `MA`, … (see [Response & compliance](response-compliance-and-monitoring.md#21-radio-restricted-bands-and-band-plans)) | Enforced (R1 conservative) | IARU R1 | Nigeria, Kenya, Egypt, Morocco, etc. |
 | `NZ` | Enforced (RSM PIB 21 conservative) | IARU R3 | New Zealand |
 | `JP` | Enforced (conservative set) | IARU R3 | Japan |
 | `IN` | Enforced (conservative set) | IARU R3 | India |
 
-Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`) for EU/EEA to enforce CEPT-style restricted bands and R1 band edges. For Americas use `CA`, `MX`, or country code (`AR`, `CL`, etc.). For Australia/Asia–Pacific use `AU` or `ITU_R3`. For Africa use country code (`ZA`, `NG`, `KE`, etc.) — R1 band plan, national rules apply. Use `band_plan_region: ITU_R1` or `ITU_R3` to override band plan. See [Compliance and regulatory references](compliance-regulatory.md) for official sources. Operators must verify national rules (e.g. ANFR, Ofcom, ACMA, IFT, ISED, ICASA, NCC).
+Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`) for EU/EEA to enforce CEPT-style restricted bands and R1 band edges. For Americas use `CA`, `MX`, or country code (`AR`, `CL`, etc.). For Australia/Asia–Pacific use `AU` or `ITU_R3`. For Africa use country code (`ZA`, `NG`, `KE`, etc.) — R1 band plan, national rules apply. Use `band_plan_region: ITU_R1` or `ITU_R3` to override band plan. See [Response & compliance](response-compliance-and-monitoring.md#21-radio-restricted-bands-and-band-plans) for official sources and country→backend mapping. Operators must verify national rules (e.g. ANFR, Ofcom, ACMA, IFT, ISED, ICASA, NCC).
 
 ---
 
@@ -381,6 +381,43 @@ When `mode: hq`, these options apply.
 | `hq.field_registration_open` | `RADIOSHAQ_HQ__FIELD_REGISTRATION_OPEN` | `false` | Allow field registration. |
 | `hq.auto_coordination_enabled` | `RADIOSHAQ_HQ__AUTO_COORDINATION_ENABLED` | `true` | Auto coordination. |
 | `hq.coordination_interval_seconds` | `RADIOSHAQ_HQ__COORDINATION_INTERVAL_SECONDS` | `30` | Coordination interval. |
+
+---
+
+## Twilio (SMS & WhatsApp)
+
+RadioShaq can send and receive **SMS** and **WhatsApp** messages via **Twilio** (same account for both). Outbound delivery is handled by the single outbound dispatcher when the MessageBus consumer is enabled.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `twilio.account_sid` | `RADIOSHAQ_TWILIO__ACCOUNT_SID` | `null` | Twilio Account SID (required for SMS and WhatsApp send). |
+| `twilio.auth_token` | `RADIOSHAQ_TWILIO__AUTH_TOKEN` | `null` | Twilio Auth Token. |
+| `twilio.from_number` | `RADIOSHAQ_TWILIO__FROM_NUMBER` | `null` | SMS sender phone number (E.164, e.g. `+15551234567`). |
+| `twilio.whatsapp_from` | `RADIOSHAQ_TWILIO__WHATSAPP_FROM` | `null` | WhatsApp sender number (E.164); must be WhatsApp-enabled in Twilio. Optional; if unset, the WhatsApp agent is registered but returns "not configured" on send. |
+
+All use the **`RADIOSHAQ_TWILIO__`** prefix. See [reference/.env.example](reference/.env.example) for a commented template.
+
+**Config file (YAML):** You can set the same under `twilio` in `config.yaml`:
+
+```yaml
+twilio:
+  account_sid: "ACxxxx"
+  auth_token: "your-auth-token"
+  from_number: "+15551234567"
+  whatsapp_from: "+15551234567"   # optional; same or different number enabled for WhatsApp
+```
+
+Environment variables override file values.
+
+**Behavior:**
+
+- **SMS:** If `account_sid`, `auth_token`, and `from_number` are set, the SMS agent sends via Twilio. Otherwise, send returns `success: false` with `reason: "twilio_not_configured"`.
+- **WhatsApp:** If `whatsapp_from` is also set (and Twilio client exists), the WhatsApp agent sends via Twilio WhatsApp Business API (`whatsapp:+E.164`). Otherwise, the agent is still registered but returns "Twilio WhatsApp not configured" on send.
+- **Inbound:** Configure Twilio webhooks (SMS and/or WhatsApp) to POST to your Lambda or directly to `https://<your-hq>/internal/bus/inbound` with a body like `{"channel": "sms"|"whatsapp", "chat_id": "<sender_phone>", "sender_id": "...", "content": "..."}`. See [Twilio WhatsApp webhooks](https://www.twilio.com/docs/sms/whatsapp/api#configuring-inbound-message-webhooks) and opt-in requirements.
+
+**Notify when a message is left for you (§8.1, §8.3):** Whitelisted callsigns can opt in to receive a short SMS or WhatsApp notification when a message is delivered to them on radio (notify-on-relay). Set contact preferences via `GET`/`PATCH /callsigns/registered/{callsign}/contact-preferences`; in strict regions (e.g. EU/UK/ZA), `consent_confirmed: true` is required when enabling. Recipients can reply **STOP** to opt out; configure your Twilio webhook (or Lambda) to call `POST /internal/opt-out` with `{"phone": "+1234567890", "channel": "sms"}` or `{"callsign": "K5ABC", "channel": "whatsapp"}`. See [Response & compliance](response-compliance-and-monitoring.md) and the project doc *Notify and emergency compliance plan* (in `radioshaq/docs/`) for region-specific consent and opt-out rules.
+
+**References:** [Twilio WhatsApp API overview](https://www.twilio.com/docs/sms/whatsapp/api), [Twilio WhatsApp quickstart (Python)](https://www.twilio.com/docs/whatsapp/quickstart/python), [WhatsApp opt-in requirements](https://www.twilio.com/docs/sms/whatsapp/api#whatsapp-opt-in-requirements) (required for production).
 
 ---
 

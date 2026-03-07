@@ -75,6 +75,5 @@ nav:
   - Quick Start: quick-start.md
   - Radio Usage: radio-usage.md
   - Configuration: configuration.md
-  - Compliance and regulatory references: compliance-regulatory.md
-  - Monitoring: monitoring.md
+  - Response & compliance: response-compliance-and-monitoring.md
   - API Reference: api-reference.md

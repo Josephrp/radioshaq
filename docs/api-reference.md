@@ -9,7 +9,7 @@ The RadioShaq API is a FastAPI application. All protected endpoints require a **
 | Area | Prefix | Purpose |
 |------|--------|---------|
 | Health | `/health`, `/health/ready` | Liveness and readiness (DB, orchestrator) |
-| Metrics | `/metrics` | Prometheus scrape (uptime, callsigns, optional GPU). See [Monitoring](monitoring.md). |
+| Metrics | `/metrics` | Prometheus scrape (uptime, callsigns, optional GPU). See [Response & compliance](response-compliance-and-monitoring.md). |
 | Auth | `/auth/token`, `/auth/refresh`, `/auth/me` | Issue token, refresh, current user |
 | Messages | `/messages/process`, `/messages/whitelist-request`, `/messages/from-audio`, `/messages/inject-and-store` | Orchestration and whitelist flow |
 | Relay | `/messages/relay` | Band translation (e.g. 40m → 2m). Stores source + relayed transcripts; optional inject/TX when config enables. Recipients **poll** `GET /transcripts?callsign=<callsign>&destination_only=true&band=<band>` to retrieve relayed messages. |

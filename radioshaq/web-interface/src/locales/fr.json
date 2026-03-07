@@ -13,12 +13,25 @@
   "nav": {
     "appName": "RadioShaq",
     "audio": "Audio",
+    "emergency": "Urgence",
     "callsigns": "Indicatifs",
     "messages": "Messages",
     "transcripts": "Transcripts",
     "radio": "Radio",
     "settings": "Paramètres",
     "language": "Langue"
+  },
+  "emergency": {
+    "title": "Messages d'urgence",
+    "pendingCount": "{{count}} en attente",
+    "intro": "Approuver pour envoyer par SMS/WhatsApp, ou rejeter. Vous êtes notifié par un son et une notification navigateur à l'arrivée de nouvelles demandes.",
+    "noPending": "Aucun message d'urgence en attente.",
+    "contact": "Contact",
+    "notesPlaceholder": "Notes (optionnel)",
+    "approve": "Approuver et envoyer",
+    "reject": "Rejeter",
+    "allowNotifications": "Autoriser les notifications",
+    "autoRefresh": "La liste s'actualise toutes les 12 s ; l'app vérifie aussi toutes les 15 s et joue une alerte et affiche une notification à l'arrivée de nouveaux messages."
   },
   "license": {
     "title": "Acceptation de la licence requise",
