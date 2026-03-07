@@ -45,8 +45,7 @@
     "languageEn": "English",
     "languageFr": "French",
     "languageEs": "Spanish",
-    "vadPlaceholder": "Placeholder — no live signal (audio pipeline not feeding metrics)",
-    "vadPlaceholderShort": "no live signal"
+    "vadPlaceholder": "Placeholder — no live signal (audio pipeline not feeding metrics)"
   },
   "callsigns": {
     "title": "Registered callsigns",

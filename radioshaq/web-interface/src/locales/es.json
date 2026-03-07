@@ -45,8 +45,7 @@
     "languageEn": "Inglés",
     "languageFr": "Francés",
     "languageEs": "Español",
-    "vadPlaceholder": "Placeholder — sin señal en vivo (el pipeline de audio no envía métricas)",
-    "vadPlaceholderShort": "sin señal en vivo"
+    "vadPlaceholder": "Placeholder — sin señal en vivo (el pipeline de audio no envía métricas)"
   },
   "callsigns": {
     "title": "Indicativos registrados",

@@ -65,11 +65,6 @@ export function VADVisualizer({ sessionId }: VADVisualizerProps) {
     <div className="vad-visualizer" aria-live="polite">
       <div className="vad-status">
         WebSocket: {connected ? 'connected' : 'disconnected'}
-        {isPlaceholder && connected && (
-          <span style={{ marginLeft: '0.5rem', color: '#666', fontSize: '0.9rem' }}>
-            ({t('audio.vadPlaceholderShort')})
-          </span>
-        )}
       </div>
       {metrics && !isPlaceholder && (
         <div className="vad-metrics">

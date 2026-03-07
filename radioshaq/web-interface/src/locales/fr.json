@@ -45,8 +45,7 @@
     "languageEn": "Anglais",
     "languageFr": "Français",
     "languageEs": "Espagnol",
-    "vadPlaceholder": "Placeholder — pas de signal en direct (pipeline audio ne fournit pas de métriques)",
-    "vadPlaceholderShort": "pas de signal en direct"
+    "vadPlaceholder": "Placeholder — pas de signal en direct (pipeline audio ne fournit pas de métriques)"
   },
   "callsigns": {
     "title": "Indicatifs enregistrés",
