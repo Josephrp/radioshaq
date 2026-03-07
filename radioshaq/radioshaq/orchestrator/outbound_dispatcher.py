@@ -28,9 +28,10 @@ async def run_outbound_handler(
         logger.debug("Outbound handler: no bus or consume_outbound, exiting")
         return
 
+    consume_timeout = 5.0
     while not stop_event.is_set():
         try:
-            msg = await bus.consume_outbound()
+            msg = await asyncio.wait_for(bus.consume_outbound(), timeout=consume_timeout)
             if msg.channel == "radio_rx":
                 radio_tx = agent_registry.get_agent("radio_tx") if agent_registry else None
                 await handle_one_outbound_radio(msg, radio_tx, config)

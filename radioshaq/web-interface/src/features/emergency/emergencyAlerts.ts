@@ -21,6 +21,8 @@ export function playEmergencyAlertSound(): void {
     gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.7);
     osc2.start(ctx.currentTime + 0.4);
     osc2.stop(ctx.currentTime + 0.7);
+    // Close context after sounds finish to avoid hitting browser limit (typically 6 contexts)
+    setTimeout(() => ctx.close(), 1000);
   } catch {
     /* ignore */
   }

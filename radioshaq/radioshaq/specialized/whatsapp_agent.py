@@ -11,14 +11,14 @@ from radioshaq.specialized.base import SpecializedAgent
 
 
 def _e164(phone: str) -> str:
-    """Normalize to E.164-like form: strip spaces, ensure + prefix if digits present."""
+    """Normalize to E.164-like form: strip all non-digit characters and ensure + prefix."""
     s = (phone or "").strip()
     if not s:
-        return s
-    s = re.sub(r"\s+", "", s)
-    if s and not s.startswith("+"):
-        s = "+" + s.lstrip("0")
-    return s
+        return ""
+    digits = re.sub(r"\D", "", s)
+    if not digits:
+        return ""
+    return "+" + digits
 
 
 class WhatsAppAgent(SpecializedAgent):

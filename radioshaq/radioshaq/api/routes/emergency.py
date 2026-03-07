@@ -196,30 +196,34 @@ async def approve_emergency_event(
         raise HTTPException(status_code=400, detail="Missing contact_phone or contact_channel")
     approver = getattr(_user, "sub", None) or getattr(_user, "callsign", "api")
     now = datetime.now(timezone.utc).isoformat()
+    message_bus = getattr(request.app.state, "message_bus", None)
+    if not message_bus or not hasattr(message_bus, "publish_outbound"):
+        return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Message bus not available"}
+    from radioshaq.vendor.nanobot.bus.events import OutboundMessage
+    content = extra.get("message") or event.get("notes") or "Emergency notification from RadioShaq."
+    ok = await message_bus.publish_outbound(
+        OutboundMessage(
+            channel=channel,
+            chat_id=phone,
+            content=content,
+            reply_to=None,
+            media=[],
+            metadata={"emergency_event_id": event_id, "approved_by": str(approver)},
+        )
+    )
+    if not ok:
+        return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Outbound queue full"}
     await db.update_coordination_event(
         event_id,
         status="approved",
-        extra_data={"approved_at": now, "approved_by": str(approver), **({"notes": body.notes} if body.notes else {})},
+        extra_data={
+            "approved_at": now,
+            "approved_by": str(approver),
+            "sent_at": now,
+            **({"notes": body.notes} if body.notes else {}),
+        },
     )
-    message_bus = getattr(request.app.state, "message_bus", None)
-    if message_bus and hasattr(message_bus, "publish_outbound"):
-        from radioshaq.vendor.nanobot.bus.events import OutboundMessage
-        content = extra.get("message") or event.get("notes") or "Emergency notification from RadioShaq."
-        ok = await message_bus.publish_outbound(
-            OutboundMessage(
-                channel=channel,
-                chat_id=phone,
-                content=content,
-                reply_to=None,
-                media=[],
-                metadata={"emergency_event_id": event_id, "approved_by": str(approver)},
-            )
-        )
-        if ok:
-            await db.update_coordination_event(event_id, extra_data={"sent_at": now})
-            return {"ok": True, "event_id": event_id, "status": "approved", "sent": True}
-        return {"ok": True, "event_id": event_id, "status": "approved", "sent": False, "detail": "Outbound queue full"}
-    return {"ok": True, "event_id": event_id, "status": "approved", "sent": False, "detail": "Message bus not available"}
+    return {"ok": True, "event_id": event_id, "status": "approved", "sent": True}
 
 
 @router.post("/events/{event_id:int}/reject")

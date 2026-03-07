@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from typing import Any
 
@@ -73,8 +74,15 @@ async def relay_message_between_bands(
     target_channel = (body.target_channel or "radio").strip().lower()
     if target_channel not in ("radio", "sms", "whatsapp"):
         raise HTTPException(status_code=400, detail="target_channel must be radio, sms, or whatsapp")
-    if target_channel in ("sms", "whatsapp") and not (body.destination_phone and str(body.destination_phone).strip()):
-        raise HTTPException(status_code=400, detail="destination_phone required when target_channel is sms or whatsapp")
+    destination_phone_e164: str | None = None
+    if target_channel in ("sms", "whatsapp"):
+        if not (body.destination_phone and str(body.destination_phone).strip()):
+            raise HTTPException(status_code=400, detail="destination_phone required when target_channel is sms or whatsapp")
+        _raw_phone = re.sub(r"\D", "", (body.destination_phone or "").strip())
+        destination_phone_e164 = "+" + _raw_phone if _raw_phone else ""
+        _E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
+        if not _E164_PATTERN.match(destination_phone_e164):
+            raise HTTPException(status_code=400, detail="destination_phone must be E.164 (10–15 digits)")
     if source_band not in band_plans:
         raise HTTPException(status_code=400, detail="Unknown source_band; use e.g. 40m, 2m, 20m")
     if target_channel == "radio" and target_band not in band_plans:
@@ -119,7 +127,7 @@ async def relay_message_between_bands(
         target_audio_path=body.target_audio_path,
         store_only_relayed=getattr(config.radio, "relay_store_only_relayed", False),
         target_channel=target_channel,
-        destination_phone=(body.destination_phone or "").strip() or None,
+        destination_phone=destination_phone_e164 if target_channel in ("sms", "whatsapp") else (body.destination_phone or "").strip() or None,
         emergency=body.emergency,
     )
     if not result.get("ok"):
