@@ -193,6 +193,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "notes": f"Audio file not found: {play_path}",
                 }
         elif (((use_tts is True) or (use_tts is None and voice_use_tts)) and message):
+            play_path: str | None = None
             try:
                 import tempfile
                 from radioshaq.audio.tts_plugin import synthesize_speech
@@ -212,6 +213,8 @@ class RadioTransmissionAgent(SpecializedAgent):
                     kwargs["speed"] = getattr(tts_cfg, "kokoro_speed", None)
                 synthesize_speech(message, provider, output_path=play_path, **kwargs)
             except Exception as e:
+                if play_path:
+                    Path(play_path).unlink(missing_ok=True)
                 logger.warning("TTS failed for voice TX: %s", e)
                 return {
                     "success": False,

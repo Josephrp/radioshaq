@@ -6,11 +6,36 @@ from pathlib import Path
 
 from radioshaq.constants import ASR_LANGUAGE_AUTO
 
+VOXTRAL_ASR_BASE_ID = "mistralai/Voxtral-Mini-3B-2507"
 VOXTRAL_ASR_HF_MODEL_ID = "shakods/voxtral-asr-en"
 
 
 class VoxtralASRBackend:
     """Transcribe using Voxtral (base: mistralai/Voxtral-Mini-3B-2507) with optional PEFT adapter."""
+
+    def __init__(self) -> None:
+        self._processor: object | None = None
+        self._model: object | None = None
+
+    def _load_base(self) -> tuple[object, object]:
+        """Load base processor and model once; cache on instance."""
+        if self._model is not None:
+            assert self._processor is not None
+            return self._processor, self._model
+        try:
+            import torch
+            from transformers import AutoProcessor, VoxtralForConditionalGeneration
+        except ImportError as e:
+            raise RuntimeError(
+                "Install ASR deps: uv sync --extra audio. Requires transformers, torch, mistral-common[audio]."
+            ) from e
+        self._processor = AutoProcessor.from_pretrained(VOXTRAL_ASR_BASE_ID)
+        self._model = VoxtralForConditionalGeneration.from_pretrained(
+            VOXTRAL_ASR_BASE_ID,
+            torch_dtype=torch.bfloat16,
+            device_map="auto",
+        )
+        return self._processor, self._model
 
     def transcribe(
         self,
@@ -23,29 +48,17 @@ class VoxtralASRBackend:
         if not path.exists():
             raise FileNotFoundError(str(audio_path))
 
-        try:
-            import torch
-            from transformers import AutoProcessor, VoxtralForConditionalGeneration
-        except ImportError as e:
-            raise RuntimeError(
-                "Install ASR deps: uv sync --extra audio. Requires transformers, torch, mistral-common[audio]."
-            ) from e
+        import torch
 
         model_id = kwargs.get("model_id") or VOXTRAL_ASR_HF_MODEL_ID
-        base_id = "mistralai/Voxtral-Mini-3B-2507"
+        base_id = VOXTRAL_ASR_BASE_ID
         lang_normalized = (language or "").strip().lower()
         use_peft = (
             str(model_id).strip().lower() == VOXTRAL_ASR_HF_MODEL_ID.lower()
             and lang_normalized == "en"
         )
 
-        device_map = "auto"
-        processor = AutoProcessor.from_pretrained(base_id)
-        model = VoxtralForConditionalGeneration.from_pretrained(
-            base_id,
-            torch_dtype=torch.bfloat16,
-            device_map=device_map,
-        )
+        processor, model = self._load_base()
 
         if use_peft:
             try:

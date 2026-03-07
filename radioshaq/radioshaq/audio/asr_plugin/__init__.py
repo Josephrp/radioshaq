@@ -27,13 +27,16 @@ def transcribe_audio(
     **kwargs: object,
 ) -> str:
     """Transcribe audio using the configured backend. Raises if backend not found or transcription fails."""
-    backend = _backends.get(model_id)
+    backend_key = model_id if model_id in _backends else ("voxtral" if _backends.get("voxtral") and model_id else model_id)
+    backend = _backends.get(backend_key)
     if backend is None:
         raise RuntimeError(
             f"ASR backend {model_id!r} not available. "
             "For voxtral/whisper run: uv sync --extra audio. For scribe set ELEVENLABS_API_KEY."
         )
-    return backend.transcribe(audio_path, language=language, **kwargs)
+    return backend.transcribe(
+        audio_path, language=language, model_id=model_id, **kwargs
+    )
 
 
 def _register_backends() -> None:

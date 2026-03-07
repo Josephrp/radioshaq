@@ -19,4 +19,4 @@ def transcribe_audio_voxtral(
 
     Requires: uv sync --extra audio.
     """
-    return transcribe_audio(audio_path, model_id="voxtral", language=language)
+    return transcribe_audio(audio_path, model_id=model_id, language=language)

@@ -63,9 +63,11 @@ def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
     if p == "anthropic" and "/" not in model:
         return f"anthropic/{model}"
     if p == "huggingface":
+        if not model:
+            raise ValueError("huggingface provider requires a non-empty model name")
         if model.startswith("openai/"):
             return model
-        return f"openai/{model}" if model else "openai/"
+        return f"openai/{model}"
     if p == "custom":
         return f"custom/{model}" if "/" not in model else model
     if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
