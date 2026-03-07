@@ -33,5 +33,6 @@ class WhisperASRBackend:
         if not path.exists():
             raise FileNotFoundError(str(audio_path))
         model = self._get_model()
-        result = model.transcribe(str(path), fp16=False)
+        lang_arg = language if language and str(language).strip().lower() != "auto" else None
+        result = model.transcribe(str(path), fp16=False, language=lang_arg)
         return (result.get("text") or "").strip()

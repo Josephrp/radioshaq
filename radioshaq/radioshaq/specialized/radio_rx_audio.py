@@ -548,14 +548,11 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                 temp_path = f.name
             try:
                 from radioshaq.audio.asr_plugin import transcribe_audio
-                loop = asyncio.get_event_loop()
-                out = await loop.run_in_executor(
-                    None,
-                    lambda: transcribe_audio(
-                        temp_path,
-                        model_id=self.config.asr_model,
-                        language=self.config.asr_language,
-                    ),
+                out = await asyncio.to_thread(
+                    transcribe_audio,
+                    temp_path,
+                    self.config.asr_model,
+                    language=self.config.asr_language,
                 )
                 return (out or "").strip() or None
             finally:

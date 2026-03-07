@@ -52,8 +52,14 @@ class VoxtralASRBackend:
                 from peft import PeftModel
                 model = PeftModel.from_pretrained(model, VOXTRAL_ASR_HF_MODEL_ID)
                 model.eval()
-            except (ImportError, Exception):
-                pass
+            except ImportError:
+                pass  # PEFT not installed; run with base model
+            except Exception as e:
+                import warnings
+                warnings.warn(
+                    f"PEFT adapter load failed, using base model: {e}",
+                    stacklevel=2,
+                )
 
         if lang_normalized == ASR_LANGUAGE_AUTO:
             inputs = processor.apply_transcription_request(

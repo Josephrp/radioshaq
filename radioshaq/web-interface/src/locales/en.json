@@ -129,6 +129,7 @@
     "customApiBase": "Custom API base (e.g. Ollama)",
     "huggingfaceApiKey": "Hugging Face API key",
     "huggingfaceApiKeyPlaceholder": "Set in .env as HF_TOKEN or paste here (not persisted by API)",
+    "huggingfaceApiKeyNote": "Set your API key in .env as HF_TOKEN or via the setup wizard; it cannot be edited here.",
     "huggingfaceApiBase": "Hugging Face API base (optional)",
     "huggingfaceApiBasePlaceholder": "https://router.huggingface.co/v1",
     "temperature": "Temperature",

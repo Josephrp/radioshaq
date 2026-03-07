@@ -140,17 +140,9 @@ export function SettingsPage() {
             )}
             {(llm.provider ?? 'mistral') === 'huggingface' && (
               <>
-                <label style={LABEL_STYLE}>{t('settings.huggingfaceApiKey')}</label>
-                <input
-                  style={INPUT_STYLE}
-                  type="password"
-                  value={llm.huggingface_api_key ?? ''}
-                  onChange={(e) => setLlm((p) => (p ? { ...p, huggingface_api_key: e.target.value || null } : p))}
-                  onBlur={(e) => handleLlmChange('huggingface_api_key', e.target.value || null)}
-                  placeholder={t('settings.huggingfaceApiKeyPlaceholder')}
-                  disabled={!!saving}
-                  autoComplete="off"
-                />
+                <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--muted)', maxWidth: 420 }}>
+                  {t('settings.huggingfaceApiKeyNote')}
+                </p>
                 <label style={LABEL_STYLE}>{t('settings.huggingfaceApiBase')}</label>
                 <input
                   style={INPUT_STYLE}
