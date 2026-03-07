@@ -1,4 +1,6 @@
-import type { AudioConfig, PendingResponse } from '../types/audio';
+import type { AudioConfig, ConfigResponseMeta, PendingResponse } from '../types/audio';
+
+export type AudioConfigResponse = AudioConfig & { _meta?: ConfigResponseMeta };
 
 const API_BASE = import.meta.env.VITE_RADIOSHAQ_API ?? 'http://localhost:8000';
 
@@ -58,13 +60,13 @@ export async function getHealthReady(): Promise<{ status: string; checks?: Recor
 }
 
 // ----- Audio (existing) -----
-export async function getAudioConfig(): Promise<AudioConfig> {
+export async function getAudioConfig(): Promise<AudioConfigResponse> {
   const res = await fetch(`${API_BASE}/api/v1/config/audio`, { headers: authHeaders() });
   if (!res.ok) throw new Error('Failed to fetch config');
   return res.json();
 }
 
-export async function updateAudioConfig(config: Partial<AudioConfig>): Promise<AudioConfig> {
+export async function updateAudioConfig(config: Partial<AudioConfig>): Promise<AudioConfigResponse> {
   const res = await fetch(`${API_BASE}/api/v1/config/audio`, {
     method: 'PATCH',
     headers: authHeaders(),
@@ -87,6 +89,7 @@ export interface LlmConfigResponse {
   custom_api_base?: string | null;
   temperature?: number;
   max_tokens?: number;
+  _meta?: ConfigResponseMeta;
 }
 export interface MemoryConfigResponse {
   enabled?: boolean;
@@ -96,10 +99,12 @@ export interface MemoryConfigResponse {
   recent_messages_limit?: number;
   daily_summary_days?: number;
   summary_timezone?: string;
+  _meta?: ConfigResponseMeta;
 }
 export interface ConfigOverridesResponse {
   llm_overrides?: Record<string, Record<string, unknown>>;
   memory_overrides?: Record<string, Record<string, unknown>>;
+  _meta?: ConfigResponseMeta;
 }
 
 export async function getConfigLlm(): Promise<LlmConfigResponse> {

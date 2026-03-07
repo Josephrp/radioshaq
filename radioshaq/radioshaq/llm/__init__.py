@@ -1,4 +1,4 @@
-"""LLM client abstraction for SHAKODS."""
+"""LLM client abstraction for RadioShaq."""
 
 from radioshaq.llm.client import LLMClient
 

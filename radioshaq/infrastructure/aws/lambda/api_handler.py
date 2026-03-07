@@ -1,5 +1,5 @@
 """
-Lambda handler for SHAKODS API (API Gateway REST).
+Lambda handler for RadioShaq API (API Gateway REST).
 Handles /orchestrate and health; JWT auth; optionally starts Step Functions.
 """
 

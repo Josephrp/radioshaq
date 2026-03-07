@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 
 router = APIRouter()
@@ -111,6 +112,7 @@ async def register_callsign(
 async def register_from_audio(
     request: Request,
     file: UploadFile,
+    config: Config = Depends(get_config),
     callsign: str | None = None,
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -132,7 +134,8 @@ async def register_from_audio(
     try:
         try:
             from radioshaq.audio.asr import transcribe_audio_voxtral
-            transcript = transcribe_audio_voxtral(temp_path, language="en")
+            asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+            transcript = transcribe_audio_voxtral(temp_path, language=asr_lang)
         except ImportError:
             raise HTTPException(
                 status_code=503,

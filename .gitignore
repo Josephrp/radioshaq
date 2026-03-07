@@ -149,7 +149,7 @@ logs/
 botpy.log
 *.pid
 
-# --- Shakods / PM2 ---
+# --- RadioShaq / PM2 ---
 # (logs/ above; PM2 dump is in user home)
 
 # --- Docker / local dev ---

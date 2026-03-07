@@ -19,7 +19,7 @@ class ReceiverTokenPayload(BaseModel):
 
 
 class JWTReceiverAuth:
-    """Verify JWT tokens issued by SHAKODS HQ for receiver stations."""
+    """Verify JWT tokens issued by RadioShaq HQ for receiver stations."""
 
     def __init__(self, secret: str | None = None, algorithm: str = "HS256"):
         self.secret = secret or os.environ.get("JWT_SECRET", "")

@@ -22,6 +22,17 @@ jobs:
       RADIOSHAQ_LICENSE_ACCEPTED: "1"
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: radioshaq/web-interface/package-lock.json
+      - name: Build web UI and stage for API-served bundle
+        run: |
+          cd radioshaq/web-interface && npm ci --no-audit --no-fund && npm run build
+          cd "${{ github.workspace }}"
+          mkdir -p radioshaq/radioshaq/web_ui
+          cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"

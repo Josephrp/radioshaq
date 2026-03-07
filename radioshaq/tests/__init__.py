@@ -1,1 +1,1 @@
-"""Test suite for SHAKODS."""
+"""Test suite for RadioShaq."""

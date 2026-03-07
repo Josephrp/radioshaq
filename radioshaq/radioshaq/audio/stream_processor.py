@@ -238,6 +238,7 @@ class AudioStreamProcessor:
         self._noise_calibration_active = True
 
         self._on_segment_ready: Callable[[ProcessedSegment], Awaitable[None]] | None = None
+        self._metrics_callback: Callable[[bool, float | None, str], None] | None = None
 
     def set_segment_callback(
         self,
@@ -245,6 +246,13 @@ class AudioStreamProcessor:
     ) -> None:
         """Set callback for when a speech segment is ready."""
         self._on_segment_ready = callback
+
+    def set_metrics_callback(
+        self,
+        callback: Callable[[bool, float | None, str], None] | None,
+    ) -> None:
+        """Set optional callback for VAD/metrics updates (vad_active, snr_db, state). Used for websocket live metrics."""
+        self._metrics_callback = callback
 
     async def process_frame(self, raw_frame: np.ndarray) -> None:
         """Process a single audio frame through the pipeline."""
@@ -257,6 +265,8 @@ class AudioStreamProcessor:
             if len(self.denoiser._noise_profile) >= self.denoiser._noise_profile.maxlen:
                 self._noise_calibration_active = False
                 self._state = StreamState.LISTENING
+                if self._metrics_callback:
+                    self._metrics_callback(False, None, "idle")
                 logger.info("Noise calibration complete")
             return
 
@@ -285,6 +295,8 @@ class AudioStreamProcessor:
                 self._speech_frames = 1
                 self._silence_frames = 0
                 self._ring_buffer.clear()
+                if self._metrics_callback:
+                    self._metrics_callback(True, snr, "speech")
             else:
                 self._ring_buffer.append(frame)
 
@@ -322,6 +334,8 @@ class AudioStreamProcessor:
         self._speech_frames = 0
         self._silence_frames = 0
         self._state = StreamState.LISTENING
+        if self._metrics_callback:
+            self._metrics_callback(False, None, "idle")
 
     def reset(self) -> None:
         """Reset processor state."""

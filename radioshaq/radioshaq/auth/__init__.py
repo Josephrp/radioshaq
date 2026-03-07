@@ -1,4 +1,4 @@
-"""Authentication for SHAKODS (JWT, OAuth, field station)."""
+"""Authentication for RadioShaq (JWT, OAuth, field station)."""
 
 from radioshaq.auth.field_auth import FieldAuthManager
 from radioshaq.auth.jwt import JWTAuthManager, TokenPayload

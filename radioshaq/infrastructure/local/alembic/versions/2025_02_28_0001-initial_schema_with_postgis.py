@@ -20,7 +20,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Create initial SHAKODS database schema with PostGIS support."""
+    """Create initial RadioShaq database schema with PostGIS support."""
     
     # Create PostGIS extension
     op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
@@ -210,7 +210,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Drop all SHAKODS tables."""
+    """Drop all RadioShaq tables."""
     
     # Drop tables in reverse order of dependencies
     op.drop_table("session_states")

@@ -136,6 +136,7 @@ radio:
 
 # -----------------------------------------------------------------------------
 # Audio (voice_rx pipeline: capture, VAD, ASR, triggers, response mode)
+# Web UI VAD/metrics panel shows a placeholder until the pipeline feeds live metrics.
 # -----------------------------------------------------------------------------
 audio:
   input_device: null
@@ -159,7 +160,7 @@ audio:
   max_speech_duration_ms: 30000
   silence_duration_ms: 800
   asr_model: voxtral
-  asr_language: en
+  asr_language: en    # en | fr | es | auto (auto = detect language; UI shows "Auto (detect)")
   asr_min_confidence: 0.6
   response_mode: listen_only     # listen_only | confirm_first | auto_respond | confirm_timeout
   response_timeout_seconds: 30.0
