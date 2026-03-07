@@ -11,13 +11,13 @@ from radioshaq.specialized.relay_tools import RelayMessageTool
 
 @pytest.mark.unit
 def test_relay_tool_to_schema_has_required_params() -> None:
-    """to_schema() includes required message, source_band, target_band."""
+    """to_schema() requires only message and source_band; target_band is optional (required for radio in validate_params)."""
     tool = RelayMessageTool()
     schema = tool.to_schema()
     required = schema["function"]["parameters"]["required"]
     assert "message" in required
     assert "source_band" in required
-    assert "target_band" in required
+    assert "target_band" not in required
     assert schema["function"]["name"] == "relay_message_between_bands"
 
 
@@ -63,6 +63,20 @@ def test_relay_tool_validate_params_accepts_valid() -> None:
         "source_callsign": "K5ABC",
         "destination_callsign": "W1XYZ",
         "deliver_at": "2026-12-01T12:00:00Z",
+    }) == []
+
+
+@pytest.mark.unit
+def test_relay_tool_validate_params_target_band_required_only_for_radio() -> None:
+    """target_band is required when target_channel is radio; optional for sms/whatsapp."""
+    tool = RelayMessageTool()
+    err_radio = tool.validate_params({"message": "Hi", "source_band": "40m", "target_channel": "radio"})
+    assert any("target_band" in e for e in err_radio)
+    assert tool.validate_params({
+        "message": "Hi",
+        "source_band": "40m",
+        "target_channel": "whatsapp",
+        "destination_phone": "+15551234567",
     }) == []
 
 

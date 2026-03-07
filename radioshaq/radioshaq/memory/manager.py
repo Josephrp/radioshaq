@@ -44,6 +44,7 @@ class MemoryManager:
             pool_size=5,
             max_overflow=10,
             echo=False,
+            connect_args={"timeout": 10},
         )
         self.async_session = sessionmaker(
             self.engine,

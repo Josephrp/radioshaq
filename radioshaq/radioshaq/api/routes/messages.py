@@ -1,9 +1,12 @@
 """Message and orchestrator request endpoints.
 
-Request body may include InboundMessage-compatible fields for outbound routing:
+When the MessageBus consumer is enabled (RADIOSHAQ_BUS_CONSUMER_ENABLED=1), the orchestrator's
+reply is published as an OutboundMessage. The request body can include:
 - message or text: required, content to process
-- channel: optional (e.g. whatsapp, sms, api), for future OutboundMessage routing
-- chat_id: optional, for future OutboundMessage routing
+- channel: optional (e.g. whatsapp, sms, api, radio_rx). Reply is delivered to this channel
+  via the outbound dispatcher (radio_rx -> radio_tx; sms/whatsapp -> Twilio).
+- chat_id: optional. For sms/whatsapp this should be the destination phone (E.164).
+  Preserved on the outbound message so the dispatcher sends to the correct recipient.
 - sender_id: optional, for logging/context
 """
 

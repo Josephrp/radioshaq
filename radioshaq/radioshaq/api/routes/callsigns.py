@@ -34,6 +34,33 @@ class PatchCallsignBandsBody(BaseModel):
     preferred_bands: list[str] = Field(..., min_length=0, description="Preferred bands e.g. [40m, 2m]")
 
 
+# E.164: optional +, digits only (len 10–15)
+E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
+
+
+def _normalize_e164(phone: str) -> str:
+    """Normalize to E.164: digits only with + prefix."""
+    digits = re.sub(r"\D", "", (phone or "").strip())
+    if not digits:
+        return ""
+    return "+" + digits
+
+
+class PatchContactPreferencesBody(BaseModel):
+    """Body for PATCH /callsigns/registered/{callsign}/contact-preferences (§8.1)."""
+
+    notify_sms_phone: str | None = Field(None, description="E.164; set to empty string to clear")
+    notify_whatsapp_phone: str | None = Field(None, description="E.164; set to empty string to clear")
+    notify_on_relay: bool | None = Field(None, description="Enable notify when a message is left for this callsign")
+    consent_source: str | None = Field(None, description="api / web / voice; required when enabling notify_on_relay")
+    consent_confirmed: bool | None = Field(
+        None,
+        description="Explicit consent; required for EU/UK/ZA when enabling notify",
+    )
+
+
+
+
 def _normalize_callsign(callsign: str) -> str:
     return callsign.strip().upper()
 
@@ -211,6 +238,92 @@ async def patch_callsign_bands(
     if not updated:
         raise HTTPException(status_code=404, detail="Callsign not in registry")
     return {"ok": True, "callsign": normalized, "preferred_bands": bands}
+
+
+@router.get("/registered/{callsign:path}/contact-preferences")
+async def get_contact_preferences(
+    request: Request,
+    callsign: str,
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get contact preferences for a registered callsign (§8.1)."""
+    normalized = _normalize_callsign(callsign)
+    _validate_callsign(callsign)
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "get_contact_preferences"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    prefs = await db.get_contact_preferences(normalized)
+    if prefs is None:
+        raise HTTPException(status_code=404, detail="Callsign not in registry")
+    return prefs
+
+
+def _require_explicit_consent_region(region: str) -> bool:
+    """True if region requires explicit consent (EU/UK/ZA)."""
+    return (region or "").upper() in ("CEPT", "FR", "UK", "ES", "BE", "CH", "LU", "MC", "ZA")
+
+
+@router.patch("/registered/{callsign:path}/contact-preferences")
+async def patch_contact_preferences(
+    request: Request,
+    callsign: str,
+    body: PatchContactPreferencesBody,
+    config: Config = Depends(get_config),
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Set contact preferences (notify by SMS/WhatsApp when a message is left for this callsign). Sets consent_at when enabling notify_on_relay (§8.1)."""
+    normalized = _normalize_callsign(callsign)
+    _validate_callsign(callsign)
+    region = getattr(config.radio, "restricted_bands_region", None) or ""
+    if body.notify_on_relay is True:
+        if not body.consent_source or body.consent_source.strip() not in ("api", "web", "voice"):
+            raise HTTPException(
+                status_code=400,
+                detail="consent_source (api / web / voice) required when enabling notify_on_relay",
+            )
+        if _require_explicit_consent_region(region) and body.consent_confirmed is not True:
+            raise HTTPException(
+                status_code=400,
+                detail="consent_confirmed=true required for this region when enabling notify",
+            )
+    sms_phone = None
+    if body.notify_sms_phone is not None:
+        raw = (body.notify_sms_phone or "").strip()
+        if raw:
+            sms_phone = _normalize_e164(raw)
+            if not E164_PATTERN.match(sms_phone):
+                raise HTTPException(status_code=400, detail="notify_sms_phone must be E.164 (10–15 digits)")
+        else:
+            sms_phone = ""
+    whatsapp_phone = None
+    if body.notify_whatsapp_phone is not None:
+        raw = (body.notify_whatsapp_phone or "").strip()
+        if raw:
+            whatsapp_phone = _normalize_e164(raw)
+            if not E164_PATTERN.match(whatsapp_phone):
+                raise HTTPException(status_code=400, detail="notify_whatsapp_phone must be E.164 (10–15 digits)")
+        else:
+            whatsapp_phone = ""
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "set_contact_preferences"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    from datetime import datetime, timezone
+    consent_at = datetime.now(timezone.utc) if (body.notify_on_relay is True and body.consent_source) else None
+    consent_source = (body.consent_source or "").strip() or None
+    if consent_at and not consent_source:
+        consent_source = "api"
+    updated = await db.set_contact_preferences(
+        normalized,
+        notify_sms_phone=sms_phone if sms_phone is not None else None,
+        notify_whatsapp_phone=whatsapp_phone if whatsapp_phone is not None else None,
+        notify_on_relay=body.notify_on_relay,
+        consent_at=consent_at,
+        consent_source=consent_source,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Callsign not in registry")
+    prefs = await db.get_contact_preferences(normalized)
+    return prefs or {}
 
 
 @router.delete("/registered/{callsign:path}")

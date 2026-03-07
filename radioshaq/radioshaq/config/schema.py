@@ -662,6 +662,49 @@ class HQConfig(BaseModel):
     coordination_interval_seconds: int = Field(default=30, ge=5)
 
 
+class TwilioConfig(BaseModel):
+    """Twilio configuration for SMS and WhatsApp (same account; E.164 for numbers)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_sid: str | None = Field(
+        default=None,
+        description="Twilio Account SID (env: RADIOSHAQ_TWILIO__ACCOUNT_SID)",
+    )
+    auth_token: str | None = Field(
+        default=None,
+        description="Twilio Auth Token (env: RADIOSHAQ_TWILIO__AUTH_TOKEN)",
+    )
+    from_number: str | None = Field(
+        default=None,
+        description="SMS sender phone number, E.164 (env: RADIOSHAQ_TWILIO__FROM_NUMBER)",
+    )
+    whatsapp_from: str | None = Field(
+        default=None,
+        description="WhatsApp sender phone number, E.164; must be WhatsApp-enabled in Twilio (env: RADIOSHAQ_TWILIO__WHATSAPP_FROM)",
+    )
+
+
+class EmergencyContactConfig(BaseModel):
+    """Region-aware emergency SMS/WhatsApp contact loop (§9). Human approval required when approval_required=True."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable emergency contact (SMS/WhatsApp) flow; only allowed in regions_allowed.",
+    )
+    regions_allowed: list[str] = Field(
+        default_factory=list,
+        description="Region codes where emergency SMS/WhatsApp is allowed (e.g. FCC, CA). See docs/notify-and-emergency-compliance-plan.md.",
+    )
+    approval_required: bool = Field(default=True, description="Require human approval before sending emergency message.")
+    allowed_event_types: list[str] = Field(
+        default_factory=lambda: ["emergency"],
+        description="Event types that use this config (e.g. emergency).",
+    )
+
+
 # =============================================================================
 # Main Configuration
 # =============================================================================
@@ -702,6 +745,8 @@ class Config(BaseSettings):
     audio: AudioConfig = Field(default_factory=AudioConfig)
     tts: TTSConfig = Field(default_factory=TTSConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
+    twilio: TwilioConfig = Field(default_factory=TwilioConfig)
+    emergency_contact: EmergencyContactConfig = Field(default_factory=EmergencyContactConfig)
 
     # Per-role overrides: keys e.g. orchestrator, judge, whitelist, daily_summary, memory
     llm_overrides: dict[str, Any] | None = Field(
@@ -802,6 +847,8 @@ __all__ = [
     "AudioActivationMode",
     "AudioConfig",
     "Config",
+    "EmergencyContactConfig",
+    "TwilioConfig",
     "TTSConfig",
     "MemoryConfig",
     "DatabaseConfig",

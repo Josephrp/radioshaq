@@ -20,10 +20,11 @@ class RelayMessageTool:
 
     name = "relay_message_between_bands"
     description = (
-        "Relay a message from one band to another. Stores the message so the destination callsign can poll for it "
-        "(GET /transcripts?callsign=<dest>&destination_only=true&band=<target_band>). "
+        "Relay a message from one band to another, or to SMS/WhatsApp. "
+        "For radio: stores the message so the destination callsign can poll (GET /transcripts?callsign=<dest>&destination_only=true&band=<target_band>). "
+        "For sms/whatsapp: set target_channel to 'sms' or 'whatsapp' and destination_phone (E.164); message is delivered via Twilio. "
         "Does not broadcast or transmit unless site config enables it. "
-        "Use when the user or a radio contact asks to pass a message to another band or callsign."
+        "Use when the user or a radio contact asks to pass a message to another band, callsign, or phone."
     )
 
     def __init__(
@@ -59,7 +60,7 @@ class RelayMessageTool:
                         },
                         "target_band": {
                             "type": "string",
-                            "description": "Band to deliver the message to (e.g. 2m, 40m).",
+                            "description": "Band to deliver the message to (e.g. 2m, 40m). Required for radio; omit or use placeholder for sms/whatsapp.",
                         },
                         "source_callsign": {
                             "type": "string",
@@ -82,8 +83,22 @@ class RelayMessageTool:
                             "type": "string",
                             "description": "ISO datetime for scheduled delivery (optional).",
                         },
+                        "target_channel": {
+                            "type": "string",
+                            "description": "Delivery channel: 'radio' (default), 'sms', or 'whatsapp'. If sms/whatsapp, destination_phone is required.",
+                            "default": "radio",
+                        },
+                        "destination_phone": {
+                            "type": "string",
+                            "description": "E.164 phone number for SMS/WhatsApp delivery when target_channel is sms or whatsapp.",
+                        },
+                        "emergency": {
+                            "type": "boolean",
+                            "description": "If true and target_channel is sms/whatsapp, message is queued for human approval (emergency contact flow). Only allowed when emergency_contact is enabled for this region.",
+                            "default": False,
+                        },
                     },
-                    "required": ["message", "source_band", "target_band"],
+                    "required": ["message", "source_band"],
                 },
             },
         }
@@ -94,10 +109,18 @@ class RelayMessageTool:
             errors.append("message is required")
         if not params.get("source_band") or not isinstance(params.get("source_band"), str):
             errors.append("source_band is required")
-        if not params.get("target_band") or not isinstance(params.get("target_band"), str):
-            errors.append("target_band is required")
         source_band = (params.get("source_band") or "").strip()
         target_band = (params.get("target_band") or "").strip()
+        target_channel = (params.get("target_channel") or "radio").strip().lower()
+        if target_channel == "radio" and (not target_band or not isinstance(params.get("target_band"), str)):
+            errors.append("target_band is required when target_channel is radio")
+        destination_phone = (params.get("destination_phone") or "").strip()
+        if target_channel not in ("radio", "sms", "whatsapp"):
+            errors.append("target_channel must be radio, sms, or whatsapp")
+        if target_channel in ("sms", "whatsapp") and not destination_phone:
+            errors.append("destination_phone is required when target_channel is sms or whatsapp")
+        if params.get("emergency") is True and target_channel not in ("sms", "whatsapp"):
+            errors.append("emergency only applies when target_channel is sms or whatsapp")
         config = self._config
         radio = getattr(config, "radio", None) if config else None
         if not radio:
@@ -111,7 +134,7 @@ class RelayMessageTool:
             band_plans = BAND_PLANS
         if source_band and source_band not in band_plans:
             errors.append(f"Unknown source_band: {source_band}; use e.g. 40m, 2m, 20m")
-        if target_band and target_band not in band_plans:
+        if target_channel == "radio" and target_band and target_band not in band_plans:
             errors.append(f"Unknown target_band: {target_band}; use e.g. 40m, 2m, 20m")
         if params.get("source_frequency_hz") is not None and not isinstance(
             params.get("source_frequency_hz"), (int, float)
@@ -137,6 +160,9 @@ class RelayMessageTool:
         source_frequency_hz: float | None = None,
         target_frequency_hz: float | None = None,
         deliver_at: str | None = None,
+        target_channel: str = "radio",
+        destination_phone: str | None = None,
+        emergency: bool = False,
         **kwargs: Any,
     ) -> str:
         if self._storage is None or not getattr(self._storage, "_db", None):
@@ -183,7 +209,7 @@ class RelayMessageTool:
         result = await relay_message_between_bands_service(
             message=message,
             source_band=source_band.strip(),
-            target_band=target_band.strip(),
+            target_band=target_band.strip() if (target_channel or "radio") == "radio" else (target_channel or "radio"),
             source_frequency_hz=source_frequency_hz,
             target_frequency_hz=target_frequency_hz,
             source_callsign=source_callsign or "UNKNOWN",
@@ -192,12 +218,21 @@ class RelayMessageTool:
             storage=self._storage,
             injection_queue=self._injection_queue,
             radio_tx_agent=tx_agent,
-            config=radio_cfg,
+            config=config,
             store_only_relayed=getattr(radio_cfg, "relay_store_only_relayed", False),
+            target_channel=(target_channel or "radio").strip().lower(),
+            destination_phone=(destination_phone or "").strip() or None,
+            emergency=emergency,
         )
 
         if not result.get("ok"):
             return f"Error: {result.get('error', 'relay failed')}"
+
+        if result.get("queued_for_approval"):
+            return (
+                f"Emergency relay queued for human approval (event_id={result.get('event_id')}). "
+                "An operator must approve via POST /emergency/events/{id}/approve before the message is sent."
+            )
 
         if result.get("relay") == "no_storage":
             return (
@@ -209,6 +244,12 @@ class RelayMessageTool:
         rid = result.get("relayed_transcript_id")
         dest = result.get("target_band")
         dest_cs = destination_callsign or "recipient"
+        tch = (target_channel or "radio").strip().lower()
+        if tch in ("sms", "whatsapp"):
+            return (
+                f"Relayed to {tch}. Source transcript ID: {sid}, relayed ID: {rid}. "
+                f"Message will be delivered via {tch} (relay_delivery worker + outbound handler)."
+            )
         return (
             f"Relayed. Source transcript ID: {sid}, relayed ID: {rid}. "
             f"Recipient can poll GET /transcripts?callsign={dest_cs}&destination_only=true&band={dest}."
