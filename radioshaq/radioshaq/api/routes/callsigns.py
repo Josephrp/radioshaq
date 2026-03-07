@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 
@@ -46,14 +47,15 @@ def _validate_callsign(callsign: str) -> None:
         )
 
 
-def _validate_bands(bands: list[str]) -> list[str]:
-    """Validate band names against BAND_PLANS. Returns normalized list. Raises HTTPException if invalid."""
+def _validate_bands(bands: list[str], band_plans: dict | None = None) -> list[str]:
+    """Validate band names against band plan. Returns normalized list. Raises HTTPException if invalid."""
+    plans = band_plans if band_plans is not None else BAND_PLANS
     out = []
     for b in bands:
         s = (b or "").strip()
         if not s:
             continue
-        if s not in BAND_PLANS:
+        if s not in plans:
             raise HTTPException(status_code=400, detail=f"Unknown band: {s}. Use e.g. 40m, 2m, 20m")
         out.append(s)
     return out
@@ -80,6 +82,7 @@ async def list_registered(
 async def register_callsign(
     request: Request,
     body: RegisterBody,
+    config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Register a callsign so it is automatically accepted for store/relay."""
@@ -88,9 +91,14 @@ async def register_callsign(
     source = (body.source or "api").strip().lower()
     if source not in ("api", "audio"):
         source = "api"
+    radio = config.radio
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
     preferred_bands = None
     if body.preferred_bands:
-        preferred_bands = _validate_bands(body.preferred_bands)
+        preferred_bands = _validate_bands(body.preferred_bands, band_plans)
     repo = getattr(request.app.state, "callsign_repository", None)
     if repo is not None:
         try:
@@ -177,12 +185,18 @@ async def patch_callsign_bands(
     request: Request,
     callsign: str,
     body: PatchCallsignBandsBody,
+    config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Set preferred_bands for a registered callsign. Band names must be in BAND_PLANS (e.g. 40m, 2m)."""
+    """Set preferred_bands for a registered callsign. Band names must be in effective band plan (e.g. 40m, 2m)."""
     normalized = _normalize_callsign(callsign)
     _validate_callsign(callsign)
-    bands = _validate_bands(body.preferred_bands)
+    radio = config.radio
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
+    bands = _validate_bands(body.preferred_bands, band_plans)
     repo = getattr(request.app.state, "callsign_repository", None)
     if repo is not None:
         updated = await repo.update_preferred_bands(normalized, bands)

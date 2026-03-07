@@ -11,6 +11,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 
@@ -28,9 +29,10 @@ def _resolve_voice_band(config: Config) -> str | None:
     return None
 
 
-def _voice_frequency_and_mode(band: str) -> tuple[float, str]:
+def _voice_frequency_and_mode(band: str, band_plans: dict | None = None) -> tuple[float, str]:
     """Center frequency (Hz) and default mode for a band."""
-    plan = BAND_PLANS.get(band)
+    plans = band_plans if band_plans is not None else BAND_PLANS
+    plan = plans.get(band)
     if not plan:
         return 0.0, "FM"
     freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
@@ -58,7 +60,16 @@ async def run_voice_listener(
     if not band:
         logger.debug("Voice listener: no default_band or listen_bands, exiting")
         return
-    freq, mode = _voice_frequency_and_mode(band)
+    radio = getattr(config, "radio", None)
+    band_plans = (
+        get_band_plan_source_for_config(
+            getattr(radio, "restricted_bands_region", "FCC"),
+            getattr(radio, "band_plan_region", None),
+        )
+        if radio
+        else BAND_PLANS
+    )
+    freq, mode = _voice_frequency_and_mode(band, band_plans)
     if freq <= 0:
         logger.warning("Voice listener: band %s has no plan, skipping", band)
         return

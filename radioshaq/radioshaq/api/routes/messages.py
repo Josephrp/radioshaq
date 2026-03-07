@@ -27,6 +27,7 @@ from radioshaq.api.dependencies import (
     get_transcript_storage,
 )
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
@@ -181,8 +182,12 @@ async def whitelist_request(
         orchestrator_input += f" Stated callsign: {callsign}."
     
     result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
-    if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
-        plan = BAND_PLANS[response_band]
+    band_plans = get_band_plan_source_for_config(
+        config.radio.restricted_bands_region,
+        getattr(config.radio, "band_plan_region", None),
+    )
+    if response_frequency_hz is None and response_band and response_band in band_plans:
+        plan = band_plans[response_band]
         response_frequency_hz = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
         if not response_mode:
             response_mode = (plan.modes or ["FM"])[0]
@@ -275,16 +280,20 @@ async def message_from_audio(
     if not transcript_text:
         raise HTTPException(status_code=400, detail="No speech detected in audio")
 
+    band_plans = get_band_plan_source_for_config(
+        config.radio.restricted_bands_region,
+        getattr(config.radio, "band_plan_region", None),
+    )
     storage = get_transcript_storage(request)
     db = getattr(request.app.state, "db", None)
     transcript_id = 0
     if storage and db:
         sid = session_id or f"from-audio-{uuid.uuid4().hex[:12]}"
         freq = frequency_hz
-        if freq <= 0 and band and band in BAND_PLANS:
-            plan = BAND_PLANS[band]
+        if freq <= 0 and band and band in band_plans:
+            plan = band_plans[band]
             freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
-        mode_val = (BAND_PLANS[band].modes[0]) if band and band in BAND_PLANS else mode
+        mode_val = (band_plans[band].modes[0]) if band and band in band_plans else mode
         transcript_id = await storage.store(
             session_id=sid,
             source_callsign=src,

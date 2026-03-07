@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.relay.service import relay_message_between_bands_service
 
@@ -97,9 +98,20 @@ class RelayMessageTool:
             errors.append("target_band is required")
         source_band = (params.get("source_band") or "").strip()
         target_band = (params.get("target_band") or "").strip()
-        if source_band and source_band not in BAND_PLANS:
+        config = self._config
+        radio = getattr(config, "radio", None) if config else None
+        if not radio:
+            radio = config
+        if radio:
+            band_plans = get_band_plan_source_for_config(
+                getattr(radio, "restricted_bands_region", "FCC"),
+                getattr(radio, "band_plan_region", None),
+            )
+        else:
+            band_plans = BAND_PLANS
+        if source_band and source_band not in band_plans:
             errors.append(f"Unknown source_band: {source_band}; use e.g. 40m, 2m, 20m")
-        if target_band and target_band not in BAND_PLANS:
+        if target_band and target_band not in band_plans:
             errors.append(f"Unknown target_band: {target_band}; use e.g. 40m, 2m, 20m")
         if params.get("source_frequency_hz") is not None and not isinstance(
             params.get("source_frequency_hz"), (int, float)

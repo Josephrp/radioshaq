@@ -1,12 +1,16 @@
 """Radio and propagation endpoints."""
 
+from __future__ import annotations
+
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
-from radioshaq.api.dependencies import get_current_user, get_radio_tx_agent
+from radioshaq.api.dependencies import get_config, get_current_user, get_radio_tx_agent
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
+from radioshaq.config.schema import Config
 from radioshaq.database.gis import propagation_prediction
 
 router = APIRouter()
@@ -34,11 +38,16 @@ async def propagation(
 
 @router.get("/bands")
 async def bands(
+    config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, list[str]]:
-    """List supported bands (from band plan)."""
-    from radioshaq.radio.bands import BAND_PLANS
-    return {"bands": list(BAND_PLANS.keys())}
+    """List supported bands (from effective band plan for config region)."""
+    radio = config.radio
+    plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
+    return {"bands": list(plans.keys())}
 
 
 @router.get("/status")

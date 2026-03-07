@@ -217,7 +217,8 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
-| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Region for restricted bands: `FCC`, `CEPT`. |
+| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Compliance backend key: `FCC` (US), `CEPT` or `FR` (EU/France), `ITU_R1` (band-plan only). |
+| `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R2`). If null, uses the backend from `restricted_bands_region`. |
 | `radio.allowed_callsigns` | (list in YAML) | `null` | Static list of allowed callsigns; merged with DB registry. |
 | `radio.callsign_registry_required` | `RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED` | `false` | If true, only registered or allowed callsigns for store/relay. |
 | `radio.sdr_tx_enabled` | `RADIOSHAQ_RADIO__SDR_TX_ENABLED` | `false` | Enable HackRF (or other SDR) TX. |
@@ -241,6 +242,17 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.relay_tx_target_band` | `RADIOSHAQ_RADIO__RELAY_TX_TARGET_BAND` | `false` | When relaying (no deliver_at), transmit the relayed message on the target band via radio_tx. |
 
 **Relay:** Relay is **store-only by default**. Recipients get messages by **polling** `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. When `relay_inject_target_band` or `relay_tx_target_band` is enabled, they apply to both the API and the orchestrator relay tool.
+
+**Compliance and region support:** TX is checked against restricted bands and (when `tx_allowed_bands_only` is true) the effective band plan. The **compliance plugin** provides region-specific backends:
+
+| Backend key | Restricted bands | Band plan | Typical use |
+|-------------|------------------|-----------|--------------|
+| `FCC` | US 47 CFR §15.205 | Default (ITU R2) | US, Canada (Americas) |
+| `CEPT` | EU harmonised | IARU R1 (2m 144–146 MHz, 70cm 430–440 MHz) | France, EU, Spain |
+| `FR` | Same as CEPT | Same as CEPT | France |
+| `ITU_R1` | None (band-plan only) | IARU R1 | Override band plan only |
+
+Set `restricted_bands_region: CEPT` (or `FR`) for France/EU to enforce CEPT-style restricted bands and R1 band edges. Use `band_plan_region: ITU_R1` to force R1 band plan while keeping another restricted-band backend. Operators must still verify national rules (e.g. ANFR).
 
 ---
 

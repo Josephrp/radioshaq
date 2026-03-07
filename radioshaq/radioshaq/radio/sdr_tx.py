@@ -8,7 +8,7 @@ from typing import Any, Protocol
 import numpy as np
 from loguru import logger
 
-from radioshaq.radio.bands import BAND_PLANS
+from radioshaq.radio.bands import BAND_PLANS, BandPlan
 from radioshaq.radio.compliance import is_restricted, is_tx_allowed, log_tx
 
 
@@ -48,6 +48,7 @@ class HackRFTransmitter:
         allow_bands_only: bool = True,
         audit_log_path: str | None = None,
         restricted_region: str = "FCC",
+        band_plan_source: dict[str, BandPlan] | None = None,
     ):
         self.device_index = device_index
         self.serial_number = serial_number
@@ -55,15 +56,17 @@ class HackRFTransmitter:
         self.allow_bands_only = allow_bands_only
         self.audit_log_path = audit_log_path
         self.restricted_region = restricted_region
+        self._band_plan_source = band_plan_source
         self._device = None
 
     def _check_compliance(self, frequency_hz: float) -> None:
         """Raise ValueError if TX not allowed on this frequency."""
         if is_restricted(frequency_hz, region=self.restricted_region):
             raise ValueError(f"Frequency {frequency_hz} Hz is in a restricted band (no TX allowed)")
+        plans = self._band_plan_source if self._band_plan_source is not None else BAND_PLANS
         if self.allow_bands_only and not is_tx_allowed(
             frequency_hz,
-            band_plan_source=BAND_PLANS,
+            band_plan_source=plans,
             allow_tx_only_amateur_bands=True,
             restricted_region=self.restricted_region,
         ):

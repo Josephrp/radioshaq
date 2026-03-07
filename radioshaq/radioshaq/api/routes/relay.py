@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from radioshaq.api.callsign_whitelist import get_effective_allowed_callsigns, is_callsign_allowed
 from radioshaq.api.dependencies import get_config, get_current_user, get_radio_tx_agent, get_transcript_storage
 from radioshaq.auth.jwt import TokenPayload
-from radioshaq.radio.bands import BAND_PLANS
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.injection import get_injection_queue
 from radioshaq.relay.service import relay_message_between_bands_service
 
@@ -61,18 +61,23 @@ async def relay_message_between_bands(
     msg = body.message
     source_band = body.source_band
     target_band = body.target_band
-    if source_band not in BAND_PLANS or target_band not in BAND_PLANS:
+    config = get_config(request)
+    radio = config.radio
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
+    if source_band not in band_plans or target_band not in band_plans:
         raise HTTPException(status_code=400, detail="Unknown band; use e.g. 40m, 2m, 20m")
 
-    source_plan = BAND_PLANS[source_band]
-    target_plan = BAND_PLANS[target_band]
+    source_plan = band_plans[source_band]
+    target_plan = band_plans[target_band]
     source_freq = body.source_frequency_hz or (source_plan.freq_start_hz + (source_plan.freq_end_hz - source_plan.freq_start_hz) / 2)
     target_freq = body.target_frequency_hz or (target_plan.freq_start_hz + (target_plan.freq_end_hz - target_plan.freq_start_hz) / 2)
     source_callsign = (body.source_callsign or "UNKNOWN").upper()
     destination_callsign = (body.destination_callsign or "").upper() or None
     session_id = body.session_id or f"relay-{uuid.uuid4().hex[:12]}"
 
-    config = get_config(request)
     allowed = await get_effective_allowed_callsigns(getattr(request.app.state, "db", None), config.radio)
     if not is_callsign_allowed(source_callsign, allowed, config.radio.callsign_registry_required):
         raise HTTPException(status_code=403, detail="Source callsign not allowed")

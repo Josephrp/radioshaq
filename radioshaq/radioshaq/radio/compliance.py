@@ -93,8 +93,15 @@ def is_restricted(
     Return True if the frequency falls in a restricted band (e.g. FCC §15.205).
     Intentional radiation is prohibited in these bands regardless of power.
     """
+    from radioshaq.compliance_plugin import get_backend
+
+    backend = get_backend(region)
+    if backend is not None:
+        for low, high in backend.get_restricted_bands_hz():
+            if low <= freq_hz <= high:
+                return True
+        return False
     if region != "FCC":
-        # Future: CEPT or other region tables
         return False
     for low, high in _RESTRICTED_BANDS_FCC_HZ:
         if low <= freq_hz <= high:
@@ -118,7 +125,15 @@ def is_tx_allowed(
         return False
     if not allow_tx_only_amateur_bands:
         return True
-    plans = band_plan_source if band_plan_source is not None else BAND_PLANS
+    if band_plan_source is None:
+        from radioshaq.compliance_plugin import get_backend
+
+        b = get_backend(restricted_region)
+        if b is not None and b.get_band_plans() is not None:
+            band_plan_source = b.get_band_plans()
+        else:
+            band_plan_source = BAND_PLANS
+    plans = band_plan_source
     for plan in plans.values():
         if plan.freq_start_hz <= freq_hz <= plan.freq_end_hz:
             return True

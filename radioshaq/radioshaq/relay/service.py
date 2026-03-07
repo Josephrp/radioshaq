@@ -10,6 +10,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.bands import BAND_PLANS
 
 
@@ -40,7 +41,14 @@ async def relay_message_between_bands_service(
     source_band, target_band, session_id, deliver_at. When no storage, returns
     ok=True, relay="no_storage" and band/freq/callsign info only.
     """
-    if source_band not in BAND_PLANS or target_band not in BAND_PLANS:
+    if config is not None:
+        band_plans = get_band_plan_source_for_config(
+            getattr(config, "restricted_bands_region", "FCC"),
+            getattr(config, "band_plan_region", None),
+        )
+    else:
+        band_plans = BAND_PLANS
+    if source_band not in band_plans or target_band not in band_plans:
         return {
             "ok": False,
             "error": "Unknown band; use e.g. 40m, 2m, 20m",
@@ -48,8 +56,8 @@ async def relay_message_between_bands_service(
             "target_band": target_band,
         }
 
-    source_plan = BAND_PLANS[source_band]
-    target_plan = BAND_PLANS[target_band]
+    source_plan = band_plans[source_band]
+    target_plan = band_plans[target_band]
     source_freq = source_frequency_hz or (
         source_plan.freq_start_hz + (source_plan.freq_end_hz - source_plan.freq_start_hz) / 2
     )

@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
 
@@ -30,6 +31,14 @@ async def run_relay_delivery_worker(
         return
     radio_cfg = getattr(config, "radio", None)
     relay_tx = getattr(radio_cfg, "relay_tx_target_band", False) if radio_cfg else False
+    band_plans = (
+        get_band_plan_source_for_config(
+            getattr(radio_cfg, "restricted_bands_region", "FCC"),
+            getattr(radio_cfg, "band_plan_region", None),
+        )
+        if radio_cfg
+        else BAND_PLANS
+    )
 
     while not stop_event.is_set():
         try:
@@ -44,7 +53,7 @@ async def run_relay_delivery_worker(
                 mode = t.get("mode") or "FM"
                 freq = t.get("frequency_hz") or 0.0
                 if not freq and band:
-                    plan = BAND_PLANS.get(band)
+                    plan = band_plans.get(band)
                     if plan:
                         freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
 
