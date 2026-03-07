@@ -68,11 +68,11 @@ class HackRFTransmitter:
             from radioshaq.compliance_plugin import get_backend
 
             b = get_backend(self.restricted_region)
-            plans = (
-                b.get_band_plans()
-                if b is not None and b.get_band_plans() is not None
-                else BAND_PLANS
-            )
+            if b is not None:
+                _plans = b.get_band_plans()
+                plans = _plans if _plans is not None else BAND_PLANS
+            else:
+                plans = BAND_PLANS
         if self.allow_bands_only and not is_tx_allowed(
             frequency_hz,
             band_plan_source=plans,

@@ -217,8 +217,8 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
-| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Compliance backend key: `FCC`, `CA`, `CEPT`, `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`, `ITU_R1`, `ITU_R3`, `MX`, `AR`, `CL`, … (Americas), `AU`, `ZA`, `NG`, `KE`, … (Africa), `NZ`, `JP`, `IN`. |
-| `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R2`). If null, uses the backend from `restricted_bands_region`. |
+| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Country/region for restricted-band enforcement: `FCC`, `CA`, `CEPT`, `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`, `MX`, `AR`, `CL`, … (Americas), `AU`, `ZA`, `NG`, `KE`, … (Africa), `NZ`, `JP`, `IN`. **Do not use `ITU_R1` or `ITU_R3`** here — they are band-plan-only (no restricted bands); use `band_plan_region` for those. |
+| `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R3`). If null, uses the backend from `restricted_bands_region`. Use this for ITU region plans; keep `restricted_bands_region` as a country. |
 | `radio.allowed_callsigns` | (list in YAML) | `null` | Static list of allowed callsigns; merged with DB registry. |
 | `radio.callsign_registry_required` | `RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED` | `false` | If true, only registered or allowed callsigns for store/relay. |
 | `radio.sdr_tx_enabled` | `RADIOSHAQ_RADIO__SDR_TX_ENABLED` | `false` | Enable HackRF (or other SDR) TX. |

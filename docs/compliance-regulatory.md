@@ -29,6 +29,8 @@ This page documents the regulatory sources used by the compliance plugin for res
 | **JP** | Japan (ITU R3) | Conservative set (MIC/JARL) | IARU R3 | MIC; JARL |
 | **IN** | India (ITU R3) | Conservative set (WPC) | IARU R3 | WPC; ARSI |
 
+**Important:** Use **ITU_R1** and **ITU_R3** only as `band_plan_region`, not as `restricted_bands_region`. They provide band plans but no restricted-band list; setting them as restricted region would disable all restricted-band enforcement. Set `restricted_bands_region` to a country (e.g. CEPT, FR, AU) and `band_plan_region` to ITU_R1 or ITU_R3 if you need that plan.
+
 ---
 
 ## FCC (United States)

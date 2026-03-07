@@ -11,6 +11,10 @@ from loguru import logger
 
 from radioshaq.radio.bands import BAND_PLANS, BandPlan, get_band_for_frequency
 
+# Regions that are band-plan-only (no restricted bands). Warn once if used as restricted_bands_region.
+_WARNED_RESTRICTED_REGIONS: set[str] = set()
+_BAND_PLAN_ONLY_KEYS = frozenset({"ITU_R1", "ITU_R3"})
+
 
 def is_restricted(
     freq_hz: float,
@@ -25,7 +29,17 @@ def is_restricted(
     backend = get_backend(region)
     if backend is None:
         return False
-    for low, high in backend.get_restricted_bands_hz():
+    restricted = backend.get_restricted_bands_hz()
+    # Band-plan-only backends (ITU_R1, ITU_R3) enforce no restrictions; warn once to avoid silent footgun.
+    if not restricted and getattr(backend, "region_key", None) in _BAND_PLAN_ONLY_KEYS:
+        if region not in _WARNED_RESTRICTED_REGIONS:
+            _WARNED_RESTRICTED_REGIONS.add(region)
+            logger.warning(
+                "restricted_bands_region={!r} has no restricted bands (band-plan-only). "
+                "Use band_plan_region for ITU_R1/ITU_R3 and set restricted_bands_region to a country (e.g. CEPT, FR, AU).",
+                region,
+            )
+    for low, high in restricted:
         if low <= freq_hz <= high:
             return True
     return False
@@ -51,8 +65,9 @@ def is_tx_allowed(
         from radioshaq.compliance_plugin import get_backend
 
         b = get_backend(restricted_region)
-        if b is not None and b.get_band_plans() is not None:
-            band_plan_source = b.get_band_plans()
+        if b is not None:
+            _plans = b.get_band_plans()
+            band_plan_source = _plans if _plans is not None else BAND_PLANS
         else:
             band_plan_source = BAND_PLANS
     plans = band_plan_source
