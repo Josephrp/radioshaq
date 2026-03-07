@@ -85,14 +85,14 @@ register_backend(CABackend())
 for _key in ("AR", "CL", "CO", "PE", "VE", "EC", "UY", "PY", "BO", "CR", "PA", "GT", "DO"):
     register_backend(R2AmericasBackend(_key))
 register_backend(AUBackend())
-# R1 Africa: R1 band plan, no restricted bands in code (verify national rules)
+# R1 Africa: R1 band plan, CEPT-aligned restricted (verify national rules). ZA has dedicated backend below.
 _africa_keys = (
-    "ZA", "NG", "KE", "EG", "MA", "TN", "DZ", "GH", "TZ", "ET", "SN", "CI", "CM",
+    "NG", "KE", "EG", "MA", "TN", "DZ", "GH", "TZ", "ET", "SN", "CI", "CM",
     "BW", "NA", "ZW", "MZ", "UG", "RW", "GA", "ML", "BF", "NE", "TG", "BJ", "CD", "MG",
 )
 for _key in _africa_keys:
     register_backend(R1AfricaBackend(_key))
-register_backend(ZABackend())  # ZA overwrites R1AfricaBackend("ZA") with ICASA list
+register_backend(ZABackend())  # South Africa: ICASA NRFP list + R1 band plan
 register_backend(NZBackend())
 register_backend(JPBackend())
 register_backend(INBackend())

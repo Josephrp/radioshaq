@@ -47,8 +47,7 @@ RESTRICTED_BANDS_AU_HZ: list[tuple[float, float]] = [
     (156.7e6, 156.9e6),
     (162.0125e6, 167.17e6),
     (167.72e6, 173.2e6),
-    (406.0e6, 406.1e6),  # COSPAS-SARSAT
-    (399.9e6, 410e6),
+    (399.9e6, 410e6),  # COSPAS-SARSAT (406.0–406.1) and adjacent
     (608e6, 614e6),
     (960e6, 1240e6),
     (1300e6, 1427e6),

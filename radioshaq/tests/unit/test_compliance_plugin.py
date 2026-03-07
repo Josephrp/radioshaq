@@ -184,6 +184,7 @@ def test_za_restricted_bands_enforced():
     assert len(za.get_restricted_bands_hz()) > 0
     assert is_restricted(115e6, region="ZA") is True   # aeronautical
     assert is_restricted(145e6, region="ZA") is False   # amateur 2m R1
+    assert is_restricted(433.5e6, region="ZA") is False  # 70cm shared ISM/amateur, TX permitted
 
 
 def test_get_backend_nz_jp_in():

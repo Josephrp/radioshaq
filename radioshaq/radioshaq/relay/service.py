@@ -42,9 +42,10 @@ async def relay_message_between_bands_service(
     ok=True, relay="no_storage" and band/freq/callsign info only.
     """
     if config is not None:
+        radio_cfg = getattr(config, "radio", config)
         band_plans = get_band_plan_source_for_config(
-            getattr(config, "restricted_bands_region", "FCC"),
-            getattr(config, "band_plan_region", None),
+            getattr(radio_cfg, "restricted_bands_region", "FCC"),
+            getattr(radio_cfg, "band_plan_region", None),
         )
     else:
         band_plans = BAND_PLANS

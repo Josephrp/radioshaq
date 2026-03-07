@@ -1,7 +1,9 @@
 """South Africa (ITU R1): ICASA NRFP-derived restricted bands + R1 band plan.
 
 Restricted bands from ICASA National Radio Frequency Plan and RFSAPs;
-433.05–434.79 MHz ISM sharing; aeronautical, radionav, COSPAS-SARSAT, etc.
+aeronautical, radionav, COSPAS-SARSAT, marine, etc. 433.05–434.79 MHz is
+shared ISM/amateur — intentional radiation permitted under amateur licence;
+not in restricted list so 70cm simplex (e.g. 433.5 MHz) is allowed.
 Operator must verify ICASA / SARL.
 """
 
@@ -12,8 +14,8 @@ from radioshaq.radio.bands import BandPlan
 from ..base import ComplianceBackend
 from .itu_r1 import BAND_PLANS_R1
 
-# Conservative set from ICASA NRFP / RFSAPs: aeronautical, radionav, COSPAS-SARSAT,
-# 433.05–434.79 ISM (amateur sharing); 336–366 MHz fixed/PPDR; etc.
+# Conservative set from ICASA NRFP / RFSAPs: aeronautical, radionav, COSPAS-SARSAT, marine,
+# 336–366 MHz fixed/PPDR; etc. 433.05–434.79 MHz omitted (shared ISM/amateur, TX permitted).
 # Source: ICASA National Radio Frequency Plan; operator must verify.
 RESTRICTED_BANDS_ZA_HZ: list[tuple[float, float]] = [
     (0.090e6, 0.110e6),
@@ -48,9 +50,7 @@ RESTRICTED_BANDS_ZA_HZ: list[tuple[float, float]] = [
     (162.0125e6, 167.17e6),
     (167.72e6, 173.2e6),
     (336e6, 366e6),  # ICASA fixed/PPDR
-    (406.0e6, 406.1e6),  # COSPAS-SARSAT
-    (399.9e6, 410e6),
-    (433.05e6, 434.79e6),  # ISM (ICASA sharing)
+    (399.9e6, 410e6),  # COSPAS-SARSAT and adjacent
     (608e6, 614e6),
     (960e6, 1240e6),
     (1300e6, 1427e6),
