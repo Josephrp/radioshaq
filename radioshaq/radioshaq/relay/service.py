@@ -144,7 +144,7 @@ async def relay_message_between_bands_service(
         mode = (source_plan.modes or ["SSB"])[0]
         target_mode = (target_plan.modes or ["FM"])[0]
 
-    if not storage or not getattr(storage, "_db", None):
+    if not storage or getattr(storage, "db", None) is None:
         return {
             "ok": True,
             "relay": "no_storage",

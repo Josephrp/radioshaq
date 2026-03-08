@@ -3,11 +3,42 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 from typing import Any
 
 from loguru import logger
 
 from radioshaq.orchestrator.outbound_radio import handle_one_outbound_radio
+
+MAX_OUTBOUND_RETRIES = 3
+
+
+async def _maybe_reenqueue_outbound(bus: Any, msg: Any, channel_label: str) -> None:
+    """Re-enqueue msg with incremented _retries, or log as dead-letter if over limit."""
+    meta = dict(getattr(msg, "metadata", None) or {})
+    retries = int(meta.get("_retries", 0))
+    if retries >= MAX_OUTBOUND_RETRIES:
+        logger.error(
+            "Outbound %s to %s failed %d times, dropping to dead-letter",
+            channel_label, msg.chat_id, MAX_OUTBOUND_RETRIES,
+        )
+        return
+    meta["_retries"] = retries + 1
+    try:
+        if dataclasses.is_dataclass(msg):
+            await bus.publish_outbound(dataclasses.replace(msg, metadata=meta))
+        else:
+            from radioshaq.vendor.nanobot.bus.events import OutboundMessage
+            await bus.publish_outbound(OutboundMessage(
+                channel=msg.channel,
+                chat_id=msg.chat_id,
+                content=msg.content or "",
+                reply_to=getattr(msg, "reply_to", None),
+                media=list(getattr(msg, "media", [])),
+                metadata=meta,
+            ))
+    except Exception:
+        logger.error("Failed to re-enqueue outbound %s message to %s", channel_label, msg.chat_id)
 
 
 async def run_outbound_handler(
@@ -44,17 +75,11 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                     except Exception as e:
-                        logger.warning("Outbound sms execute failed, re-enqueuing: %s", e)
-                        try:
-                            await bus.publish_outbound(msg)
-                        except Exception:
-                            logger.error("Failed to re-enqueue outbound sms message to %s", msg.chat_id)
+                        logger.warning("Outbound sms execute failed: %s", e)
+                        await _maybe_reenqueue_outbound(bus, msg, "sms")
                 else:
                     logger.debug("Outbound sms: no sms agent, re-enqueuing")
-                    try:
-                        await bus.publish_outbound(msg)
-                    except Exception:
-                        logger.error("Failed to re-enqueue outbound sms message to %s", msg.chat_id)
+                    await _maybe_reenqueue_outbound(bus, msg, "sms")
             elif msg.channel == "whatsapp":
                 wa_agent = agent_registry.get_agent("whatsapp") if agent_registry else None
                 if wa_agent and hasattr(wa_agent, "execute"):
@@ -68,17 +93,11 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                     except Exception as e:
-                        logger.warning("Outbound whatsapp execute failed, re-enqueuing: %s", e)
-                        try:
-                            await bus.publish_outbound(msg)
-                        except Exception:
-                            logger.error("Failed to re-enqueue outbound whatsapp message to %s", msg.chat_id)
+                        logger.warning("Outbound whatsapp execute failed: %s", e)
+                        await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
                 else:
                     logger.debug("Outbound whatsapp: no whatsapp agent, re-enqueuing")
-                    try:
-                        await bus.publish_outbound(msg)
-                    except Exception:
-                        logger.error("Failed to re-enqueue outbound whatsapp message to %s", msg.chat_id)
+                    await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
             else:
                 logger.debug("Outbound unsupported channel: %s", msg.channel)
         except asyncio.CancelledError:
