@@ -115,6 +115,8 @@ async def _emergency_stream_generator(request: Request) -> AsyncIterator[str]:
     """SSE: send pending_count every 10s so the operator UI can show alerts without polling."""
     interval = 10.0
     while True:
+        if await request.is_disconnected():
+            break
         try:
             count = await _get_pending_emergency_count(request)
             payload = json.dumps({"pending_count": count})
@@ -201,16 +203,20 @@ async def approve_emergency_event(
         return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Message bus not available"}
     from radioshaq.vendor.nanobot.bus.events import OutboundMessage
     content = extra.get("message") or event.get("notes") or "Emergency notification from RadioShaq."
-    ok = await message_bus.publish_outbound(
-        OutboundMessage(
-            channel=channel,
-            chat_id=phone,
-            content=content,
-            reply_to=None,
-            media=[],
-            metadata={"emergency_event_id": event_id, "approved_by": str(approver)},
+    try:
+        ok = await message_bus.publish_outbound(
+            OutboundMessage(
+                channel=channel,
+                chat_id=phone,
+                content=content,
+                reply_to=None,
+                media=[],
+                metadata={"emergency_event_id": event_id, "approved_by": str(approver)},
+            )
         )
-    )
+    except Exception as exc:
+        await db.update_coordination_event(event_id, status="pending")
+        raise HTTPException(status_code=503, detail=f"Outbound bus error: {exc}") from exc
     if not ok:
         await db.update_coordination_event(event_id, status="pending")
         return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Outbound queue full"}

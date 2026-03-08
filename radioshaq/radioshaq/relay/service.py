@@ -59,13 +59,13 @@ async def relay_message_between_bands_service(
                 "target_channel": target_channel,
             }
         if getattr(ec_cfg, "approval_required", True):
-            if not storage or not getattr(storage, "_db", None):
+            if not storage or storage.db is None:
                 return {
                     "ok": False,
                     "error": "Emergency approval required but database is unavailable",
                     "target_channel": target_channel,
                 }
-            db = storage._db
+            db = storage.db
             if not hasattr(db, "store_coordination_event"):
                 return {
                     "ok": False,
