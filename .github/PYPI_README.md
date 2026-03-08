@@ -16,6 +16,8 @@ pip install radioshaq
 
 **Requirements:** Python 3.11+
 
+**License notice:** RadioShaq is distributed under GPL-2.0-only. Official CLI and web UI require explicit license acceptance before normal use.
+
 ---
 
 ## Easiest way to get started: interactive setup
@@ -131,20 +133,20 @@ HQ accepts uploads at `POST /receiver/upload` (Bearer JWT). Default receiver por
 If you prefer to configure by hand:
 
 1. **Database:** Set `DATABASE_URL` or `POSTGRES_*` (and run migrations with your Alembic config).
-2. **Config:** Copy `config.example.yaml` to `config.yaml` and set `mode`, `database`, `auth`, etc. See [Configuration](https://Josephrp.github.io/RadioShaq/configuration/).
+2. **Config:** Copy `config.example.yaml` to `config.yaml` and set `mode`, `database`, `auth`, etc. See [Configuration](https://radioshaq.readthedocs.io/configuration/).
 3. **Start:** `radioshaq run-api`.
 
 ---
 
 ## Documentation
 
-- [Quick Start](https://Josephrp.github.io/RadioShaq/quick-start/)
-- [Configuration](https://Josephrp.github.io/RadioShaq/configuration/)
-- [API Reference](https://Josephrp.github.io/RadioShaq/api-reference/)
-- [Radio / hardware](https://Josephrp.github.io/RadioShaq/radio-usage/)
+- [Quick Start](https://radioshaq.readthedocs.io/quick-start/)
+- [Configuration](https://radioshaq.readthedocs.io/configuration/)
+- [API Reference](https://radioshaq.readthedocs.io/api-reference/)
+- [Radio / hardware](https://radioshaq.readthedocs.io/radio-usage/)
 
 ---
 
 ## License
 
-MIT
+GPL-2.0-only

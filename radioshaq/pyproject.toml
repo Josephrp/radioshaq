@@ -1,10 +1,11 @@
 [project]
 name = "radioshaq"
-version = "0.1.0"
+version = "0.1.2"
 description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception System"
 readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
-license = {text = "MIT"}
+license = {text = "GPL-2.0-only"}
+license-files = ["../LICENSE.md"]
 authors = [
     {name = "RadioShaq Contributors"}
 ]
@@ -14,7 +15,7 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Telecommunications Industry",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -117,13 +118,14 @@ radio = [
     # "pyham-ax25",  # For packet radio
 ]
 
-# ASR (radioshaq/voxtral-asr-en) + TTS (ElevenLabs)
+# ASR: Voxtral (shakods/voxtral-asr-en), Whisper (local). Scribe uses ELEVENLABS_API_KEY.
 audio = [
     "transformers>=4.54",
     "peft>=0.18",
     "accelerate>=1.0",
     "torch>=2.0",
     "mistral-common[audio]>=1.8.1",
+    "openai-whisper>=20231117",
 ]
 
 # Voice TX: play audio to rig (sound device → rig line-in)
@@ -147,8 +149,15 @@ voice_rx = [
     "noisereduce>=3.0",
 ]
 
+# Local TTS: Kokoro-82M (no API key). Kokoro pulls in torch, transformers, misaki[en], etc.
+# On Linux, soundfile may need libsndfile: apt install libsndfile1 (or equivalent).
+tts_kokoro = [
+    "kokoro>=0.9.4",
+    "soundfile>=0.12.1",
+]
+
 [project.scripts]
-radioshaq = "radioshaq.cli:app"
+radioshaq = "radioshaq.cli:main"
 run-receiver = "radioshaq.remote_receiver.server:main"
 alembic-upgrade = "radioshaq.scripts.alembic_runner:main_upgrade"
 alembic-upgrade-sql = "radioshaq.scripts.alembic_runner:main_upgrade_sql"

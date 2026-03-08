@@ -12,6 +12,8 @@ from typing import Any, Optional
 import typer
 import httpx
 
+from radioshaq.license_acceptance import ensure_license_accepted
+
 app = typer.Typer(
     name="radioshaq",
     help="RadioShaq CLI: auth, health, callsigns, messages, transcripts, radio, run API server.",
@@ -564,7 +566,7 @@ def setup(
     llm_provider: Optional[str] = typer.Option(
         None,
         "--llm-provider",
-        help="LLM provider for --no-input: mistral | openai | anthropic | custom.",
+        help="LLM provider for --no-input: mistral | openai | anthropic | custom | huggingface.",
     ),
     llm_model: Optional[str] = typer.Option(
         None,
@@ -575,6 +577,11 @@ def setup(
         None,
         "--custom-api-base",
         help="Custom LLM API base URL (e.g. http://localhost:11434 for Ollama). Used with --no-input.",
+    ),
+    huggingface_api_base: Optional[str] = typer.Option(
+        None,
+        "--huggingface-api-base",
+        help="Hugging Face Inference Providers API base (default https://router.huggingface.co/v1). Used with --no-input when provider is huggingface.",
     ),
     hindsight_url: Optional[str] = typer.Option(
         None,
@@ -595,6 +602,16 @@ def setup(
         None,
         "--radio-reply-use-tts/--radio-reply-no-tts",
         help="Use TTS for outbound MessageBus radio replies (used with --no-input).",
+    ),
+    restricted_bands_region: Optional[str] = typer.Option(
+        None,
+        "--restricted-bands-region",
+        help="Compliance region/country (e.g. FCC, CA, CEPT, AU, ZA, NZ). Used with --no-input.",
+    ),
+    band_plan_region: Optional[str] = typer.Option(
+        None,
+        "--band-plan-region",
+        help="Optional band plan override (ITU_R1, ITU_R3). Used with --no-input.",
     ),
     llm_overrides: Optional[str] = typer.Option(
         None,
@@ -627,10 +644,13 @@ def setup(
         llm_provider=llm_provider,
         llm_model=llm_model,
         custom_api_base=custom_api_base,
+        huggingface_api_base=huggingface_api_base,
         hindsight_url=hindsight_url,
         memory_enabled=memory_enabled,
         radio_reply_tx_enabled=radio_reply_tx_enabled,
         radio_reply_use_tts=radio_reply_use_tts,
+        restricted_bands_region=restricted_bands_region,
+        band_plan_region=band_plan_region,
         llm_overrides=llm_overrides,
     )
     raise typer.Exit(exit_code)
@@ -785,11 +805,34 @@ app.add_typer(launch_app)
 # -----------------------------------------------------------------------------
 
 
+def _should_skip_license_gate(argv: list[str]) -> bool:
+    """Allow informational/license-intent invocations before acceptance."""
+    if not argv:
+        return True
+    if "--help" in argv:
+        return True
+    safe_first_args = {
+        "help",
+        "--help",
+        "--version",
+        "-v",
+        "license",
+        "license-accept",
+        "accept-license",
+    }
+    return argv[0] in safe_first_args
+
+
 def main() -> int:
     """Entry point for 'radioshaq' script and python -m radioshaq."""
     try:
+        if not _should_skip_license_gate(sys.argv[1:]):
+            ensure_license_accepted()
         app()
         return 0
+    except RuntimeError as e:
+        typer.echo(str(e), err=True)
+        return 1
     except typer.Exit as e:
         return e.exit_code
     except Exception as e:

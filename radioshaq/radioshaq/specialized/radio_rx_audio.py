@@ -257,6 +257,28 @@ class RadioAudioReceptionAgent(SpecializedAgent):
 
         if self.stream_processor:
             self.stream_processor.set_segment_callback(self._on_segment_ready)
+        self._metrics_callback: Callable[[dict[str, Any]], None] | None = None
+
+    def set_metrics_callback(self, callback: Callable[[dict[str, Any]], None] | None) -> None:
+        """Set callback for live VAD/metrics (vad_active, snr_db, state). Used by API to feed websocket."""
+        self._metrics_callback = callback
+        if self.stream_processor:
+            if callback is not None:
+                def forward(vad_active: bool, snr_db: float | None, state: str) -> None:
+                    callback({
+                        "type": "metrics",
+                        "vad_active": vad_active,
+                        "snr_db": snr_db,
+                        "state": state,
+                    })
+                self.stream_processor.set_metrics_callback(forward)
+            else:
+                self.stream_processor.set_metrics_callback(None)
+        elif callback is not None:
+            logger.warning(
+                "set_metrics_callback called but stream_processor is None; "
+                "callback will not be forwarded until stream_processor is set."
+            )
 
     async def execute(
         self,
@@ -525,15 +547,13 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                 sf.write(f.name, segment.audio, segment.sample_rate)
                 temp_path = f.name
             try:
-                if self.config.asr_model == "voxtral":
-                    from radioshaq.audio.asr import transcribe_audio_voxtral
-                    out = transcribe_audio_voxtral(
-                        temp_path, language=self.config.asr_language
-                    )
-                else:
-                    model = self._get_whisper_model()
-                    result = model.transcribe(temp_path)
-                    out = result.get("text", "")
+                from radioshaq.audio.asr_plugin import transcribe_audio
+                out = await asyncio.to_thread(
+                    transcribe_audio,
+                    temp_path,
+                    self.config.asr_model,
+                    language=self.config.asr_language,
+                )
                 return (out or "").strip() or None
             finally:
                 Path(temp_path).unlink(missing_ok=True)
@@ -584,15 +604,13 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return {"error": "audio_path required"}
         await self.emit_progress(upstream_callback, "transcribing", audio_path=audio_path)
         try:
-            if self.config.asr_model == "voxtral":
-                from radioshaq.audio.asr import transcribe_audio_voxtral
-                transcript = transcribe_audio_voxtral(
-                    audio_path, language=self.config.asr_language
-                )
-            else:
-                model = self._get_whisper_model()
-                result = model.transcribe(audio_path)
-                transcript = result.get("text", "").strip()
+            from radioshaq.audio.asr_plugin import transcribe_audio
+            transcript = await asyncio.to_thread(
+                transcribe_audio,
+                audio_path,
+                self.config.asr_model,
+                language=self.config.asr_language,
+            )
             await self.emit_result(
                 upstream_callback,
                 {"type": "transcription", "transcript": transcript, "audio_path": audio_path},

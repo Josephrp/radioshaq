@@ -1,7 +1,7 @@
-SHAKODS Database Migrations
-============================
+RadioShaq Database Migrations
+=============================
 
-This directory contains Alembic database migrations for SHAKODS.
+This directory contains Alembic database migrations for RadioShaq.
 
 Prerequisites
 -------------
@@ -14,8 +14,8 @@ Quick Start
 
 1. Initialize database (first time only):
    ```bash
-   createdb shakods
-   psql shakods -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+   createdb radioshaq
+   psql radioshaq -c "CREATE EXTENSION IF NOT EXISTS postgis;"
    ```
 
 2. Run migrations:
@@ -43,14 +43,14 @@ Environment Variables
 ---------------------
 
 - `DATABASE_URL`: Full PostgreSQL URL
-  Example: `postgresql://user:pass@localhost:5432/shakods`
+  Example: `postgresql://user:pass@localhost:5432/radioshaq`
 - `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`: Individual components
 
 With PM2
 --------
 
 ```bash
-pm2 start ecosystem.config.js --only shakods-migrate
+pm2 start ecosystem.config.js --only radioshaq-migrate
 ```
 
 Troubleshooting

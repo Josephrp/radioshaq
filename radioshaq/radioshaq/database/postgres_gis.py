@@ -1,4 +1,4 @@
-"""PostGIS database manager for SHAKODS.
+"""PostGIS database manager for RadioShaq.
 
 Provides high-level operations for geographic data storage
 and spatial queries using SQLAlchemy and PostGIS.
@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from geoalchemy2.functions import ST_DWithin, ST_GeogFromText
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -39,11 +39,12 @@ class PostGISManager:
         await manager.init_db()
         
         # Store operator location
-        location_id = await manager.store_operator_location(
+        loc = await manager.store_operator_location(
             callsign="N0CALL",
             latitude=40.7128,
             longitude=-74.0060,
         )
+        location_id = loc["id"]
         
         # Find nearby operators
         nearby = await manager.find_operators_nearby(
@@ -77,7 +78,7 @@ class PostGISManager:
         
         Creates:
         - PostGIS extension
-        - All SHAKODS tables
+        - All RadioShaq tables
         - Spatial indexes
         """
         async with self.engine.begin() as conn:
@@ -106,7 +107,7 @@ class PostGISManager:
         accuracy_meters: float | None = None,
         source: str = "manual",
         session_id: str | None = None,
-    ) -> int:
+    ) -> dict[str, Any]:
         """Store operator location with GIS data.
         
         Args:
@@ -119,13 +120,14 @@ class PostGISManager:
             session_id: Optional session reference
             
         Returns:
-            Location record ID
+            Dict with id, callsign, latitude, longitude, source, timestamp, etc. (avoids TOCTOU refetch).
         """
+        callsign_upper = callsign.upper()
         async with self.async_session() as session:
             # Create Point geometry in WGS 84
             # Note: PostGIS Point format is (longitude, latitude)
             location = OperatorLocation(
-                callsign=callsign.upper(),
+                callsign=callsign_upper,
                 location=f"SRID=4326;POINT({longitude} {latitude})",
                 altitude_meters=altitude_meters,
                 accuracy_meters=accuracy_meters,
@@ -134,7 +136,18 @@ class PostGISManager:
             )
             session.add(location)
             await session.commit()
-            return location.id
+            await session.refresh(location)
+        return {
+            "id": location.id,
+            "callsign": location.callsign,
+            "latitude": latitude,
+            "longitude": longitude,
+            "altitude_meters": location.altitude_meters,
+            "accuracy_meters": location.accuracy_meters,
+            "source": location.source,
+            "timestamp": location.timestamp.isoformat() if location.timestamp else None,
+            "session_id": location.session_id,
+        }
     
     async def find_operators_nearby(
         self,
@@ -164,14 +177,15 @@ class PostGISManager:
             # Build point geometry
             point = f"SRID=4326;POINT({longitude} {latitude})"
             
-            # Base query
+            # Base query (include lat/lon for each operator so callers can map or compute further)
             query = select(
                 OperatorLocation.callsign,
                 OperatorLocation.timestamp,
                 OperatorLocation.altitude_meters,
                 OperatorLocation.source,
                 OperatorLocation.session_id,
-                # Calculate distance using geography type (accurate in meters)
+                text("ST_Y(location::geometry)").label("latitude"),
+                text("ST_X(location::geometry)").label("longitude"),
                 text(
                     "ST_Distance(location::geography, ST_GeogFromText(:point))"
                 ).label("distance_meters"),
@@ -184,24 +198,27 @@ class PostGISManager:
                 )
             )
             
-            # Add recent-only filter
+            # Add recent-only filter: use make_interval so recent_hours is a proper bind (no interpolation)
             if recent_only:
                 query = query.where(
-                    text(
-                        f"timestamp > NOW() - INTERVAL '{recent_hours} hours'"
-                    )
+                    text("timestamp > NOW() - make_interval(hours => :recent_hours)")
                 )
             
             # Order by most recent first
             query = query.order_by(OperatorLocation.timestamp.desc())
             query = query.limit(max_results)
             
-            # Execute with point parameter
-            result = await session.execute(query, {"point": point})
+            # Execute with bound parameters
+            params: dict[str, Any] = {"point": point}
+            if recent_only:
+                params["recent_hours"] = recent_hours
+            result = await session.execute(query, params)
             
             return [
                 {
                     "callsign": row.callsign,
+                    "latitude": float(row.latitude) if row.latitude is not None else None,
+                    "longitude": float(row.longitude) if row.longitude is not None else None,
                     "timestamp": row.timestamp.isoformat() if row.timestamp else None,
                     "altitude_meters": row.altitude_meters,
                     "source": row.source,
@@ -236,7 +253,44 @@ class PostGISManager:
             if location:
                 return location.to_dict()
             return None
-    
+
+    async def get_latest_location_decoded(
+        self,
+        callsign: str,
+    ) -> dict[str, Any] | None:
+        """Get the most recent location for a callsign with explicit latitude/longitude.
+
+        Returns a dict with id, callsign, latitude, longitude, source, timestamp,
+        altitude_meters, accuracy_meters, session_id (no raw geometry).
+        """
+        async with self.async_session() as session:
+            query = text("""
+                SELECT id, callsign,
+                       ST_Y(location::geometry) AS latitude,
+                       ST_X(location::geometry) AS longitude,
+                       altitude_meters, accuracy_meters, source, timestamp, session_id
+                FROM operator_locations
+                WHERE callsign = :callsign
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            result = await session.execute(query, {"callsign": callsign.upper()})
+            row = result.first()
+            if not row:
+                return None
+            m = row._mapping
+            return {
+                "id": m["id"],
+                "callsign": m["callsign"],
+                "latitude": float(m["latitude"]),
+                "longitude": float(m["longitude"]),
+                "altitude_meters": m["altitude_meters"],
+                "accuracy_meters": m["accuracy_meters"],
+                "source": m["source"],
+                "timestamp": m["timestamp"].isoformat() if m["timestamp"] else None,
+                "session_id": m["session_id"],
+            }
+
     async def store_transcript(
         self,
         session_id: str,
@@ -417,6 +471,7 @@ class PostGISManager:
         latitude: float | None = None,
         longitude: float | None = None,
         task_id: str | None = None,
+        extra_data: dict | None = None,
     ) -> int:
         """Store a coordination event.
         
@@ -433,6 +488,7 @@ class PostGISManager:
             latitude: Optional meeting point latitude
             longitude: Optional meeting point longitude
             task_id: Optional orchestrator task ID
+            extra_data: Optional JSON (e.g. emergency_contact_phone, emergency_contact_channel, approved_by, sent_at)
             
         Returns:
             Event record ID
@@ -448,22 +504,75 @@ class PostGISManager:
                 status=status,
                 priority=priority,
                 notes=notes,
-                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude and longitude else None,
+                location=f"SRID=4326;POINT({longitude} {latitude})" if latitude is not None and longitude is not None else None,
                 task_id=task_id,
+                extra_data=extra_data,
             )
             session.add(event)
             await session.commit()
             return event.id
-    
+
+    async def get_coordination_event_by_id(self, event_id: int) -> dict[str, Any] | None:
+        """Get a single coordination event by id. Returns None if not found."""
+        async with self.async_session() as session:
+            result = await session.execute(select(CoordinationEvent).where(CoordinationEvent.id == event_id))
+            row = result.scalar_one_or_none()
+            return row.to_dict() if row else None
+
+    async def update_coordination_event(
+        self,
+        event_id: int,
+        *,
+        status: str | None = None,
+        extra_data: dict | None = None,
+    ) -> bool:
+        """Update a coordination event's status and/or extra_data. Returns True if updated."""
+        async with self.async_session() as session:
+            result = await session.execute(select(CoordinationEvent).where(CoordinationEvent.id == event_id))
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            if status is not None:
+                row.status = status
+            if extra_data is not None:
+                existing = dict(row.extra_data or {})
+                existing.update(extra_data)
+                row.extra_data = existing
+            await session.commit()
+            return True
+
+    async def claim_emergency_event_pending(self, event_id: int) -> int | None:
+        """
+        Atomically set status to 'approving' only when status is 'pending'.
+        Returns event_id if claimed, None if already processed or not found.
+        Prevents TOCTOU: only one concurrent approval can succeed.
+        """
+        async with self.async_session() as session:
+            stmt = (
+                update(CoordinationEvent)
+                .where(
+                    CoordinationEvent.id == event_id,
+                    CoordinationEvent.status == "pending",
+                )
+                .values(status="approving")
+                .returning(CoordinationEvent.id)
+            )
+            result = await session.execute(stmt)
+            row = result.one_or_none()
+            await session.commit()
+            return row[0] if row else None
+
     async def get_pending_coordination_events(
         self,
         callsign: str | None = None,
+        event_type: str | None = None,
         max_results: int = 100,
     ) -> list[dict[str, Any]]:
         """Get pending coordination events.
         
         Args:
             callsign: Filter by callsign (initiator or target)
+            event_type: Filter by event_type (e.g. emergency)
             max_results: Maximum results
             
         Returns:
@@ -483,6 +592,8 @@ class PostGISManager:
                     (CoordinationEvent.initiator_callsign == callsign_upper)
                     | (CoordinationEvent.target_callsign == callsign_upper)
                 )
+            if event_type:
+                query = query.where(CoordinationEvent.event_type == event_type)
             
             result = await session.execute(query)
             return [row.to_dict() for row in result.scalars()]
@@ -633,6 +744,114 @@ class PostGISManager:
             if not row:
                 return False
             row.preferred_bands = bands if bands else None
+            await session.commit()
+            return True
+
+    async def get_contact_preferences(self, callsign: str) -> dict[str, Any] | None:
+        """Get contact preferences for a registered callsign. Returns None if not found."""
+        normalized = callsign.strip().upper()
+        if not normalized:
+            return None
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(RegisteredCallsign).where(RegisteredCallsign.callsign == normalized)
+            )
+            row = result.scalar_one_or_none()
+            if not row:
+                return None
+            # Per-channel opt-out; legacy notify_opt_out_at treats as both channels opted out
+            opt_out_sms = row.notify_opt_out_at_sms or row.notify_opt_out_at
+            opt_out_wa = row.notify_opt_out_at_whatsapp or row.notify_opt_out_at
+            return {
+                "callsign": row.callsign,
+                "notify_sms_phone": row.notify_sms_phone,
+                "notify_whatsapp_phone": row.notify_whatsapp_phone,
+                "notify_on_relay": row.notify_on_relay,
+                "notify_consent_at": row.notify_consent_at.isoformat() if row.notify_consent_at else None,
+                "notify_consent_source": row.notify_consent_source,
+                "notify_opt_out_at": row.notify_opt_out_at.isoformat() if row.notify_opt_out_at else None,
+                "notify_opt_out_at_sms": opt_out_sms.isoformat() if opt_out_sms else None,
+                "notify_opt_out_at_whatsapp": opt_out_wa.isoformat() if opt_out_wa else None,
+            }
+
+    async def set_contact_preferences(
+        self,
+        callsign: str,
+        *,
+        notify_sms_phone: str | None = None,
+        notify_whatsapp_phone: str | None = None,
+        notify_on_relay: bool | None = None,
+        consent_at: datetime | None = None,
+        consent_source: str | None = None,
+    ) -> bool:
+        """Set contact preferences for a registered callsign. Returns True if updated."""
+        normalized = callsign.strip().upper()
+        if not normalized:
+            return False
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(RegisteredCallsign).where(RegisteredCallsign.callsign == normalized)
+            )
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            if notify_sms_phone is not None:
+                row.notify_sms_phone = notify_sms_phone.strip() or None
+                if row.notify_sms_phone:
+                    row.notify_opt_out_at_sms = None  # Re-enabling SMS clears opt-out for that channel
+            if notify_whatsapp_phone is not None:
+                row.notify_whatsapp_phone = notify_whatsapp_phone.strip() or None
+                if row.notify_whatsapp_phone:
+                    row.notify_opt_out_at_whatsapp = None  # Re-enabling WhatsApp clears opt-out for that channel
+            if notify_on_relay is not None:
+                row.notify_on_relay = notify_on_relay
+            if consent_at is not None:
+                row.notify_consent_at = consent_at
+            if consent_source is not None:
+                row.notify_consent_source = consent_source.strip() or None
+            await session.commit()
+            return True
+
+    async def record_opt_out(self, callsign: str, channel: str) -> bool:
+        """Record opt-out for a callsign (channel 'sms' or 'whatsapp'). Clears that channel's phone and sets per-channel opt_out_at. Returns True if updated."""
+        normalized = callsign.strip().upper()
+        if not normalized or channel not in ("sms", "whatsapp"):
+            return False
+        async with self.async_session() as session:
+            result = await session.execute(
+                select(RegisteredCallsign).where(RegisteredCallsign.callsign == normalized)
+            )
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            now = datetime.now(timezone.utc)
+            if channel == "sms":
+                row.notify_opt_out_at_sms = now
+                row.notify_sms_phone = None
+            else:
+                row.notify_opt_out_at_whatsapp = now
+                row.notify_whatsapp_phone = None
+            await session.commit()
+            return True
+
+    async def record_opt_out_by_phone(self, phone: str, channel: str) -> bool:
+        """Record opt-out by phone number (finds callsign by notify_sms_phone or notify_whatsapp_phone). Returns True if updated."""
+        phone = (phone or "").strip()
+        if not phone or channel not in ("sms", "whatsapp"):
+            return False
+        async with self.async_session() as session:
+            col = RegisteredCallsign.notify_sms_phone if channel == "sms" else RegisteredCallsign.notify_whatsapp_phone
+            result = await session.execute(select(RegisteredCallsign).where(col == phone))
+            row = result.scalar_one_or_none()
+            if not row:
+                return False
+            now = datetime.now(timezone.utc)
+            if channel == "sms":
+                row.notify_opt_out_at_sms = now
+                row.notify_sms_phone = None
+            else:
+                row.notify_opt_out_at_whatsapp = now
+                row.notify_whatsapp_phone = None
             await session.commit()
             return True
 

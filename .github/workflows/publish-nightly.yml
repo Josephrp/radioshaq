@@ -1,0 +1,121 @@
+name: Publish Nightly to PyPI
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-pypi-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-source-branch:
+    name: Verify source branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ensure nightly publish runs from dev
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ "${GITHUB_REF}" != "refs/heads/dev" ]]; then
+            echo "Nightly publish must be triggered from the 'dev' branch."
+            echo "Selected ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+  test:
+    name: Test
+    needs: verify-source-branch
+    runs-on: ubuntu-latest
+    env:
+      RADIOSHAQ_LICENSE_ACCEPTED: "1"
+      DATABASE_URL: postgresql://radioshaq:radioshaq@127.0.0.1:5434/radioshaq
+      TEST_DATABASE_URL: postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: radioshaq
+          POSTGRES_PASSWORD: radioshaq
+          POSTGRES_DB: radioshaq
+        ports:
+          - 5434:5432
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Install dependencies
+        run: cd radioshaq && uv sync --extra dev --extra test --extra sdr
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if python -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',5434)); s.close()" 2>/dev/null; then
+              echo "Postgres is ready on 127.0.0.1:5434"
+              break
+            fi
+            echo "Waiting for Postgres... ($i/30)"
+            sleep 2
+          done
+          python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('127.0.0.1',5434)); s.close(); print('Postgres port open')"
+      - name: Run database migrations
+        run: cd radioshaq && uv run alembic-upgrade
+      - name: Run test suite
+        run: cd radioshaq && uv run pytest tests/unit tests/integration -v
+
+  build-and-publish:
+    name: Build and publish nightly artifact
+    needs: test
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: radioshaq/web-interface/package-lock.json
+      - name: Build web UI
+        working-directory: radioshaq/web-interface
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Stage web UI for wheel
+        run: |
+          mkdir -p radioshaq/radioshaq/web_ui
+          cp -r radioshaq/web-interface/dist/. radioshaq/radioshaq/web_ui/
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v7
+      - name: Compute and sync nightly prerelease version
+        id: nightly
+        run: |
+          base_version=$(python - <<'PY'
+          import re
+          from pathlib import Path
+          text = Path("radioshaq/pyproject.toml").read_text(encoding="utf-8")
+          m = re.search(r'(?m)^version\s*=\s*"([^"]+)"\s*$', text)
+          if not m:
+              raise SystemExit("Could not read base version from pyproject.toml")
+          print(m.group(1).split(".dev", 1)[0])
+          PY
+          )
+          nightly_version=$(python radioshaq/scripts/bump_version.py --project-root . --nightly-from "$base_version" --sync-all)
+          echo "nightly_version=$nightly_version" >> "$GITHUB_OUTPUT"
+      - name: Build nightly wheel and sdist
+        run: |
+          cd radioshaq
+          uv run --with build python -m build
+      - name: Publish nightly package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: radioshaq/dist
+

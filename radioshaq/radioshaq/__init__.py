@@ -1,4 +1,4 @@
-"""SHAKODS: Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System.
+"""RadioShaq: Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System.
 
 A specialized derivative of nanobot implementing REACT (Reasoning, Evaluation,
 Acting, Communicating, Tracking) agent orchestration pattern for ham radio
@@ -7,7 +7,7 @@ operations, emergency communications, and field-to-HQ coordination.
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
+__version__ = "0.1.2"
 __logo__ = "📡"
 __description__ = "Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System"
 

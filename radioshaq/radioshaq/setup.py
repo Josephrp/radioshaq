@@ -73,6 +73,29 @@ def detect_existing(
     return dotenv, config_yaml, radioshaq_config
 
 
+def _read_env_value(env_path: Path, key: str) -> Optional[str]:
+    """Read a single key's value from .env (first occurrence). Used to preserve secrets when merging."""
+    if not env_path.exists():
+        return None
+    try:
+        text = env_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("#") or "=" not in line:
+            continue
+        k, _, v = line.partition("=")
+        if k.strip() == key:
+            val = v.strip()
+            if val.startswith('"') and val.endswith('"'):
+                val = val[1:-1]
+            elif val.startswith("'") and val.endswith("'"):
+                val = val[1:-1]
+            return val if val else None
+    return None
+
+
 def _parse_postgres_url(url: str) -> dict[str, str]:
     """Parse postgresql[+asyncpg]://user:pass@host:port/db into POSTGRES_* components."""
     url = url.replace("postgresql+asyncpg://", "postgresql://")
@@ -109,8 +132,14 @@ def write_env(
     llm_provider: Optional[str] = None,
     llm_api_key: Optional[str] = None,
     merge: bool = False,
+    twilio_account_sid: Optional[str] = None,
+    twilio_auth_token: Optional[str] = None,
+    twilio_from_number: Optional[str] = None,
+    twilio_whatsapp_from: Optional[str] = None,
+    tts_provider: Optional[str] = None,
+    elevenlabs_api_key: Optional[str] = None,
 ) -> None:
-    """Write or merge .env with POSTGRES_*, RADIOSHAQ_MODE, JWT, LLM, and optional RADIOSHAQ_*."""
+    """Write or merge .env with POSTGRES_*, RADIOSHAQ_MODE, JWT, LLM, Twilio, TTS, and optional RADIOSHAQ_*."""
     env_path = project_root / ENV_FILENAME
     url = db_url or DEFAULT_POSTGRES_URL.replace("+asyncpg", "")
     if "postgresql://" not in url and "postgresql+asyncpg://" in url:
@@ -122,6 +151,9 @@ def write_env(
         "RADIOSHAQ_MODE", "RADIOSHAQ_JWT__SECRET_KEY", "RADIOSHAQ_LLM__PROVIDER",
         "MISTRAL_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
         "RADIOSHAQ_LLM__MISTRAL_API_KEY", "RADIOSHAQ_LLM__OPENAI_API_KEY", "RADIOSHAQ_LLM__ANTHROPIC_API_KEY",
+        "RADIOSHAQ_TWILIO__ACCOUNT_SID", "RADIOSHAQ_TWILIO__AUTH_TOKEN",
+        "RADIOSHAQ_TWILIO__FROM_NUMBER", "RADIOSHAQ_TWILIO__WHATSAPP_FROM",
+        "RADIOSHAQ_TTS__PROVIDER", "ELEVENLABS_API_KEY",
     }
     lines: list[str] = []
     if merge and env_path.exists():
@@ -157,9 +189,30 @@ def write_env(
             "mistral": "MISTRAL_API_KEY",
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
+            "huggingface": "HF_TOKEN",
         }.get(llm_provider.lower())
         if key_var:
             lines.append(_env_line(key_var, llm_api_key))
+
+    if twilio_account_sid is not None or twilio_auth_token is not None or twilio_from_number is not None or twilio_whatsapp_from is not None:
+        lines.append("")
+        lines.append("# Twilio (SMS / WhatsApp)")
+        if twilio_account_sid is not None:
+            lines.append(_env_line("RADIOSHAQ_TWILIO__ACCOUNT_SID", twilio_account_sid))
+        if twilio_auth_token is not None:
+            lines.append(_env_line("RADIOSHAQ_TWILIO__AUTH_TOKEN", twilio_auth_token))
+        if twilio_from_number is not None:
+            lines.append(_env_line("RADIOSHAQ_TWILIO__FROM_NUMBER", twilio_from_number))
+        if twilio_whatsapp_from is not None:
+            lines.append(_env_line("RADIOSHAQ_TWILIO__WHATSAPP_FROM", twilio_whatsapp_from))
+
+    if tts_provider is not None or elevenlabs_api_key is not None:
+        lines.append("")
+        lines.append("# TTS")
+        if tts_provider is not None:
+            lines.append(_env_line("RADIOSHAQ_TTS__PROVIDER", tts_provider))
+        if elevenlabs_api_key is not None:
+            lines.append(_env_line("ELEVENLABS_API_KEY", elevenlabs_api_key))
 
     env_path.parent.mkdir(parents=True, exist_ok=True)
     env_path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
@@ -286,33 +339,48 @@ def _prompt_jwt_secret() -> str:
     return secret
 
 
-def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str]]:
-    """Prompt for LLM provider, model, optional custom API base, and optional API key. Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none)."""
+def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Prompt for LLM provider, model, optional API bases, and optional API key.
+    Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none, huggingface_api_base_or_none).
+    """
     provider = typer.prompt(
-        "LLM provider (mistral / openai / anthropic / custom)",
+        "LLM provider (mistral / openai / anthropic / custom / huggingface)",
         default="mistral",
         show_default=True,
     ).strip().lower() or "mistral"
-    if provider not in ("mistral", "openai", "anthropic", "custom"):
+    if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface"):
         provider = "mistral"
+    model_default = "mistral-large-latest"
+    if provider == "custom":
+        model_default = "ollama/llama2"
+    elif provider == "huggingface":
+        model_default = "Qwen/Qwen2.5-7B-Instruct-1M"
     model: Optional[str] = typer.prompt(
-        "LLM model (e.g. mistral-large-latest, ollama/llama2)",
-        default="mistral-large-latest" if provider != "custom" else "ollama/llama2",
+        "LLM model (e.g. mistral-large-latest, ollama/llama2, Qwen/Qwen2.5-7B-Instruct-1M)",
+        default=model_default,
         show_default=True,
     ).strip() or None
     custom_base: Optional[str] = None
+    hf_base: Optional[str] = None
     if provider == "custom":
         custom_base = typer.prompt(
             "Custom API base URL (e.g. http://localhost:11434 for Ollama)",
             default="http://localhost:11434",
             show_default=True,
         ).strip() or None
+    elif provider == "huggingface":
+        typer.echo("Hugging Face: set HF_TOKEN or paste token when prompted. Token needs 'Inference Providers' permission.")
+        hf_base = typer.prompt(
+            "Hugging Face API base (optional; Enter for default https://router.huggingface.co/v1)",
+            default="",
+            show_default=False,
+        ).strip() or None
     key = typer.prompt(
         "LLM API key (optional; press Enter to skip and set later in .env)",
         default="",
         show_default=False,
     ).strip() or None
-    return provider, key, model, custom_base
+    return provider, key, model, custom_base, hf_base
 
 
 def _run_interactive_prompts_core(
@@ -321,8 +389,8 @@ def _run_interactive_prompts_core(
     has_config: bool,
     force: bool,
     reconfigure: bool,
-) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], bool, bool]:
-    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config)."""
+) -> tuple[Optional[Config], str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], Optional[str], bool, bool]:
+    """Run core interactive prompts. Returns (base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config)."""
     base_config: Optional[Config] = None
     merge_env = False
     merge_config = False
@@ -342,7 +410,7 @@ def _run_interactive_prompts_core(
     mode = _prompt_mode()
     db_choice, db_choice_url = _prompt_database()
     jwt_secret = _prompt_jwt_secret()
-    llm_provider, llm_key, llm_model, custom_api_base = _prompt_llm()
+    llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base = _prompt_llm()
 
     if db_choice == DB_CHOICE_SKIP:
         db_url: Optional[str] = None
@@ -351,7 +419,7 @@ def _run_interactive_prompts_core(
     else:
         db_url = db_choice_url
 
-    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config
+    return base_config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config
 
 
 def _run_quick_prompts() -> tuple[str, str, Optional[str]]:
@@ -431,6 +499,27 @@ def _prompt_field_hq(mode_val: str) -> tuple[Optional[str], Optional[str], Optio
     return station_id, hq_base_url, hq_auth_token, hq_host, hq_port
 
 
+def _prompt_compliance_region(
+    default_restricted: str = "FCC",
+    default_band_plan: Optional[str] = None,
+) -> tuple[str, Optional[str]]:
+    """Prompt for compliance region/country (restricted bands + band plan). Returns (restricted_bands_region, band_plan_region)."""
+    typer.echo(
+        "Compliance region: where you operate (restricted bands + band plan). "
+        "Examples: FCC (US), CA (Canada), CEPT or FR (EU), AU (Australia), ZA (South Africa), NZ/JP/IN, or country code (AR, MX, NG…). "
+        "See docs/compliance-regulatory.md."
+    )
+    restricted = typer.prompt(
+        "Restricted bands region (country/region code)",
+        default=default_restricted or "FCC",
+    ).strip() or "FCC"
+    override = typer.prompt(
+        "Band plan override (ITU_R1, ITU_R3, or leave blank to use region default)",
+        default=default_band_plan or "",
+    ).strip() or None
+    return restricted, override
+
+
 def _prompt_station_callsign_trigger() -> tuple[Optional[str], list[str]]:
     """Prompt for station callsign and trigger phrases. Returns (station_callsign, trigger_phrases)."""
     station_callsign = typer.prompt(
@@ -459,10 +548,10 @@ def _prompt_llm_overrides() -> dict[str, Any]:
         if not typer.confirm(f"Override LLM for role '{role}'?", default=False):
             continue
         provider = typer.prompt(
-            f"  [{role}] LLM provider (mistral / openai / anthropic / custom)",
+            f"  [{role}] LLM provider (mistral / openai / anthropic / custom / huggingface)",
             default="mistral",
         ).strip().lower() or "mistral"
-        if provider not in ("mistral", "openai", "anthropic", "custom"):
+        if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface"):
             provider = "mistral"
         model = typer.prompt(
             f"  [{role}] Model (e.g. mistral-large-latest, ollama/llama2)",
@@ -476,12 +565,54 @@ def _prompt_llm_overrides() -> dict[str, Any]:
             ).strip()
             if custom_base:
                 entry["custom_api_base"] = custom_base
+        elif provider == "huggingface":
+            hf_base = typer.prompt(
+                f"  [{role}] Hugging Face API base (optional; Enter for default)",
+                default="",
+            ).strip()
+            if hf_base:
+                entry["huggingface_api_base"] = hf_base
         overrides[role] = entry
     return overrides
 
 
-def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str]]:
-    """Reconfigure: prompt which sections to change. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base)."""
+def _prompt_twilio() -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Prompt for Twilio (SMS/WhatsApp). Returns (account_sid, auth_token, from_number, whatsapp_from)."""
+    if not typer.confirm("Configure Twilio (SMS / WhatsApp)?", default=False):
+        return None, None, None, None
+    typer.echo("See docs/twilio-sms-whatsapp.md. Use E.164 for phone numbers.")
+    account_sid = typer.prompt("Twilio Account SID (optional; leave blank to set later in .env)", default="").strip() or None
+    auth_token = typer.prompt("Twilio Auth Token (optional; leave blank to set later in .env)", default="", show_default=False).strip() or None
+    from_number = typer.prompt("SMS From number (E.164, optional)", default="").strip() or None
+    whatsapp_from = typer.prompt("WhatsApp From number (E.164, optional; must be WhatsApp-enabled in Twilio)", default="").strip() or None
+    return account_sid, auth_token, from_number, whatsapp_from
+
+
+def _prompt_tts() -> tuple[str | None, Optional[str]]:
+    """Prompt for TTS provider and optional API key. Returns (None, None) when user declines."""
+    if not typer.confirm("Configure TTS (for outbound radio/relay voice)?", default=False):
+        return None, None
+    provider = typer.prompt(
+        "TTS provider (elevenlabs / kokoro)",
+        default="elevenlabs",
+        show_default=True,
+    ).strip().lower() or "elevenlabs"
+    if provider not in ("elevenlabs", "kokoro"):
+        provider = "elevenlabs"
+    elevenlabs_key: Optional[str] = None
+    if provider == "elevenlabs":
+        elevenlabs_key = typer.prompt(
+            "ElevenLabs API key (optional; leave blank to set ELEVENLABS_API_KEY in .env later)",
+            default="",
+            show_default=False,
+        ).strip() or None
+    else:
+        typer.echo("Kokoro: run 'uv sync --extra tts_kokoro' for local TTS.")
+    return provider, elevenlabs_key
+
+
+def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tuple[Config, str, str, Optional[str], str, str, Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+    """Reconfigure: prompt which sections to change. Returns (config, mode, db_choice, db_url, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, elevenlabs_key)."""
     config = existing_config
     mode_val = config.mode.value
     db_choice = DB_CHOICE_URL
@@ -493,11 +624,13 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
     llm_key: Optional[str] = None
     llm_model_val: Optional[str] = getattr(config.llm, "model", None)
     custom_api_base_val: Optional[str] = getattr(config.llm, "custom_api_base", None)
+    huggingface_api_base_val: Optional[str] = getattr(config.llm, "huggingface_api_base", None)
+    elevenlabs_key_reconfigure: Optional[str] = None
 
-    sections = ["mode", "database", "jwt", "llm", "memory", "overrides", "done"]
+    sections = ["mode", "database", "jwt", "llm", "memory", "radio", "twilio", "tts", "overrides", "done"]
     while True:
         choice = typer.prompt(
-            "What to change? (mode / database / jwt / llm / memory / overrides / done)",
+            "What to change? (mode / database / jwt / llm / memory / radio / twilio / tts / overrides / done)",
             default="done",
         ).strip().lower() or "done"
         if choice == "done":
@@ -513,17 +646,42 @@ def _run_reconfigure_prompts(project_root: Path, existing_config: Config) -> tup
         elif choice == "jwt":
             jwt_secret = _prompt_jwt_secret()
         elif choice == "llm":
-            llm_provider, llm_key, llm_model_val, custom_api_base_val = _prompt_llm()
+            llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val = _prompt_llm()
         elif choice == "memory":
             memory_enabled, hindsight_url = _prompt_memory()
             config.memory.enabled = memory_enabled
             if hindsight_url:
                 config.memory.hindsight_base_url = hindsight_url
+        elif choice == "radio":
+            current_restricted = getattr(config.radio, "restricted_bands_region", "FCC") or "FCC"
+            current_band_plan = getattr(config.radio, "band_plan_region", None) or ""
+            restricted_region, band_plan_region = _prompt_compliance_region(
+                default_restricted=current_restricted,
+                default_band_plan=current_band_plan,
+            )
+            config.radio.restricted_bands_region = restricted_region
+            config.radio.band_plan_region = band_plan_region if band_plan_region else None
+        elif choice == "twilio":
+            sid, token, from_num, whatsapp = _prompt_twilio()
+            if sid is not None:
+                config.twilio.account_sid = sid
+            if token is not None:
+                config.twilio.auth_token = token
+            if from_num is not None:
+                config.twilio.from_number = from_num
+            if whatsapp is not None:
+                config.twilio.whatsapp_from = whatsapp
+        elif choice == "tts":
+            tts_provider, elevenlabs_key_tts = _prompt_tts()
+            if tts_provider is not None:
+                config.tts.provider = tts_provider
+            if elevenlabs_key_tts is not None:
+                elevenlabs_key_reconfigure = elevenlabs_key_tts
         elif choice == "overrides":
             overrides = _prompt_llm_overrides()
             config.llm_overrides = overrides if overrides else None
 
-    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val
+    return config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val, elevenlabs_key_reconfigure
 
 
 def run_setup(
@@ -540,10 +698,13 @@ def run_setup(
     llm_provider: Optional[str] = None,
     llm_model: Optional[str] = None,
     custom_api_base: Optional[str] = None,
+    huggingface_api_base: Optional[str] = None,
     hindsight_url: Optional[str] = None,
     memory_enabled: Optional[bool] = None,
     radio_reply_tx_enabled: Optional[bool] = None,
     radio_reply_use_tts: Optional[bool] = None,
+    restricted_bands_region: Optional[str] = None,
+    band_plan_region: Optional[str] = None,
     llm_overrides: Optional[str] = None,
 ) -> int:
     """Run setup: non-interactive writes .env + config.yaml; interactive will prompt (Phase 2+).
@@ -583,12 +744,14 @@ def run_setup(
                 config.audio.trigger_phrases = [p.strip() for p in trigger_phrases if p and str(p).strip()]
                 if config.audio.trigger_phrases:
                     config.audio.audio_activation_phrase = config.audio.trigger_phrases[0]
-            if llm_provider and llm_provider.strip().lower() in ("mistral", "openai", "anthropic", "custom"):
+            if llm_provider and llm_provider.strip().lower() in ("mistral", "openai", "anthropic", "custom", "huggingface"):
                 config.llm.provider = LLMProvider(llm_provider.strip().lower())
             if llm_model and llm_model.strip():
                 config.llm.model = llm_model.strip()
             if custom_api_base and custom_api_base.strip():
                 config.llm.custom_api_base = custom_api_base.strip()
+            if huggingface_api_base and huggingface_api_base.strip():
+                config.llm.huggingface_api_base = huggingface_api_base.strip()
             if memory_enabled is not None:
                 config.memory.enabled = memory_enabled
             if hindsight_url and hindsight_url.strip():
@@ -597,6 +760,10 @@ def run_setup(
                 config.radio.radio_reply_tx_enabled = radio_reply_tx_enabled
             if radio_reply_use_tts is not None:
                 config.radio.radio_reply_use_tts = radio_reply_use_tts
+            if restricted_bands_region and restricted_bands_region.strip():
+                config.radio.restricted_bands_region = restricted_bands_region.strip()
+            if band_plan_region is not None and str(band_plan_region).strip():
+                config.radio.band_plan_region = str(band_plan_region).strip()
             if llm_overrides and llm_overrides.strip():
                 try:
                     parsed = json.loads(llm_overrides.strip())
@@ -632,6 +799,7 @@ def run_setup(
             shutil.copy(project_root / RADIOSHAQ_CONFIG_DIR / CONFIG_FILENAME, project_root / CONFIG_FILENAME)
             has_config = True
 
+    reconfigure_elevenlabs_key: Optional[str] = None
     if quick:
         mode_val, db_choice, db_url_val = _run_quick_prompts()
         jwt_secret = DEFAULT_JWT_SECRET
@@ -647,15 +815,30 @@ def run_setup(
             existing = load_config(project_root / CONFIG_FILENAME)
         except Exception:
             existing = Config()
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val = _run_reconfigure_prompts(project_root, existing)
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model_val, custom_api_base_val, huggingface_api_base_val, elevenlabs_key_reconfigure = _run_reconfigure_prompts(project_root, existing)
         merge_env = True
         merge_config = True
         llm_model = llm_model_val
         custom_api_base = custom_api_base_val
+        huggingface_api_base = huggingface_api_base_val
+        reconfigure_elevenlabs_key = elevenlabs_key_reconfigure
+        # When user skipped TTS section, preserve existing ELEVENLABS_API_KEY from .env so merge does not strip it
+        if reconfigure_elevenlabs_key is None and merge_env:
+            env_path = project_root / ENV_FILENAME
+            existing_key = _read_env_value(env_path, "ELEVENLABS_API_KEY")
+            if existing_key:
+                reconfigure_elevenlabs_key = existing_key
     else:
-        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, merge_env, merge_config = _run_interactive_prompts_core(
+        base_config, mode_val, db_choice, db_url_val, jwt_secret, llm_provider, llm_key, llm_model, custom_api_base, huggingface_api_base, merge_env, merge_config = _run_interactive_prompts_core(
             project_root, has_dotenv, has_config, force, reconfigure
         )
+
+    twilio_sid: Optional[str] = None
+    twilio_token: Optional[str] = None
+    twilio_from: Optional[str] = None
+    twilio_whatsapp: Optional[str] = None
+    tts_provider = "elevenlabs"
+    elevenlabs_key: Optional[str] = reconfigure_elevenlabs_key
 
     config = base_config if (base_config and merge_config) else Config()
     config.mode = Mode(mode_val)
@@ -668,6 +851,8 @@ def run_setup(
         config.llm.model = llm_model.strip()
     if custom_api_base and str(custom_api_base).strip():
         config.llm.custom_api_base = custom_api_base.strip()
+    if huggingface_api_base and str(huggingface_api_base).strip():
+        config.llm.huggingface_api_base = huggingface_api_base.strip()
 
     # Phase 6: radio, audio, memory, field/HQ (full interactive only)
     if not quick:
@@ -709,15 +894,41 @@ def run_setup(
         if trigger_phrases:
             config.audio.trigger_phrases = trigger_phrases
             config.audio.audio_activation_phrase = trigger_phrases[0]
+        restricted_region, band_plan_region = _prompt_compliance_region()
+        config.radio.restricted_bands_region = restricted_region
+        if band_plan_region:
+            config.radio.band_plan_region = band_plan_region
         overrides = _prompt_llm_overrides()
         if overrides:
             config.llm_overrides = overrides
+        sid, token, from_num, whatsapp = _prompt_twilio()
+        twilio_sid, twilio_token, twilio_from, twilio_whatsapp = sid, token, from_num, whatsapp
+        if twilio_sid is not None:
+            config.twilio.account_sid = twilio_sid
+        if twilio_token is not None:
+            config.twilio.auth_token = twilio_token
+        if twilio_from is not None:
+            config.twilio.from_number = twilio_from
+        if twilio_whatsapp is not None:
+            config.twilio.whatsapp_from = twilio_whatsapp
+        tts_provider, elevenlabs_key = _prompt_tts()
+        if tts_provider is not None:
+            config.tts.provider = tts_provider
+
+    # Capture Twilio secrets from config before clearing (reconfigure path sets them on config only)
+    twilio_sid = twilio_sid or getattr(config.twilio, "account_sid", None)
+    twilio_token = twilio_token or getattr(config.twilio, "auth_token", None)
+    twilio_from = twilio_from or getattr(config.twilio, "from_number", None)
+    twilio_whatsapp = twilio_whatsapp or getattr(config.twilio, "whatsapp_from", None)
 
     # Save config file without secrets (they go in .env only)
     config.jwt.secret_key = "(set via RADIOSHAQ_JWT__SECRET_KEY)"
     config.llm.mistral_api_key = None
     config.llm.openai_api_key = None
     config.llm.anthropic_api_key = None
+    config.llm.custom_api_key = None
+    config.llm.huggingface_api_key = None
+    config.twilio.auth_token = None
 
     config_path = project_root / CONFIG_FILENAME
     try:
@@ -730,6 +941,12 @@ def run_setup(
             llm_provider=llm_provider,
             llm_api_key=llm_key,
             merge=merge_env,
+            twilio_account_sid=twilio_sid,
+            twilio_auth_token=twilio_token,
+            twilio_from_number=twilio_from,
+            twilio_whatsapp_from=twilio_whatsapp,
+            tts_provider=str(config.tts.provider) if getattr(config.tts, "provider", None) else None,
+            elevenlabs_api_key=elevenlabs_key,
         )
     except OSError as e:
         typer.echo(f"Cannot write config or .env: {e}", err=True)
@@ -780,5 +997,5 @@ def run_setup(
     typer.echo("Setup complete.")
     typer.echo("Start dependencies + API: radioshaq launch docker  (or radioshaq launch docker --hindsight)")
     typer.echo("Then start API: radioshaq run-api  (or: radioshaq launch pm2 / radioshaq launch pm2 --hindsight)")
-    typer.echo("See docs/quick-start.md and docs/configuration.md")
+    typer.echo("For all configurable options see .env.example and docs/configuration.md")
     return 0

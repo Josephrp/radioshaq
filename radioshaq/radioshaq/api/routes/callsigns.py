@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
+from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 
 router = APIRouter()
@@ -32,6 +34,33 @@ class PatchCallsignBandsBody(BaseModel):
     preferred_bands: list[str] = Field(..., min_length=0, description="Preferred bands e.g. [40m, 2m]")
 
 
+# E.164: optional +, digits only (len 10–15)
+E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
+
+
+def _normalize_e164(phone: str) -> str:
+    """Normalize to E.164: digits only with + prefix."""
+    digits = re.sub(r"\D", "", (phone or "").strip())
+    if not digits:
+        return ""
+    return "+" + digits
+
+
+class PatchContactPreferencesBody(BaseModel):
+    """Body for PATCH /callsigns/registered/{callsign}/contact-preferences (§8.1)."""
+
+    notify_sms_phone: str | None = Field(None, description="E.164; set to empty string to clear")
+    notify_whatsapp_phone: str | None = Field(None, description="E.164; set to empty string to clear")
+    notify_on_relay: bool | None = Field(None, description="Enable notify when a message is left for this callsign")
+    consent_source: str | None = Field(None, description="api / web / voice; required when enabling notify_on_relay")
+    consent_confirmed: bool | None = Field(
+        None,
+        description="Explicit consent; required for EU/UK/ZA when enabling notify",
+    )
+
+
+
+
 def _normalize_callsign(callsign: str) -> str:
     return callsign.strip().upper()
 
@@ -45,14 +74,15 @@ def _validate_callsign(callsign: str) -> None:
         )
 
 
-def _validate_bands(bands: list[str]) -> list[str]:
-    """Validate band names against BAND_PLANS. Returns normalized list. Raises HTTPException if invalid."""
+def _validate_bands(bands: list[str], band_plans: dict | None = None) -> list[str]:
+    """Validate band names against band plan. Returns normalized list. Raises HTTPException if invalid."""
+    plans = band_plans if band_plans is not None else BAND_PLANS
     out = []
     for b in bands:
         s = (b or "").strip()
         if not s:
             continue
-        if s not in BAND_PLANS:
+        if s not in plans:
             raise HTTPException(status_code=400, detail=f"Unknown band: {s}. Use e.g. 40m, 2m, 20m")
         out.append(s)
     return out
@@ -79,6 +109,7 @@ async def list_registered(
 async def register_callsign(
     request: Request,
     body: RegisterBody,
+    config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Register a callsign so it is automatically accepted for store/relay."""
@@ -87,9 +118,14 @@ async def register_callsign(
     source = (body.source or "api").strip().lower()
     if source not in ("api", "audio"):
         source = "api"
+    radio = config.radio
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
     preferred_bands = None
     if body.preferred_bands:
-        preferred_bands = _validate_bands(body.preferred_bands)
+        preferred_bands = _validate_bands(body.preferred_bands, band_plans)
     repo = getattr(request.app.state, "callsign_repository", None)
     if repo is not None:
         try:
@@ -111,6 +147,7 @@ async def register_callsign(
 async def register_from_audio(
     request: Request,
     file: UploadFile,
+    config: Config = Depends(get_config),
     callsign: str | None = None,
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
@@ -131,12 +168,14 @@ async def register_from_audio(
         temp_path = f.name
     try:
         try:
-            from radioshaq.audio.asr import transcribe_audio_voxtral
-            transcript = transcribe_audio_voxtral(temp_path, language="en")
-        except ImportError:
+            from radioshaq.audio.asr_plugin import transcribe_audio
+            asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+            asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
+            transcript = transcribe_audio(temp_path, model_id=asr_model, language=asr_lang)
+        except (ImportError, RuntimeError) as e:
             raise HTTPException(
                 status_code=503,
-                detail="ASR not available (install with uv sync --extra audio)",
+                detail=f"ASR not available: {e!s}",
             )
         transcript = (transcript or "").strip()
         # Use query param if provided; else take first word or try to parse "CALLSIGN de OTHER"
@@ -174,12 +213,18 @@ async def patch_callsign_bands(
     request: Request,
     callsign: str,
     body: PatchCallsignBandsBody,
+    config: Config = Depends(get_config),
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """Set preferred_bands for a registered callsign. Band names must be in BAND_PLANS (e.g. 40m, 2m)."""
+    """Set preferred_bands for a registered callsign. Band names must be in effective band plan (e.g. 40m, 2m)."""
     normalized = _normalize_callsign(callsign)
     _validate_callsign(callsign)
-    bands = _validate_bands(body.preferred_bands)
+    radio = config.radio
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
+    bands = _validate_bands(body.preferred_bands, band_plans)
     repo = getattr(request.app.state, "callsign_repository", None)
     if repo is not None:
         updated = await repo.update_preferred_bands(normalized, bands)
@@ -193,6 +238,92 @@ async def patch_callsign_bands(
     if not updated:
         raise HTTPException(status_code=404, detail="Callsign not in registry")
     return {"ok": True, "callsign": normalized, "preferred_bands": bands}
+
+
+@router.get("/registered/{callsign:path}/contact-preferences")
+async def get_contact_preferences(
+    request: Request,
+    callsign: str,
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Get contact preferences for a registered callsign (§8.1)."""
+    normalized = _normalize_callsign(callsign)
+    _validate_callsign(callsign)
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "get_contact_preferences"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    prefs = await db.get_contact_preferences(normalized)
+    if prefs is None:
+        raise HTTPException(status_code=404, detail="Callsign not in registry")
+    return prefs
+
+
+def _require_explicit_consent_region(region: str) -> bool:
+    """True if region requires explicit consent (EU/UK/ZA)."""
+    return (region or "").upper() in ("CEPT", "FR", "UK", "ES", "BE", "CH", "LU", "MC", "ZA")
+
+
+@router.patch("/registered/{callsign:path}/contact-preferences")
+async def patch_contact_preferences(
+    request: Request,
+    callsign: str,
+    body: PatchContactPreferencesBody,
+    config: Config = Depends(get_config),
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Set contact preferences (notify by SMS/WhatsApp when a message is left for this callsign). Sets consent_at when enabling notify_on_relay (§8.1)."""
+    normalized = _normalize_callsign(callsign)
+    _validate_callsign(callsign)
+    region = getattr(config.radio, "restricted_bands_region", None) or ""
+    if body.notify_on_relay is True:
+        if not body.consent_source or body.consent_source.strip() not in ("api", "web", "voice"):
+            raise HTTPException(
+                status_code=400,
+                detail="consent_source (api / web / voice) required when enabling notify_on_relay",
+            )
+        if _require_explicit_consent_region(region) and body.consent_confirmed is not True:
+            raise HTTPException(
+                status_code=400,
+                detail="consent_confirmed=true required for this region when enabling notify",
+            )
+    sms_phone = None
+    if body.notify_sms_phone is not None:
+        raw = (body.notify_sms_phone or "").strip()
+        if raw:
+            sms_phone = _normalize_e164(raw)
+            if not E164_PATTERN.match(sms_phone):
+                raise HTTPException(status_code=400, detail="notify_sms_phone must be E.164 (10–15 digits)")
+        else:
+            sms_phone = ""
+    whatsapp_phone = None
+    if body.notify_whatsapp_phone is not None:
+        raw = (body.notify_whatsapp_phone or "").strip()
+        if raw:
+            whatsapp_phone = _normalize_e164(raw)
+            if not E164_PATTERN.match(whatsapp_phone):
+                raise HTTPException(status_code=400, detail="notify_whatsapp_phone must be E.164 (10–15 digits)")
+        else:
+            whatsapp_phone = ""
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "set_contact_preferences"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    from datetime import datetime, timezone
+    consent_at = datetime.now(timezone.utc) if (body.notify_on_relay is True and body.consent_source) else None
+    consent_source = (body.consent_source or "").strip() or None
+    if consent_at and not consent_source:
+        consent_source = "api"
+    updated = await db.set_contact_preferences(
+        normalized,
+        notify_sms_phone=sms_phone if sms_phone is not None else None,
+        notify_whatsapp_phone=whatsapp_phone if whatsapp_phone is not None else None,
+        notify_on_relay=body.notify_on_relay,
+        consent_at=consent_at,
+        consent_source=consent_source,
+    )
+    if not updated:
+        raise HTTPException(status_code=404, detail="Callsign not in registry")
+    prefs = await db.get_contact_preferences(normalized)
+    return prefs or {}
 
 
 @router.delete("/registered/{callsign:path}")

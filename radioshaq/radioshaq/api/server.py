@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
+from radioshaq import __version__
 from radioshaq.config.schema import Config
 
 
@@ -43,7 +44,7 @@ async def lifespan(app: FastAPI):
     _cron_task = None
 
     try:
-        if config.database.postgres_url and "localhost" in config.database.postgres_url:
+        if config.database.postgres_url:
             try:
                 from radioshaq.database.postgres_gis import PostGISManager
                 app.state.db = PostGISManager(config.database.postgres_url)
@@ -93,17 +94,20 @@ async def lifespan(app: FastAPI):
                 tool_registry=getattr(app.state, "tool_registry", None),
             )
             app.state.agent_registry = getattr(app.state.orchestrator, "agent_registry", None)
+            rx_audio = app.state.agent_registry.get_agent("radio_rx_audio") if app.state.agent_registry else None
+            if rx_audio and hasattr(rx_audio, "set_metrics_callback"):
+                rx_audio.set_metrics_callback(lambda d: setattr(app.state, "audio_metrics_latest", d))
         except Exception as e:
             logger.warning("Orchestrator not created (messages/process will be unavailable): %s", e)
 
-        # Optional: run MessageBus inbound consumer and outbound radio handler (set RADIOSHAQ_BUS_CONSUMER_ENABLED=1)
+        # Optional: run MessageBus inbound consumer and single outbound dispatcher (radio_rx, sms, whatsapp)
         _consumer_task = None
         _outbound_radio_task = None
         _outbound_radio_stop = None
         if _bus_consumer_enabled:
             if getattr(app.state, "orchestrator", None) and getattr(app.state, "message_bus", None):
                 from radioshaq.orchestrator.bridge import run_inbound_consumer
-                from radioshaq.orchestrator.outbound_radio import run_outbound_radio_handler
+                from radioshaq.orchestrator.outbound_dispatcher import run_outbound_handler
                 _stop_event = asyncio.Event()
                 _consumer_task = asyncio.create_task(
                     run_inbound_consumer(
@@ -116,19 +120,18 @@ async def lifespan(app: FastAPI):
                 app.state._bus_consumer_stop = _stop_event
                 app.state._bus_consumer_task = _consumer_task
                 logger.info("MessageBus inbound consumer started")
-                radio_tx = app.state.agent_registry.get_agent("radio_tx") if getattr(app.state, "agent_registry", None) else None
                 _outbound_radio_stop = asyncio.Event()
                 _outbound_radio_task = asyncio.create_task(
-                    run_outbound_radio_handler(
+                    run_outbound_handler(
                         app.state.message_bus,
-                        radio_tx,
                         config,
+                        getattr(app.state, "agent_registry", None),
                         stop_event=_outbound_radio_stop,
                     )
                 )
                 app.state._outbound_radio_stop = _outbound_radio_stop
                 app.state._outbound_radio_task = _outbound_radio_task
-                logger.info("Outbound radio handler started")
+                logger.info("Outbound handler started (radio_rx, sms, whatsapp)")
 
         # Optional: multi-band listener (listen_bands or default_band + listener_enabled)
         _listener_task = None
@@ -203,6 +206,7 @@ async def lifespan(app: FastAPI):
                         stop_event=_relay_delivery_stop,
                         interval_seconds=60.0,
                         radio_tx_agent=radio_tx,
+                        message_bus=getattr(app.state, "message_bus", None),
                     )
                 )
                 app.state._relay_delivery_stop = _relay_delivery_stop
@@ -270,20 +274,22 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="RadioShaq API",
         description="Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System",
-        version="0.1.0",
+        version=__version__,
         lifespan=lifespan,
     )
 
-    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
+    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, emergency, gis, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(metrics.metrics_router, prefix="/metrics", tags=["metrics"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
     app.include_router(radio.router, prefix="/radio", tags=["radio"])
+    app.include_router(gis.router, prefix="/gis", tags=["gis"])
     app.include_router(memory.router, prefix="/memory", tags=["memory"])
     app.include_router(messages.router, prefix="/messages", tags=["messages"])
     app.include_router(relay.router, prefix="/messages", tags=["messages"])
     app.include_router(transcripts.router, prefix="/transcripts", tags=["transcripts"])
     app.include_router(callsigns.router, prefix="/callsigns", tags=["callsigns"])
+    app.include_router(emergency.router, prefix="/emergency", tags=["emergency"])
     app.include_router(inject.router, prefix="/inject", tags=["inject"])
     app.include_router(receiver.router, prefix="/receiver", tags=["receiver"])
     app.include_router(bus.router, prefix="/internal", tags=["internal"])
@@ -295,6 +301,10 @@ def create_app() -> FastAPI:
     web_ui = _web_ui_dir()
     if web_ui is not None:
         app.mount("/", StaticFiles(directory=str(web_ui), html=True), name="web_ui")
+        if app.router.routes[-1].name != "web_ui":
+            raise RuntimeError(
+                "web_ui mount must remain the final route. Register all API routes before mounting static files at /."
+            )
 
     return app
 

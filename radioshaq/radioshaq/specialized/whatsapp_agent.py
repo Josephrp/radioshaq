@@ -1,28 +1,43 @@
-"""WhatsApp specialized agent (adapt from nanobot)."""
+"""WhatsApp specialized agent (Twilio WhatsApp Business API)."""
 
 from __future__ import annotations
 
+import re
 from typing import Any
+
+from loguru import logger
 
 from radioshaq.specialized.base import SpecializedAgent
 
 
+def _e164(phone: str) -> str:
+    """Normalize to E.164-like form: strip all non-digit characters and ensure + prefix."""
+    s = (phone or "").strip()
+    if not s:
+        return ""
+    digits = re.sub(r"\D", "", s)
+    if not digits:
+        return ""
+    return "+" + digits
+
+
 class WhatsAppAgent(SpecializedAgent):
     """
-    Specialized agent for WhatsApp message send/receive.
-    Intended to wrap nanobot WhatsApp channel logic when integrated.
+    Specialized agent for WhatsApp message send/receive via Twilio.
+    Uses same Twilio client as SMS with from_/to as whatsapp:+E.164.
     """
 
     name = "whatsapp"
-    description = "Sends and receives messages via WhatsApp"
+    description = "Sends and receives messages via WhatsApp (Twilio)"
     capabilities = [
         "whatsapp_send",
         "whatsapp_receive",
     ]
 
-    def __init__(self, client: Any = None):
-        """Optional: nanobot WhatsApp client or similar when integrated."""
+    def __init__(self, client: Any = None, from_number: str | None = None):
+        """Twilio REST client and WhatsApp sender number (E.164); both required for send."""
         self.client = client
+        self.from_number = from_number
 
     async def execute(
         self,
@@ -45,34 +60,52 @@ class WhatsAppAgent(SpecializedAgent):
     async def _send_message(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Send a WhatsApp message to a chat/phone."""
+        """Send a WhatsApp message to a chat/phone (E.164)."""
         to = task.get("to") or task.get("chat_id") or ""
         message = task.get("message", "")
 
         await self.emit_progress(upstream_callback, "sending", to=to)
 
-        if not self.client:
+        if not self.client or not self.from_number:
             return {
                 "success": False,
                 "to": to,
-                "message_sent": message[:100],
-                "notes": "WhatsApp client not configured; integrate nanobot for full support.",
+                "message_sent": (message or "")[:100],
+                "notes": "Twilio WhatsApp not configured (client or whatsapp_from missing).",
             }
 
         try:
-            # Placeholder: when nanobot is integrated, call client.send(...)
             result = await self._do_send(to, message)
             await self.emit_result(upstream_callback, result)
             return result
         except Exception as e:
+            logger.exception("WhatsApp send failed: %s", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 
     async def _do_send(self, to: str, message: str) -> dict[str, Any]:
-        """Override in integration to use nanobot client."""
-        return {
-            "success": True,
-            "to": to,
-            "message_sent": message[:100],
-            "notes": "No WhatsApp client configured",
-        }
+        """Send via Twilio WhatsApp: from_ and to use whatsapp:+E.164."""
+        to_e164 = _e164(to)
+        from_e164 = _e164(self.from_number)
+        if not to_e164:
+            return {
+                "success": False,
+                "to": to,
+                "notes": "to (phone number) is required",
+            }
+        try:
+            msg = self.client.messages.create(
+                body=message or "",
+                from_="whatsapp:" + from_e164,
+                to="whatsapp:" + to_e164,
+            )
+            return {
+                "success": True,
+                "to": to_e164,
+                "sid": msg.sid,
+                "status": getattr(msg, "status", None),
+                "message_sent": (message or "")[:100],
+            }
+        except Exception as e:
+            logger.exception("WhatsApp _do_send failed: %s", e)
+            raise

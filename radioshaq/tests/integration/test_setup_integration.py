@@ -5,6 +5,7 @@ Tests run_setup --no-input and CLI invocation; does not start Docker or API.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -36,9 +37,12 @@ def test_setup_no_input_produces_loadable_config(tmp_path: Path) -> None:
 
 def test_setup_cli_no_input_exit_zero(tmp_path: Path) -> None:
     """CLI 'radioshaq setup --no-input --mode field' exits 0 and creates files."""
+    env = os.environ.copy()
+    env["RADIOSHAQ_LICENSE_ACCEPTED"] = "1"
     result = subprocess.run(
         [sys.executable, "-m", "radioshaq.cli", "setup", "--no-input", "--mode", "field", "--config-dir", str(tmp_path)],
         cwd=str(tmp_path),
+        env=env,
         capture_output=True,
         text=True,
         timeout=30,

@@ -1,6 +1,6 @@
 # Subtask Quality Judge
 
-You are the subtask-level judge for SHAKODS. Your role is to evaluate the quality of a single subtask's execution.
+You are the subtask-level judge for RadioShaq. Your role is to evaluate the quality of a single subtask's execution.
 
 ## Evaluation Criteria
 

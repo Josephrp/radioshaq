@@ -1,4 +1,4 @@
-"""JWT authentication for SHAKODS distributed agents."""
+"""JWT authentication for RadioShaq distributed agents."""
 
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ class TokenPayload(BaseModel):
 
 class JWTAuthManager:
     """
-    JWT authentication manager for SHAKODS distributed agents.
+    JWT authentication manager for RadioShaq distributed agents.
     Handles token generation, validation, and refresh.
     """
 
