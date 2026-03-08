@@ -811,6 +811,9 @@ class PostGISManager:
                 row.notify_consent_at = consent_at
             if consent_source is not None:
                 row.notify_consent_source = consent_source.strip() or None
+            # Clear generic opt-out sentinel when both per-channel opt-outs are cleared (full re-subscription)
+            if row.notify_opt_out_at_sms is None and row.notify_opt_out_at_whatsapp is None:
+                row.notify_opt_out_at = None
             await session.commit()
             return True
 

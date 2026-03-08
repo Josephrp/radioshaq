@@ -38,6 +38,7 @@ async def relay_message_between_bands_service(
     target_channel: str = "radio",
     destination_phone: str | None = None,
     emergency: bool = False,
+    message_bus: Any = None,
 ) -> dict[str, Any]:
     """
     Relay a message from source band to target (radio band, sms, or whatsapp).
@@ -202,6 +203,25 @@ async def relay_message_between_bands_service(
         metadata=relay_metadata,
         raw_audio_path=target_audio_path,
     )
+
+    # Immediate SMS/WhatsApp dispatch when no deliver_at and bus available (avoids up-to-60s worker delay)
+    if is_sms_whatsapp and not deliver_at and message_bus and hasattr(message_bus, "publish_outbound"):
+        try:
+            from radioshaq.vendor.nanobot.bus.events import OutboundMessage
+            ok = await message_bus.publish_outbound(
+                OutboundMessage(
+                    channel=target_channel,
+                    chat_id=destination_phone or "",
+                    content=message,
+                    reply_to=None,
+                    media=[],
+                    metadata={"relay_transcript_id": relay_id, "source_callsign": source_callsign},
+                )
+            )
+            if ok and storage and storage.db and hasattr(storage.db, "mark_transcript_delivery_done"):
+                await storage.db.mark_transcript_delivery_done(relay_id)
+        except Exception as e:
+            logger.warning("Relay immediate publish_outbound failed for transcript %s, worker will retry: %s", relay_id, e)
 
     immediate = not deliver_at and not is_sms_whatsapp
     radio_cfg = getattr(config, "radio", None) if config else None

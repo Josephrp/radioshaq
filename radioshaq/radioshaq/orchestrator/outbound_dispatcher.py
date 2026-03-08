@@ -44,9 +44,17 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                     except Exception as e:
-                        logger.warning("Outbound sms execute failed: %s", e)
+                        logger.warning("Outbound sms execute failed, re-enqueuing: %s", e)
+                        try:
+                            await bus.publish_outbound(msg)
+                        except Exception:
+                            logger.error("Failed to re-enqueue outbound sms message to %s", msg.chat_id)
                 else:
-                    logger.debug("Outbound sms: no sms agent, skipping")
+                    logger.debug("Outbound sms: no sms agent, re-enqueuing")
+                    try:
+                        await bus.publish_outbound(msg)
+                    except Exception:
+                        logger.error("Failed to re-enqueue outbound sms message to %s", msg.chat_id)
             elif msg.channel == "whatsapp":
                 wa_agent = agent_registry.get_agent("whatsapp") if agent_registry else None
                 if wa_agent and hasattr(wa_agent, "execute"):
@@ -60,9 +68,17 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                     except Exception as e:
-                        logger.warning("Outbound whatsapp execute failed: %s", e)
+                        logger.warning("Outbound whatsapp execute failed, re-enqueuing: %s", e)
+                        try:
+                            await bus.publish_outbound(msg)
+                        except Exception:
+                            logger.error("Failed to re-enqueue outbound whatsapp message to %s", msg.chat_id)
                 else:
-                    logger.debug("Outbound whatsapp: no whatsapp agent, skipping")
+                    logger.debug("Outbound whatsapp: no whatsapp agent, re-enqueuing")
+                    try:
+                        await bus.publish_outbound(msg)
+                    except Exception:
+                        logger.error("Failed to re-enqueue outbound whatsapp message to %s", msg.chat_id)
             else:
                 logger.debug("Outbound unsupported channel: %s", msg.channel)
         except asyncio.CancelledError:

@@ -110,6 +110,7 @@ async def relay_message_between_bands(
     storage = get_transcript_storage(request)
     queue = get_injection_queue()
     radio_tx = get_radio_tx_agent(request)
+    message_bus = getattr(request.app.state, "message_bus", None)
     target_band_val = (target_band if target_channel == "radio" else target_channel) or target_channel
     result = await relay_message_between_bands_service(
         message=msg,
@@ -131,6 +132,7 @@ async def relay_message_between_bands(
         target_channel=target_channel,
         destination_phone=destination_phone_e164 if target_channel in ("sms", "whatsapp") else (body.destination_phone or "").strip() or None,
         emergency=body.emergency,
+        message_bus=message_bus,
     )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Relay failed"))
