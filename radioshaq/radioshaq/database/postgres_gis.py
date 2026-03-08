@@ -833,6 +833,8 @@ class PostGISManager:
             else:
                 row.notify_opt_out_at_whatsapp = now
                 row.notify_whatsapp_phone = None
+            if row.notify_opt_out_at is None:
+                row.notify_opt_out_at = now
             await session.commit()
             return True
 
@@ -850,7 +852,7 @@ class PostGISManager:
             stmt = (
                 update(RegisteredCallsign)
                 .where(col == phone)
-                .values({opt_out_col: now, col: None})
+                .values({opt_out_col: now, col: None, RegisteredCallsign.notify_opt_out_at: now})
                 .returning(RegisteredCallsign.id)
             )
             result = await session.execute(stmt)

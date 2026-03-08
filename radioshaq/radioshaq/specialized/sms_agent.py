@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from loguru import logger
@@ -65,7 +66,8 @@ class SMSAgent(SpecializedAgent):
             }
 
         try:
-            msg = self.twilio_client.messages.create(
+            msg = await asyncio.to_thread(
+                self.twilio_client.messages.create,
                 body=body,
                 from_=normalize_e164(self.from_number),
                 to=to,

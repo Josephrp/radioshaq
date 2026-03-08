@@ -20,6 +20,9 @@ from radioshaq.utils.phone import normalize_e164
 
 router = APIRouter()
 
+# Allowed status values for GET /emergency/events (validated before passing to DB)
+ALLOWED_EVENT_STATUSES = frozenset({"pending", "approving", "approved", "rejected"})
+
 
 class EmergencyRequestBody(BaseModel):
     """Body for POST /emergency/request."""
@@ -149,7 +152,9 @@ async def list_emergency_events(
     db = getattr(request.app.state, "db", None)
     if db is None or not hasattr(db, "get_pending_coordination_events"):
         return {"events": [], "count": 0}
-    status_filter = status if status else "pending"
+    status_filter = status.strip() if (status is not None and str(status).strip()) else "pending"
+    if status_filter not in ALLOWED_EVENT_STATUSES:
+        raise HTTPException(status_code=400, detail=f"status must be one of: {', '.join(sorted(ALLOWED_EVENT_STATUSES))}")
     events = await db.get_pending_coordination_events(
         max_results=1000, event_type="emergency", status=status_filter
     )

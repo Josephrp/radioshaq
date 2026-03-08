@@ -126,3 +126,4 @@ async def test_record_opt_out_clears_phone_and_sets_opt_out_at():
     assert ok is True
     assert row.notify_opt_out_at_sms is not None
     assert row.notify_sms_phone is None
+    assert row.notify_opt_out_at is not None  # generic opt-out timestamp set on first opt-out

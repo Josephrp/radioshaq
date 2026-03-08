@@ -8,22 +8,13 @@ from typing import Any
 from loguru import logger
 
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
-from radioshaq.constants import EXPLICIT_CONSENT_REGIONS
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
 
 
 def _is_consent_valid_for_region(region: str | None, prefs: dict[str, Any]) -> bool:
-    """True if contact preferences have valid consent for this region."""
-    consent_at = prefs.get("notify_consent_at")
-    if not consent_at:
-        return False
-    if not region:
-        return True
-    region_upper = (region or "").strip().upper()
-    if region_upper in EXPLICIT_CONSENT_REGIONS:
-        return bool(consent_at)
-    return True
+    """True if contact preferences have a valid consent record (API enforces consent for explicit regions before setting notify_consent_at)."""
+    return bool(prefs.get("notify_consent_at"))
 
 
 async def run_relay_delivery_worker(
