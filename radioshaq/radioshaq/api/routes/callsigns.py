@@ -12,7 +12,7 @@ from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
-from radioshaq.constants import EXPLICIT_CONSENT_REGIONS
+from radioshaq.constants import E164_PATTERN, EXPLICIT_CONSENT_REGIONS
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.utils.phone import normalize_e164
 
@@ -34,10 +34,6 @@ class PatchCallsignBandsBody(BaseModel):
     """Body for PATCH /callsigns/registered/{callsign}."""
 
     preferred_bands: list[str] = Field(..., min_length=0, description="Preferred bands e.g. [40m, 2m]")
-
-
-# E.164: optional +, digits only (len 10–15)
-E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
 
 
 class PatchContactPreferencesBody(BaseModel):

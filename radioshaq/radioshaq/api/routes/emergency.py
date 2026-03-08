@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator
 
@@ -15,12 +14,11 @@ from pydantic import BaseModel, Field
 from radioshaq.api.dependencies import get_config, get_current_user
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.config.schema import Config
+from radioshaq.constants import E164_PATTERN
 from radioshaq.messaging_compliance import emergency_messaging_allowed
 from radioshaq.utils.phone import normalize_e164
 
 router = APIRouter()
-
-E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
 
 
 class EmergencyRequestBody(BaseModel):
@@ -188,6 +186,7 @@ async def approve_emergency_event(
     phone = extra.get("emergency_contact_phone")
     channel = extra.get("emergency_contact_channel")
     if not phone or channel not in ("sms", "whatsapp"):
+        await db.update_coordination_event(event_id, status="pending")  # roll back claim
         raise HTTPException(status_code=400, detail="Missing contact_phone or contact_channel")
     approver = getattr(_user, "sub", None) or getattr(_user, "callsign", "api")
     now = datetime.now(timezone.utc).isoformat()

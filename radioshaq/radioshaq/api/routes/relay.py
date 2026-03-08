@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import uuid
 from typing import Any
 
@@ -12,6 +11,7 @@ from pydantic import BaseModel, Field
 from radioshaq.api.callsign_whitelist import get_effective_allowed_callsigns, is_callsign_allowed
 from radioshaq.api.dependencies import get_config, get_current_user, get_radio_tx_agent, get_transcript_storage
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.constants import E164_PATTERN
 from radioshaq.utils.phone import normalize_e164
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.injection import get_injection_queue
@@ -19,16 +19,13 @@ from radioshaq.relay.service import relay_message_between_bands_service
 
 router = APIRouter()
 
-# E.164: optional +, 10–15 digits (compiled once at module load)
-E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
-
 
 class RelayBody(BaseModel):
     """Body for POST /messages/relay (band translation or SMS/WhatsApp)."""
 
     message: str = Field(..., min_length=1)
     source_band: str = Field(...)
-    target_band: str = Field(..., description="Target band (e.g. 2m) when target_channel=radio; ignored when target_channel is sms/whatsapp")
+    target_band: str | None = Field(None, description="Target band (e.g. 2m) when target_channel=radio; ignored when target_channel is sms/whatsapp")
     source_frequency_hz: float | None = Field(None)
     target_frequency_hz: float | None = Field(None)
     source_callsign: str = Field("UNKNOWN")
@@ -87,8 +84,11 @@ async def relay_message_between_bands(
             raise HTTPException(status_code=400, detail="destination_phone must be E.164 (10–15 digits)")
     if source_band not in band_plans:
         raise HTTPException(status_code=400, detail="Unknown source_band; use e.g. 40m, 2m, 20m")
-    if target_channel == "radio" and target_band not in band_plans:
-        raise HTTPException(status_code=400, detail="Unknown target_band; use e.g. 40m, 2m, 20m")
+    if target_channel == "radio":
+        if not (target_band and str(target_band).strip()):
+            raise HTTPException(status_code=400, detail="target_band required when target_channel is radio")
+        if target_band not in band_plans:
+            raise HTTPException(status_code=400, detail="Unknown target_band; use e.g. 40m, 2m, 20m")
 
     source_plan = band_plans[source_band]
     source_freq = body.source_frequency_hz or (source_plan.freq_start_hz + (source_plan.freq_end_hz - source_plan.freq_start_hz) / 2)
@@ -110,7 +110,7 @@ async def relay_message_between_bands(
     storage = get_transcript_storage(request)
     queue = get_injection_queue()
     radio_tx = get_radio_tx_agent(request)
-    target_band_val = target_band if target_channel == "radio" else target_channel
+    target_band_val = (target_band if target_channel == "radio" else target_channel) or target_channel
     result = await relay_message_between_bands_service(
         message=msg,
         source_band=source_band,

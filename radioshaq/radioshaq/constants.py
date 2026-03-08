@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+import re
+
+# E.164 phone validation: optional +, 10–15 digits (shared across emergency, relay, callsigns)
+E164_PATTERN: re.Pattern[str] = re.compile(r"^\+?[0-9]{10,15}$")
+
 # Regions that require explicit consent for notify-on-relay (§8.1, §8.3)
 EXPLICIT_CONSENT_REGIONS: frozenset[str] = frozenset(
     ("CEPT", "FR", "UK", "ES", "BE", "CH", "LU", "MC", "ZA")
