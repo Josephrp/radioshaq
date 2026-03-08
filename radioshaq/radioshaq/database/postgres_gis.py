@@ -567,13 +567,15 @@ class PostGISManager:
         callsign: str | None = None,
         event_type: str | None = None,
         max_results: int = 100,
+        status: str | None = "pending",
     ) -> list[dict[str, Any]]:
-        """Get pending coordination events.
+        """Get coordination events, optionally filtered by status.
         
         Args:
             callsign: Filter by callsign (initiator or target)
             event_type: Filter by event_type (e.g. emergency)
             max_results: Maximum results
+            status: Filter by status (default "pending"). Pass None to get all statuses.
             
         Returns:
             List of event dicts
@@ -581,11 +583,11 @@ class PostGISManager:
         async with self.async_session() as session:
             query = (
                 select(CoordinationEvent)
-                .where(CoordinationEvent.status == "pending")
                 .order_by(CoordinationEvent.priority, CoordinationEvent.scheduled_time)
                 .limit(max_results)
             )
-            
+            if status is not None:
+                query = query.where(CoordinationEvent.status == status)
             if callsign:
                 callsign_upper = callsign.upper()
                 query = query.where(
@@ -835,25 +837,26 @@ class PostGISManager:
             return True
 
     async def record_opt_out_by_phone(self, phone: str, channel: str) -> bool:
-        """Record opt-out by phone number (finds callsign by notify_sms_phone or notify_whatsapp_phone). Returns True if updated."""
+        """Record opt-out by phone number. Opts out all callsigns with this phone. Returns True if at least one row was updated."""
         phone = (phone or "").strip()
         if not phone or channel not in ("sms", "whatsapp"):
             return False
         async with self.async_session() as session:
             col = RegisteredCallsign.notify_sms_phone if channel == "sms" else RegisteredCallsign.notify_whatsapp_phone
-            result = await session.execute(select(RegisteredCallsign).where(col == phone))
-            row = result.scalar_one_or_none()
-            if not row:
-                return False
+            opt_out_col = (
+                RegisteredCallsign.notify_opt_out_at_sms if channel == "sms" else RegisteredCallsign.notify_opt_out_at_whatsapp
+            )
             now = datetime.now(timezone.utc)
-            if channel == "sms":
-                row.notify_opt_out_at_sms = now
-                row.notify_sms_phone = None
-            else:
-                row.notify_opt_out_at_whatsapp = now
-                row.notify_whatsapp_phone = None
+            stmt = (
+                update(RegisteredCallsign)
+                .where(col == phone)
+                .values({opt_out_col: now, col: None})
+                .returning(RegisteredCallsign.id)
+            )
+            result = await session.execute(stmt)
+            updated_ids = result.scalars().all()
             await session.commit()
-            return True
+            return len(updated_ids) > 0
 
     async def unregister_callsign(self, callsign: str) -> bool:
         """Remove a callsign from the registry. Returns True if a row was deleted."""

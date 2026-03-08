@@ -121,6 +121,33 @@ Then open **http://localhost:8000/** for the web UI and **http://localhost:8000/
 
 **Remote receiver (SDR):** For listen-only stations (e.g. Raspberry Pi + RTL-SDR) that stream to HQ, run `radioshaq run-receiver` after the same install. Set `JWT_SECRET`, `STATION_ID`, `HQ_URL`; optionally `pip install radioshaq[sdr]` or `radioshaq[hackrf]` for hardware support. HQ accepts uploads at `POST /receiver/upload`.
 
+### HackRF on Windows
+
+The `python-hackrf` package needs the **HackRF SDK** (headers and DLLs) at build time. By default it looks for `C:\Program Files\HackRF\include\hackrf.h` and `C:\Program Files\HackRF\lib\`.
+
+1. **Install the HackRF SDK for Windows** (pick one):
+   - **Prebuilt (easiest):** Download a Windows build from [greatscottgadgets/hackrf Actions](https://github.com/greatscottgadgets/hackrf/actions) (log in, pick a successful run, download the Windows artifact). Or check [python_hackrf Releases](https://github.com/GvozdevLeonid/python_hackrf/releases) for a ZIP that contains `include/` and `lib/`.
+   - **Extract** so you have:
+     - `C:\Program Files\HackRF\include\hackrf.h`
+     - `C:\Program Files\HackRF\lib\` with `hackrf.dll`, `hackrf.lib` (MSVC), and dependencies (e.g. `libusb-1.0.dll`, `pthreadVC2.dll`).
+   - **Or build from source:** See [HackRF docs – Windows: Building From Source](https://hackrf.readthedocs.io/en/latest/installing_hackrf_software.html) (Visual Studio, CMake, vcpkg). Then copy the built `include/` and `lib/` (or `.dll`/`.lib`) into `C:\Program Files\HackRF\` or set the env vars below.
+
+2. **Custom install path:** If you put HackRF elsewhere, set before building:
+   ```powershell
+   $env:PYTHON_HACKRF_INCLUDE_PATH = "C:\path\to\hackrf\include"
+   $env:PYTHON_HACKRF_LIB_PATH    = "C:\path\to\hackrf\lib"
+   $env:HACKRF_LIB_DIR            = "C:\path\to\hackrf\lib"
+   ```
+
+3. **Install the hackrf extra:** In this repo the `hackrf` extra is skipped on Windows by default so `uv sync --all-extras` doesn’t fail. After the SDK is in place, install the binding explicitly:
+   ```powershell
+   uv pip install python-hackrf
+   # Or add hackrf to the project and remove the Windows-only marker in pyproject.toml, then:
+   # uv sync --extra hackrf
+   ```
+
+**Driver:** For the device itself, use [Zadig](https://zadig.akeo.ie/) to install the WinUSB driver for HackRF One. Alternatively, [RadioConda](https://github.com/ryanvolz/radioconda) provides HackRF binaries and a Conda environment on Windows (use that Python/conda if you prefer).
+
 ## Development
 
 Install dependencies first (from the **radioshaq** directory): `uv sync --extra dev --extra test`. Then use `uv run` for all commands below so the correct environment (with geoalchemy2, loguru, etc.) is used.

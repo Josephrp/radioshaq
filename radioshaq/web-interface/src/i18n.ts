@@ -17,6 +17,7 @@ const STORAGE_KEY = 'radioshaq_ui_lang';
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, fr: { translation: fr }, es: { translation: es } },
   lng: (() => {
+    if (typeof window === 'undefined') return 'en';
     const codes = SUPPORTED_LANGUAGES.map((l) => l.code) as string[];
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored && codes.includes(stored)) return stored;
@@ -28,7 +29,7 @@ i18n.use(initReactI18next).init({
 });
 
 i18n.on('languageChanged', (lng) => {
-  window.localStorage.setItem(STORAGE_KEY, lng);
+  if (typeof window !== 'undefined') window.localStorage.setItem(STORAGE_KEY, lng);
 });
 
 export default i18n;
