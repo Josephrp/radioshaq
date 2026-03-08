@@ -8,11 +8,9 @@ from typing import Any
 from loguru import logger
 
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
+from radioshaq.constants import EXPLICIT_CONSENT_REGIONS
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
-
-# Regions that require explicit consent for notify-on-relay (§8.1, §8.3)
-_EXPLICIT_CONSENT_REGIONS = frozenset(("CEPT", "FR", "UK", "ES", "BE", "CH", "LU", "MC", "ZA"))
 
 
 def _is_consent_valid_for_region(region: str | None, prefs: dict[str, Any]) -> bool:
@@ -23,7 +21,7 @@ def _is_consent_valid_for_region(region: str | None, prefs: dict[str, Any]) -> b
     if not region:
         return True
     region_upper = (region or "").strip().upper()
-    if region_upper in _EXPLICIT_CONSENT_REGIONS:
+    if region_upper in EXPLICIT_CONSENT_REGIONS:
         return bool(consent_at)
     return True
 

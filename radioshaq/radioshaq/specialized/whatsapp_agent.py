@@ -2,23 +2,13 @@
 
 from __future__ import annotations
 
-import re
+import asyncio
 from typing import Any
 
 from loguru import logger
 
 from radioshaq.specialized.base import SpecializedAgent
-
-
-def _e164(phone: str) -> str:
-    """Normalize to E.164-like form: strip all non-digit characters and ensure + prefix."""
-    s = (phone or "").strip()
-    if not s:
-        return ""
-    digits = re.sub(r"\D", "", s)
-    if not digits:
-        return ""
-    return "+" + digits
+from radioshaq.utils.phone import normalize_e164
 
 
 class WhatsAppAgent(SpecializedAgent):
@@ -85,8 +75,8 @@ class WhatsAppAgent(SpecializedAgent):
 
     async def _do_send(self, to: str, message: str) -> dict[str, Any]:
         """Send via Twilio WhatsApp: from_ and to use whatsapp:+E.164."""
-        to_e164 = _e164(to)
-        from_e164 = _e164(self.from_number)
+        to_e164 = normalize_e164(to)
+        from_e164 = normalize_e164(self.from_number)
         if not to_e164:
             return {
                 "success": False,
@@ -94,7 +84,8 @@ class WhatsAppAgent(SpecializedAgent):
                 "notes": "to (phone number) is required",
             }
         try:
-            msg = self.client.messages.create(
+            msg = await asyncio.to_thread(
+                self.client.messages.create,
                 body=message or "",
                 from_="whatsapp:" + from_e164,
                 to="whatsapp:" + to_e164,

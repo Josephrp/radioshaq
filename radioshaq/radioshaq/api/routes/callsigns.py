@@ -12,7 +12,9 @@ from radioshaq.api.dependencies import get_config, get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
+from radioshaq.constants import EXPLICIT_CONSENT_REGIONS
 from radioshaq.radio.bands import BAND_PLANS
+from radioshaq.utils.phone import normalize_e164
 
 router = APIRouter()
 
@@ -36,14 +38,6 @@ class PatchCallsignBandsBody(BaseModel):
 
 # E.164: optional +, digits only (len 10–15)
 E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
-
-
-def _normalize_e164(phone: str) -> str:
-    """Normalize to E.164: digits only with + prefix."""
-    digits = re.sub(r"\D", "", (phone or "").strip())
-    if not digits:
-        return ""
-    return "+" + digits
 
 
 class PatchContactPreferencesBody(BaseModel):
@@ -208,7 +202,7 @@ async def register_from_audio(
         Path(temp_path).unlink(missing_ok=True)
 
 
-@router.patch("/registered/{callsign:path}")
+@router.patch("/registered/{callsign}")
 async def patch_callsign_bands(
     request: Request,
     callsign: str,
@@ -240,7 +234,7 @@ async def patch_callsign_bands(
     return {"ok": True, "callsign": normalized, "preferred_bands": bands}
 
 
-@router.get("/registered/{callsign:path}/contact-preferences")
+@router.get("/registered/{callsign}/contact-preferences")
 async def get_contact_preferences(
     request: Request,
     callsign: str,
@@ -260,10 +254,10 @@ async def get_contact_preferences(
 
 def _require_explicit_consent_region(region: str) -> bool:
     """True if region requires explicit consent (EU/UK/ZA)."""
-    return (region or "").upper() in ("CEPT", "FR", "UK", "ES", "BE", "CH", "LU", "MC", "ZA")
+    return (region or "").strip().upper() in EXPLICIT_CONSENT_REGIONS
 
 
-@router.patch("/registered/{callsign:path}/contact-preferences")
+@router.patch("/registered/{callsign}/contact-preferences")
 async def patch_contact_preferences(
     request: Request,
     callsign: str,
@@ -290,7 +284,7 @@ async def patch_contact_preferences(
     if body.notify_sms_phone is not None:
         raw = (body.notify_sms_phone or "").strip()
         if raw:
-            sms_phone = _normalize_e164(raw)
+            sms_phone = normalize_e164(raw)
             if not E164_PATTERN.match(sms_phone):
                 raise HTTPException(status_code=400, detail="notify_sms_phone must be E.164 (10–15 digits)")
         else:
@@ -299,7 +293,7 @@ async def patch_contact_preferences(
     if body.notify_whatsapp_phone is not None:
         raw = (body.notify_whatsapp_phone or "").strip()
         if raw:
-            whatsapp_phone = _normalize_e164(raw)
+            whatsapp_phone = normalize_e164(raw)
             if not E164_PATTERN.match(whatsapp_phone):
                 raise HTTPException(status_code=400, detail="notify_whatsapp_phone must be E.164 (10–15 digits)")
         else:
@@ -326,7 +320,7 @@ async def patch_contact_preferences(
     return prefs or {}
 
 
-@router.delete("/registered/{callsign:path}")
+@router.delete("/registered/{callsign}")
 async def unregister_callsign(
     request: Request,
     callsign: str,

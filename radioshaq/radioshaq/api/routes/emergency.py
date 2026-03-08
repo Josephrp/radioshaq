@@ -16,15 +16,11 @@ from radioshaq.api.dependencies import get_config, get_current_user
 from radioshaq.auth.jwt import TokenPayload
 from radioshaq.config.schema import Config
 from radioshaq.messaging_compliance import emergency_messaging_allowed
+from radioshaq.utils.phone import normalize_e164
 
 router = APIRouter()
 
 E164_PATTERN = re.compile(r"^\+?[0-9]{10,15}$")
-
-
-def _normalize_e164(phone: str) -> str:
-    digits = re.sub(r"\D", "", (phone or "").strip())
-    return "+" + digits if digits else ""
 
 
 class EmergencyRequestBody(BaseModel):
@@ -67,7 +63,7 @@ async def create_emergency_request(
         )
     if body.contact_channel not in ("sms", "whatsapp"):
         raise HTTPException(status_code=400, detail="contact_channel must be sms or whatsapp")
-    phone = _normalize_e164(body.contact_phone)
+    phone = normalize_e164(body.contact_phone)
     if not E164_PATTERN.match(phone):
         raise HTTPException(status_code=400, detail="contact_phone must be E.164 (10–15 digits)")
     initiator = getattr(_user, "callsign", None) or getattr(_user, "sub", "api")
@@ -151,13 +147,14 @@ async def list_emergency_events(
     status: str | None = None,
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
-    """List coordination events with event_type=emergency. Optional filter by status."""
+    """List coordination events with event_type=emergency. Optional filter by status (e.g. pending, approved, rejected)."""
     db = getattr(request.app.state, "db", None)
     if db is None or not hasattr(db, "get_pending_coordination_events"):
         return {"events": [], "count": 0}
-    events = await db.get_pending_coordination_events(max_results=1000, event_type="emergency")
-    if status:
-        events = [e for e in events if e.get("status") == status]
+    status_filter = status if status else "pending"
+    events = await db.get_pending_coordination_events(
+        max_results=1000, event_type="emergency", status=status_filter
+    )
     return {"events": events, "count": len(events)}
 
 
@@ -234,15 +231,15 @@ async def reject_emergency_event(
 ) -> dict[str, Any]:
     """Reject an emergency event (do not send). Sets status=rejected and records rejected_at, rejected_by."""
     db = getattr(request.app.state, "db", None)
-    if db is None or not hasattr(db, "get_coordination_event_by_id") or not hasattr(db, "update_coordination_event"):
+    if db is None or not hasattr(db, "claim_emergency_event_pending") or not hasattr(db, "get_coordination_event_by_id") or not hasattr(db, "update_coordination_event"):
         raise HTTPException(status_code=503, detail="Database not available")
-    event = await db.get_coordination_event_by_id(event_id)
-    if not event:
-        raise HTTPException(status_code=404, detail="Event not found")
-    if event.get("event_type") != "emergency":
-        raise HTTPException(status_code=400, detail="Not an emergency event")
-    if event.get("status") != "pending":
+    claimed = await db.claim_emergency_event_pending(event_id)
+    if claimed is None:
         raise HTTPException(status_code=400, detail="Event already processed")
+    event = await db.get_coordination_event_by_id(event_id)
+    if not event or event.get("event_type") != "emergency":
+        await db.update_coordination_event(event_id, status="pending")
+        raise HTTPException(status_code=400, detail="Not an emergency event")
     rejector = getattr(_user, "sub", None) or getattr(_user, "callsign", "api")
     now = datetime.now(timezone.utc).isoformat()
     extra = event.get("extra_data") or {}

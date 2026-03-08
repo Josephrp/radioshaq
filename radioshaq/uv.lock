@@ -4065,7 +4065,7 @@ wheels = [
 
 [[package]]
 name = "radioshaq"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -4132,7 +4132,7 @@ dev = [
     { name = "ruff" },
 ]
 hackrf = [
-    { name = "python-hackrf" },
+    { name = "python-hackrf", marker = "sys_platform != 'win32'" },
 ]
 metrics = [
     { name = "prometheus-client" },
@@ -4222,7 +4222,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.15" },
     { name = "python-dateutil", specifier = ">=2.9" },
     { name = "python-dotenv", specifier = ">=1.2" },
-    { name = "python-hackrf", marker = "extra == 'hackrf'", specifier = ">=1.5" },
+    { name = "python-hackrf", marker = "sys_platform != 'win32' and extra == 'hackrf'", specifier = ">=1.5" },
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5" },
     { name = "python-multipart", specifier = ">=0.0.22" },
     { name = "python-telegram-bot", specifier = ">=22" },

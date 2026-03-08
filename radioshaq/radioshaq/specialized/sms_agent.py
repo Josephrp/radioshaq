@@ -2,23 +2,12 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from loguru import logger
 
 from radioshaq.specialized.base import SpecializedAgent
-
-
-def _e164(phone: str) -> str:
-    """Normalize to E.164-like form: strip all non-digit characters and ensure + prefix."""
-    s = (phone or "").strip()
-    if not s:
-        return ""
-    digits = re.sub(r"\D", "", s)
-    if not digits:
-        return ""
-    return "+" + digits
+from radioshaq.utils.phone import normalize_e164
 
 
 class SMSAgent(SpecializedAgent):
@@ -60,7 +49,7 @@ class SMSAgent(SpecializedAgent):
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
         """Send SMS via Twilio. Phone numbers are normalized to E.164."""
-        to = _e164(task.get("to") or "")
+        to = normalize_e164(task.get("to") or "")
         body = task.get("message", "") or task.get("body", "")
 
         await self.emit_progress(upstream_callback, "sending", to=to)
@@ -78,7 +67,7 @@ class SMSAgent(SpecializedAgent):
         try:
             msg = self.twilio_client.messages.create(
                 body=body,
-                from_=_e164(self.from_number),
+                from_=normalize_e164(self.from_number),
                 to=to,
             )
             result = {
