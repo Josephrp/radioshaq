@@ -25,7 +25,10 @@ STAGING="${AWS_DIR}/build/staging"
 rm -rf "${STAGING}"
 mkdir -p "${STAGING}"
 
-# Install radioshaq and dependencies into staging (use pip with target)
+# Install radioshaq and dependencies into staging (use pip with target).
+# Default install does not include optional extras; for local ASR/TTS use:
+#   pip install --target "${STAGING}" ".[audio,tts_kokoro]" -q  (Voxtral/Kokoro; ensure Lambda has enough memory).
+# API-only (ElevenLabs TTS + Scribe ASR) works with default install when ELEVENLABS_API_KEY is set.
 pip install --target "${STAGING}" . -q 2>/dev/null || uv pip install --target "${STAGING}" . -q 2>/dev/null || true
 
 # Copy Lambda handler modules into package

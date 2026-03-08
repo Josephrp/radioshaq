@@ -1,1 +1,1 @@
-"""Prompt templates for SHAKODS agents."""
+"""Prompt templates for RadioShaq agents."""

@@ -1,6 +1,6 @@
-"""Alembic environment configuration for SHAKODS.
+"""Alembic environment configuration for RadioShaq.
 
-This script configures Alembic migrations for the SHAKODS database,
+This script configures Alembic migrations for the RadioShaq database,
 supporting both PostgreSQL with PostGIS. Migrations run with the sync
 driver (psycopg2) for compatibility and to avoid asyncpg auth issues
 when running from the host.
@@ -26,7 +26,7 @@ from alembic import context
 from sqlalchemy import create_engine, pool
 from sqlalchemy.engine import Connection
 
-# Import SHAKODS models
+# Import RadioShaq models
 from radioshaq.database.models import Base
 
 # Alembic Config object

@@ -84,6 +84,7 @@ class REACTOrchestrator:
         tool_registry: Any = None,
         llm_client: Any = None,
         memory_manager: Any = None,
+        db: Any = None,
     ):
         self.judge = judge
         self.prompt_loader = prompt_loader
@@ -93,6 +94,7 @@ class REACTOrchestrator:
         self.tool_registry = tool_registry
         self.llm_client = llm_client
         self.memory_manager = memory_manager
+        self.db = db
 
     async def process_request(
         self,
@@ -454,7 +456,7 @@ class REACTOrchestrator:
             cs = callsign.strip().upper()
             if agent_name == "whitelist" and not (task_dict.get("callsign") or "").strip():
                 task_dict["callsign"] = cs
-            if agent_name == "gis_agent" and not (task_dict.get("callsign") or "").strip():
+            if agent_name == "gis" and not (task_dict.get("callsign") or "").strip():
                 task_dict["callsign"] = cs
             if agent_name == "scheduler" and not (task_dict.get("initiator_callsign") or "").strip():
                 task_dict["initiator_callsign"] = cs

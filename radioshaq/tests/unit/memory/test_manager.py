@@ -6,6 +6,7 @@ Uses TEST_DATABASE_URL or env_overrides; skips if DB unavailable or tables missi
 
 from __future__ import annotations
 
+import asyncio
 import os
 
 import pytest
@@ -21,22 +22,28 @@ def test_normalize_callsign() -> None:
 
 @pytest.fixture
 def db_url() -> str:
+    """Same default as tests/conftest._TEST_DB_URL so migrations apply to this DB."""
     return os.environ.get(
         "TEST_DATABASE_URL",
         os.environ.get(
             "RADIOSHAQ_DATABASE__POSTGRES_URL",
-            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq_test",
+            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
         ),
     )
 
 
+# Max time to wait for DB probe so tests don't hang when Postgres is unreachable
+_MEMORY_DB_PROBE_TIMEOUT = 8.0
+
+
 @pytest.fixture
-async def memory_manager(db_url: str):
-    """MemoryManager with test DB; skip if tables don't exist."""
+async def memory_manager(_run_db_migrations: None, db_url: str):
+    """MemoryManager with test DB; migrations run first so memory_* tables exist."""
     try:
         mgr = MemoryManager(db_url)
-        # Probe: get_core_blocks will fail if tables don't exist
-        await mgr.get_core_blocks("TESTCALL")
+        await asyncio.wait_for(mgr.get_core_blocks("TESTCALL"), timeout=_MEMORY_DB_PROBE_TIMEOUT)
+    except asyncio.TimeoutError:
+        pytest.skip(f"MemoryManager DB probe timed out after {_MEMORY_DB_PROBE_TIMEOUT}s (is Postgres running?)")
     except Exception as e:
         pytest.skip(f"MemoryManager requires migrated DB: {e}")
     yield mgr

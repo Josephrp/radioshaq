@@ -24,6 +24,17 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RADIOSHAQ_LICENSE_ACCEPTED: "1"
+      DATABASE_URL: postgresql://radioshaq:radioshaq@127.0.0.1:5434/radioshaq
+      TEST_DATABASE_URL: postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: radioshaq
+          POSTGRES_PASSWORD: radioshaq
+          POSTGRES_DB: radioshaq
+        ports:
+          - 5434:5432
     steps:
       - uses: actions/checkout@v6
         with:
@@ -32,11 +43,23 @@ jobs:
         with:
           python-version: "3.11"
       - uses: astral-sh/setup-uv@v7
-      - name: Run test suite
+      - name: Install dependencies
+        run: cd radioshaq && uv sync --extra dev --extra test --extra sdr
+      - name: Wait for Postgres
         run: |
-          cd radioshaq
-          uv sync --extra dev --extra test --extra sdr
-          uv run pytest tests/unit tests/integration -v
+          for i in $(seq 1 30); do
+            if python -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('127.0.0.1',5434)); s.close()" 2>/dev/null; then
+              echo "Postgres is ready on 127.0.0.1:5434"
+              break
+            fi
+            echo "Waiting for Postgres... ($i/30)"
+            sleep 2
+          done
+          python -c "import socket; s=socket.socket(); s.settimeout(5); s.connect(('127.0.0.1',5434)); s.close(); print('Postgres port open')"
+      - name: Run database migrations
+        run: cd radioshaq && uv run alembic-upgrade
+      - name: Run test suite
+        run: cd radioshaq && uv run pytest tests/unit tests/integration -v
 
   verify-tag-source:
     name: Verify tag points to main history

@@ -6,6 +6,7 @@ Uses Hindsight service for semantic recall/reflect (bank_id per callsign).
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from typing import Any
@@ -43,6 +44,7 @@ class MemoryManager:
             pool_size=5,
             max_overflow=10,
             echo=False,
+            connect_args={"timeout": 10},
         )
         self.async_session = sessionmaker(
             self.engine,
@@ -63,6 +65,9 @@ class MemoryManager:
             )
             rows = result.fetchall()
         result_dict = {row[0]: (row[1] or "") for row in rows}
+        # Ensure standard block keys exist (empty string if not in DB)
+        for key in ("user", "identity", "ideaspace"):
+            result_dict.setdefault(key, "")
         # Add system instructions (global, read-only)
         sys_instr = await self.get_system_instructions()
         result_dict["system_instructions"] = sys_instr
@@ -260,11 +265,13 @@ class MemoryManager:
                 else:
                     role, content, meta_extra, reasoning = item[0], item[1], item[2], item[3]
                 metadata = dict(meta_extra or {})
+                # asyncpg JSONB requires JSON string when using raw text()
+                metadata_json = json.dumps(metadata)
                 await session.execute(
                     text(
                         """
                         INSERT INTO memory_messages (callsign, idx, role, content, reasoning, metadata)
-                        VALUES (:callsign, :idx, :role, :content, :reasoning, :metadata)
+                        VALUES (:callsign, :idx, :role, :content, :reasoning, CAST(:metadata AS jsonb))
                         """
                     ),
                     {
@@ -273,7 +280,7 @@ class MemoryManager:
                         "role": role,
                         "content": content,
                         "reasoning": reasoning,
-                        "metadata": metadata,
+                        "metadata": metadata_json,
                     },
                 )
                 next_idx += 1
@@ -349,7 +356,12 @@ class MemoryManager:
     async def delete_messages_older_than(
         self, cutoff: datetime, *, limit: int = 10_000
     ) -> int:
-        """Delete memory_messages rows with created_at < cutoff. Returns count deleted. Batch limited by limit."""
+        """Delete memory_messages rows with created_at < cutoff. Returns count deleted. Batch limited by limit.
+        If cutoff is in the future, deletes nothing and returns 0."""
+        if cutoff.tzinfo is None:
+            cutoff = cutoff.replace(tzinfo=timezone.utc)
+        if cutoff > datetime.now(timezone.utc):
+            return 0
         async with self.async_session() as session:
             result = await session.execute(
                 text(

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { Layout } from './components/Layout';
 import { LicenseGate } from './components/LicenseGate';
 import { AudioConfigPage } from './features/audio/AudioConfigPage';
+import { EmergencyPage } from './features/emergency/EmergencyPage';
 import { CallsignsPage } from './features/callsigns/CallsignsPage';
 import { MessagesPage } from './features/messages/MessagesPage';
 import { TranscriptsPage } from './features/transcripts/TranscriptsPage';
@@ -34,6 +35,7 @@ function App() {
       <Routes>
         <Route path="/" element={<Layout />}>
           <Route index element={<AudioConfigPage />} />
+          <Route path="emergency" element={<EmergencyPage />} />
           <Route path="callsigns" element={<CallsignsPage />} />
           <Route path="messages" element={<MessagesPage />} />
           <Route path="transcripts" element={<TranscriptsPage />} />

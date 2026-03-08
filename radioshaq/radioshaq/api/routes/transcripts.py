@@ -101,13 +101,26 @@ async def play_transcript_over_radio(
     if not text:
         raise HTTPException(status_code=400, detail="Transcript has no text")
     try:
-        from radioshaq.audio.tts import text_to_speech_elevenlabs
+        from radioshaq.audio.tts_plugin import synthesize_speech
     except ImportError:
-        raise HTTPException(status_code=503, detail="TTS not available (ElevenLabs)")
-    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+        raise HTTPException(status_code=503, detail="TTS plugin not available")
+    config = get_config(request)
+    tts_cfg = getattr(config, "tts", None)
+    provider = getattr(tts_cfg, "provider", "elevenlabs") if tts_cfg else "elevenlabs"
+    suffix = ".wav" if provider == "kokoro" else ".mp3"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
         temp_path = f.name
     try:
-        text_to_speech_elevenlabs(text, output_path=temp_path)
+        kwargs: dict[str, Any] = {}
+        if tts_cfg and provider == "elevenlabs":
+            kwargs["voice"] = getattr(tts_cfg, "elevenlabs_voice_id", None)
+            kwargs["model_id"] = getattr(tts_cfg, "elevenlabs_model_id", None)
+            kwargs["output_format"] = getattr(tts_cfg, "elevenlabs_output_format", None)
+        elif tts_cfg and provider == "kokoro":
+            kwargs["voice"] = getattr(tts_cfg, "kokoro_voice", None)
+            kwargs["lang_code"] = getattr(tts_cfg, "kokoro_lang_code", None)
+            kwargs["speed"] = getattr(tts_cfg, "kokoro_speed", None)
+        synthesize_speech(text, provider, output_path=temp_path, **kwargs)
         task = {
             "transmission_type": "voice",
             "message": text,
@@ -117,6 +130,11 @@ async def play_transcript_over_radio(
         result = await radio_tx.execute(task)
         if not result.get("success", False):
             raise HTTPException(status_code=500, detail=result.get("error", "TX failed"))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS unavailable or synthesis failed: {e}",
+        ) from e
     finally:
         Path(temp_path).unlink(missing_ok=True)
     return {"ok": True, "transcript_id": transcript_id}

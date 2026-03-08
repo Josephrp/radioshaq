@@ -1,11 +1,66 @@
-"""Pytest configuration and shared fixtures for SHAKODS tests."""
+"""Pytest configuration and shared fixtures for RadioShaq tests."""
 
 from __future__ import annotations
 
 import os
 from typing import Any, Generator
+from urllib.parse import urlparse
 
 import pytest
+
+# Default test DB URL (same as env_overrides); migrations need DATABASE_URL set
+_TEST_DB_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
+)
+
+
+def _ensure_test_database_exists(url: str) -> None:
+    """Create the test database if it does not exist (connect to 'postgres' to run CREATE DATABASE)."""
+    parsed = urlparse(url)
+    path = (parsed.path or "/").lstrip("/")
+    db_name = (path.split("/")[0] or "radioshaq").split("?")[0]
+    try:
+        import psycopg2
+        from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+    except ImportError:
+        return  # no psycopg2, skip create; let migration fail with real error
+    try:
+        conn = psycopg2.connect(
+            host=parsed.hostname or "127.0.0.1",
+            port=parsed.port or 5434,
+            user=parsed.username or "radioshaq",
+            password=parsed.password or "radioshaq",
+            dbname="postgres",
+        )
+        conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+        cur = conn.cursor()
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        if cur.fetchone() is None:
+            cur.execute(f'CREATE DATABASE "{db_name}"')
+        cur.close()
+        conn.close()
+    except Exception:
+        pass  # e.g. connection refused; migration will fail with clearer error
+
+
+@pytest.fixture(scope="session")
+def _run_db_migrations() -> None:
+    """Run Alembic migrations so test DB has current schema (e.g. notify_opt_out_at_sms)."""
+    try:
+        _ensure_test_database_exists(_TEST_DB_URL)
+        prev = os.environ.get("DATABASE_URL")
+        os.environ["DATABASE_URL"] = _TEST_DB_URL
+        from radioshaq.scripts.alembic_runner import upgrade
+        code = upgrade()
+        if prev is not None:
+            os.environ["DATABASE_URL"] = prev
+        else:
+            os.environ.pop("DATABASE_URL", None)
+        if code != 0:
+            pytest.skip("Alembic upgrade failed (is Postgres running?)")
+    except Exception as e:
+        pytest.skip(f"Migrations unavailable: {e}")
 
 
 @pytest.fixture(scope="session")
@@ -14,10 +69,7 @@ def env_overrides() -> dict[str, str]:
     return {
         "RADIOSHAQ_MODE": "field",
         "JWT_SECRET": "test-secret",
-        "RADIOSHAQ_DATABASE__POSTGRES_URL": os.environ.get(
-            "TEST_DATABASE_URL",
-            "postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
-        ),
+        "RADIOSHAQ_DATABASE__POSTGRES_URL": _TEST_DB_URL,
         "RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED": "false",
     }
 
@@ -30,8 +82,8 @@ def patch_env(env_overrides: dict[str, str], monkeypatch: pytest.MonkeyPatch) ->
 
 
 @pytest.fixture
-def client() -> Generator[Any, None, None]:
-    """FastAPI test client (lifespan handled)."""
+def client(_run_db_migrations: None) -> Generator[Any, None, None]:
+    """FastAPI test client (lifespan handled). Migrations run before first use."""
     from fastapi.testclient import TestClient
 
     from radioshaq.api.server import app

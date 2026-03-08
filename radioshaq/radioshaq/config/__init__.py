@@ -1,4 +1,4 @@
-"""Configuration system for SHAKODS.
+"""Configuration system for RadioShaq.
 
 Provides Pydantic-based configuration with support for:
 - YAML/JSON config files

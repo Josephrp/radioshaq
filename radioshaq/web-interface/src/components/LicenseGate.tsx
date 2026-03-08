@@ -1,8 +1,11 @@
+import { Trans, useTranslation } from 'react-i18next';
+
 type LicenseGateProps = {
   onAccept: () => void;
 };
 
 export function LicenseGate({ onAccept }: LicenseGateProps) {
+  const { t } = useTranslation();
   return (
     <main
       style={{
@@ -24,13 +27,12 @@ export function LicenseGate({ onAccept }: LicenseGateProps) {
           background: '#111a2d',
         }}
       >
-        <h1 style={{ marginTop: 0 }}>License Acceptance Required</h1>
+        <h1 style={{ marginTop: 0 }}>{t('license.title')}</h1>
         <p>
-          RadioShaq is licensed under <strong>GPL-2.0-only</strong>. You must
-          accept this license before using the official web interface.
+          <Trans i18nKey="license.intro" components={{ strong: <strong /> }} />
         </p>
         <p>
-          Review the full license text in{' '}
+          {t('license.review')}{' '}
           <a
             href="https://github.com/josephrp/radioshaq/blob/main/LICENSE.md"
             target="_blank"
@@ -54,7 +56,7 @@ export function LicenseGate({ onAccept }: LicenseGateProps) {
             cursor: 'pointer',
           }}
         >
-          I Accept GPL-2.0-only
+          {t('license.accept')}
         </button>
       </section>
     </main>

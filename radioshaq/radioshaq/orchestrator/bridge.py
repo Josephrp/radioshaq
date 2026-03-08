@@ -47,6 +47,7 @@ async def process_inbound_message(
                 await callsign_repository.update_last_band(callsign, band)
             except Exception as e:
                 logger.debug("update_last_band failed: %s", e)
+    # channel/chat_id are used by outbound handlers for delivery (radio_rx, sms, whatsapp)
     out = OutboundMessage(
         channel=message.channel,
         chat_id=message.chat_id,

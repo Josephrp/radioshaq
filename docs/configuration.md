@@ -121,17 +121,19 @@ API endpoints expect a Bearer JWT. Tokens are issued by `POST /auth/token` (subj
 
 ## LLM
 
-The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`); the client passes `api_base` to LiteLLM so custom endpoints work without code changes.
+The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`). For **[Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers)** (serverless models from Groq, Together, etc.), set `provider: huggingface`, `model` (e.g. `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`), and **`huggingface_api_key`** or `HF_TOKEN`; the client uses the HF router URL as `api_base`.
 
 | Option | Env var | Default | Description |
 |--------|---------|---------|-------------|
-| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`. |
-| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`). |
+| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`, `huggingface`. |
+| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`; for **huggingface**: `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`). |
 | `llm.mistral_api_key` | `RADIOSHAQ_LLM__MISTRAL_API_KEY` | `null` | Mistral API key (or set `MISTRAL_API_KEY` if your code reads it). |
 | `llm.openai_api_key` | `RADIOSHAQ_LLM__OPENAI_API_KEY` | `null` | OpenAI API key. |
 | `llm.anthropic_api_key` | `RADIOSHAQ_LLM__ANTHROPIC_API_KEY` | `null` | Anthropic API key. |
 | `llm.custom_api_base` | `RADIOSHAQ_LLM__CUSTOM_API_BASE` | `null` | **Custom provider base URL** (e.g. `http://localhost:11434` for Ollama). Passed to LiteLLM. |
 | `llm.custom_api_key` | `RADIOSHAQ_LLM__CUSTOM_API_KEY` | `null` | Custom provider API key. |
+| `llm.huggingface_api_key` | `RADIOSHAQ_LLM__HUGGINGFACE_API_KEY` | `null` | **Hugging Face** token for [Inference Providers](https://huggingface.co/docs/inference-providers) (or set `HF_TOKEN`). Token needs "Inference Providers" permission. |
+| `llm.huggingface_api_base` | `RADIOSHAQ_LLM__HUGGINGFACE_API_BASE` | `null` | Optional; default `https://router.huggingface.co/v1` when provider is `huggingface`. |
 | `llm.temperature` | `RADIOSHAQ_LLM__TEMPERATURE` | `0.1` | Sampling temperature (0–2). |
 | `llm.max_tokens` | `RADIOSHAQ_LLM__MAX_TOKENS` | `4096` | Max tokens per response. |
 | `llm.timeout_seconds` | `RADIOSHAQ_LLM__TIMEOUT_SECONDS` | `60.0` | Request timeout. |
@@ -217,7 +219,8 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.radio_reply_use_tts` | `RADIOSHAQ_RADIO__RADIO_REPLY_USE_TTS` | `true` | For MessageBus outbound radio replies, force `use_tts` on/off. |
 | `radio.tx_audit_log_path` | `RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH` | `null` | Path to JSONL file for TX audit log. |
 | `radio.tx_allowed_bands_only` | `RADIOSHAQ_RADIO__TX_ALLOWED_BANDS_ONLY` | `true` | Restrict TX to band_plan bands. |
-| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Region for restricted bands: `FCC`, `CEPT`. |
+| `radio.restricted_bands_region` | `RADIOSHAQ_RADIO__RESTRICTED_BANDS_REGION` | `FCC` | Country/region for restricted-band enforcement: `FCC`, `CA`, `CEPT`, `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`, `MX`, `AR`, `CL`, … (Americas), `AU`, `ZA`, `NG`, `KE`, … (Africa), `NZ`, `JP`, `IN`. **Do not use `ITU_R1` or `ITU_R3`** here — they are band-plan-only (no restricted bands); use `band_plan_region` for those. |
+| `radio.band_plan_region` | `RADIOSHAQ_RADIO__BAND_PLAN_REGION` | `null` | Override band plan source (e.g. `ITU_R1`, `ITU_R3`). If null, uses the backend from `restricted_bands_region`. Use this for ITU region plans; keep `restricted_bands_region` as a country. |
 | `radio.allowed_callsigns` | (list in YAML) | `null` | Static list of allowed callsigns; merged with DB registry. |
 | `radio.callsign_registry_required` | `RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED` | `false` | If true, only registered or allowed callsigns for store/relay. |
 | `radio.sdr_tx_enabled` | `RADIOSHAQ_RADIO__SDR_TX_ENABLED` | `false` | Enable HackRF (or other SDR) TX. |
@@ -241,6 +244,51 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.relay_tx_target_band` | `RADIOSHAQ_RADIO__RELAY_TX_TARGET_BAND` | `false` | When relaying (no deliver_at), transmit the relayed message on the target band via radio_tx. |
 
 **Relay:** Relay is **store-only by default**. Recipients get messages by **polling** `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. When `relay_inject_target_band` or `relay_tx_target_band` is enabled, they apply to both the API and the orchestrator relay tool.
+
+**Compliance and region support:** TX is checked against restricted bands and (when `tx_allowed_bands_only` is true) the effective band plan. The **compliance plugin** provides region-specific backends:
+
+| Backend key | Restricted bands | Band plan | Typical use |
+|-------------|------------------|-----------|--------------|
+| `FCC` | US 47 CFR §15.205 | Default (ITU R2) | United States |
+| `CA` | FCC baseline (ISED/RBR-4) | Default (ITU R2) | Canada |
+| `CEPT` | EU harmonised (ERC 70-03, ETSI) | IARU R1 (2m 144–146 MHz, 70cm 430–440 MHz) | EU general |
+| `FR` | Same as CEPT | Same as CEPT | France |
+| `UK` | Same as CEPT | Same as CEPT | United Kingdom |
+| `ES` | Same as CEPT | Same as CEPT | Spain |
+| `BE` | Same as CEPT | Same as CEPT | Belgium |
+| `CH` | Same as CEPT | Same as CEPT | Switzerland |
+| `LU` | Same as CEPT | Same as CEPT | Luxembourg |
+| `MC` | Same as CEPT | Same as CEPT | Monaco |
+| `ITU_R1` | None (band-plan only) | IARU R1 | Override band plan only |
+| `ITU_R3` | None (band-plan only) | IARU R3 (2m 144–148, 70cm 430–440 MHz) | Override band plan for Asia–Pacific |
+| `MX` | FCC baseline (IFT may vary) | Default (ITU R2) | Mexico |
+| `AR`, `CL`, `CO`, `PE`, `VE`, `EC`, `UY`, `PY`, `BO`, `CR`, `PA`, `GT`, `DO` | FCC baseline | Default (ITU R2) | Argentina, Chile, Colombia, Peru, Venezuela, Ecuador, Uruguay, Paraguay, Bolivia, Costa Rica, Panama, Guatemala, Dominican Republic |
+| `AU` | Enforced (ACMA conservative) | IARU R3 | Australia |
+| `ZA` | Enforced (ICASA NRFP) | IARU R1 | South Africa |
+| `NG`, `KE`, `EG`, `MA`, … (see [Response & compliance](response-compliance-and-monitoring.md#21-radio-restricted-bands-and-band-plans)) | Enforced (R1 conservative) | IARU R1 | Nigeria, Kenya, Egypt, Morocco, etc. |
+| `NZ` | Enforced (RSM PIB 21 conservative) | IARU R3 | New Zealand |
+| `JP` | Enforced (conservative set) | IARU R3 | Japan |
+| `IN` | Enforced (conservative set) | IARU R3 | India |
+
+Set `restricted_bands_region: CEPT` (or `FR`, `UK`, `ES`, `BE`, `CH`, `LU`, `MC`) for EU/EEA to enforce CEPT-style restricted bands and R1 band edges. For Americas use `CA`, `MX`, or country code (`AR`, `CL`, etc.). For Australia/Asia–Pacific use `AU` or `ITU_R3`. For Africa use country code (`ZA`, `NG`, `KE`, etc.) — R1 band plan, national rules apply. Use `band_plan_region: ITU_R1` or `ITU_R3` to override band plan. See [Response & compliance](response-compliance-and-monitoring.md#21-radio-restricted-bands-and-band-plans) for official sources and country→backend mapping. Operators must verify national rules (e.g. ANFR, Ofcom, ACMA, IFT, ISED, ICASA, NCC).
+
+---
+
+## TTS (text-to-speech)
+
+When `radio.voice_use_tts` is true or a task sets `use_tts: true`, speech is generated from text using the configured TTS provider. Options live under `tts.*`.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `tts.provider` | `RADIOSHAQ_TTS__PROVIDER` | `elevenlabs` | `elevenlabs` (API; set `ELEVENLABS_API_KEY`) or `kokoro` (local; run `uv sync --extra tts_kokoro`). |
+| `tts.elevenlabs_voice_id` | `RADIOSHAQ_TTS__ELEVENLABS_VOICE_ID` | (Rachel) | ElevenLabs voice ID. |
+| `tts.elevenlabs_model_id` | `RADIOSHAQ_TTS__ELEVENLABS_MODEL_ID` | `eleven_multilingual_v2` | ElevenLabs model (e.g. `eleven_turbo_v2_5`, `eleven_flash_v2_5`). |
+| `tts.elevenlabs_output_format` | `RADIOSHAQ_TTS__ELEVENLABS_OUTPUT_FORMAT` | `mp3_44100_128` | Output format. |
+| `tts.kokoro_voice` | `RADIOSHAQ_TTS__KOKORO_VOICE` | `af_heart` | Kokoro voice name (e.g. `am_michael`, `bf_emma`). |
+| `tts.kokoro_lang_code` | `RADIOSHAQ_TTS__KOKORO_LANG_CODE` | `a` | Language code: `a` (US English), `b` (UK English), `e`, `f`, etc. |
+| `tts.kokoro_speed` | `RADIOSHAQ_TTS__KOKORO_SPEED` | `1.0` | Speech rate (0.5–2.0). |
+
+**Kokoro (local TTS):** Install with `uv sync --extra tts_kokoro`. This pulls in `kokoro`, `soundfile`, and Kokoro’s own dependencies (e.g. `torch`, `transformers`, `misaki[en]`). On Linux, the `soundfile` package may require the system library **libsndfile** (e.g. `apt install libsndfile1` or `dnf install libsndfile`).
 
 ---
 
@@ -270,8 +318,8 @@ When `radio.audio_input_enabled` is true, the voice_rx pipeline captures audio f
 | `audio.min_speech_duration_ms` | `RADIOSHAQ_AUDIO__MIN_SPEECH_DURATION_MS` | `500` | Min segment length. |
 | `audio.max_speech_duration_ms` | `RADIOSHAQ_AUDIO__MAX_SPEECH_DURATION_MS` | `30000` | Max segment length. |
 | `audio.silence_duration_ms` | `RADIOSHAQ_AUDIO__SILENCE_DURATION_MS` | `800` | Silence to end segment. |
-| `audio.asr_model` | `RADIOSHAQ_AUDIO__ASR_MODEL` | `voxtral` | ASR model name. |
-| `audio.asr_language` | `RADIOSHAQ_AUDIO__ASR_LANGUAGE` | `en` | ASR language. |
+| `audio.asr_model` | `RADIOSHAQ_AUDIO__ASR_MODEL` | `voxtral` | ASR backend: `voxtral`, `whisper` (local; install with `uv sync --extra audio`), or `scribe` (ElevenLabs API; set `ELEVENLABS_API_KEY`). |
+| `audio.asr_language` | `RADIOSHAQ_AUDIO__ASR_LANGUAGE` | `en` | ASR language (`en`, `fr`, `es`, or `auto`). |
 | `audio.asr_min_confidence` | `RADIOSHAQ_AUDIO__ASR_MIN_CONFIDENCE` | `0.6` | Min ASR confidence (0–1). |
 | `audio.response_mode` | `RADIOSHAQ_AUDIO__RESPONSE_MODE` | `listen_only` | `listen_only`, `confirm_first`, `auto_respond`, `confirm_timeout`. |
 | `audio.response_timeout_seconds` | `RADIOSHAQ_AUDIO__RESPONSE_TIMEOUT_SECONDS` | `30.0` | Timeout for confirm_timeout mode. |
@@ -336,6 +384,43 @@ When `mode: hq`, these options apply.
 
 ---
 
+## Twilio (SMS & WhatsApp)
+
+RadioShaq can send and receive **SMS** and **WhatsApp** messages via **Twilio** (same account for both). Outbound delivery is handled by the single outbound dispatcher when the MessageBus consumer is enabled.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `twilio.account_sid` | `RADIOSHAQ_TWILIO__ACCOUNT_SID` | `null` | Twilio Account SID (required for SMS and WhatsApp send). |
+| `twilio.auth_token` | `RADIOSHAQ_TWILIO__AUTH_TOKEN` | `null` | Twilio Auth Token. |
+| `twilio.from_number` | `RADIOSHAQ_TWILIO__FROM_NUMBER` | `null` | SMS sender phone number (E.164, e.g. `+15551234567`). |
+| `twilio.whatsapp_from` | `RADIOSHAQ_TWILIO__WHATSAPP_FROM` | `null` | WhatsApp sender number (E.164); must be WhatsApp-enabled in Twilio. Optional; if unset, the WhatsApp agent is registered but returns "not configured" on send. |
+
+All use the **`RADIOSHAQ_TWILIO__`** prefix. See [reference/.env.example](reference/.env.example) for a commented template.
+
+**Config file (YAML):** You can set the same under `twilio` in `config.yaml`:
+
+```yaml
+twilio:
+  account_sid: "ACxxxx"
+  auth_token: "your-auth-token"
+  from_number: "+15551234567"
+  whatsapp_from: "+15551234567"   # optional; same or different number enabled for WhatsApp
+```
+
+Environment variables override file values.
+
+**Behavior:**
+
+- **SMS:** If `account_sid`, `auth_token`, and `from_number` are set, the SMS agent sends via Twilio. Otherwise, send returns `success: false` with `reason: "twilio_not_configured"`.
+- **WhatsApp:** If `whatsapp_from` is also set (and Twilio client exists), the WhatsApp agent sends via Twilio WhatsApp Business API (`whatsapp:+E.164`). Otherwise, the agent is still registered but returns "Twilio WhatsApp not configured" on send.
+- **Inbound:** Configure Twilio webhooks (SMS and/or WhatsApp) to POST to your Lambda or directly to `https://<your-hq>/internal/bus/inbound` with a body like `{"channel": "sms"|"whatsapp", "chat_id": "<sender_phone>", "sender_id": "...", "content": "..."}`. See [Twilio WhatsApp webhooks](https://www.twilio.com/docs/sms/whatsapp/api#configuring-inbound-message-webhooks) and opt-in requirements.
+
+**Notify when a message is left for you (§8.1, §8.3):** Whitelisted callsigns can opt in to receive a short SMS or WhatsApp notification when a message is delivered to them on radio (notify-on-relay). Set contact preferences via `GET`/`PATCH /callsigns/registered/{callsign}/contact-preferences`; in strict regions (e.g. EU/UK/ZA), `consent_confirmed: true` is required when enabling. Recipients can reply **STOP** to opt out; configure your Twilio webhook (or Lambda) to call `POST /internal/opt-out` with `{"phone": "+1234567890", "channel": "sms"}` or `{"callsign": "K5ABC", "channel": "whatsapp"}`. See [Response & compliance](response-compliance-and-monitoring.md) and the project doc *Notify and emergency compliance plan* (in `radioshaq/docs/`) for region-specific consent and opt-out rules.
+
+**References:** [Twilio WhatsApp API overview](https://www.twilio.com/docs/sms/whatsapp/api), [Twilio WhatsApp quickstart (Python)](https://www.twilio.com/docs/whatsapp/quickstart/python), [WhatsApp opt-in requirements](https://www.twilio.com/docs/sms/whatsapp/api#whatsapp-opt-in-requirements) (required for production).
+
+---
+
 ## PM2 (process manager)
 
 Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settings.
@@ -359,7 +444,8 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 - **MessageBus consumer** — The API can run an inbound message consumer in the background so external systems can push work into the REACT loop. Set **`RADIOSHAQ_BUS_CONSUMER_ENABLED=1`** (or `true`/`yes`) to enable it. If not set, the consumer is disabled.
 - **API host/port** — The server uses `API_HOST` / `API_PORT` or **`RADIOSHAQ_API_HOST`** / **`RADIOSHAQ_API_PORT`** when starting uvicorn (default from `hq.host` and `hq.port`).
 - **CLI** — Scripts that call the API use **`RADIOSHAQ_API`** (base URL, default `http://localhost:8000`) and **`RADIOSHAQ_TOKEN`** (Bearer token).
-- **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`, including MessageBus replies when `radio.radio_reply_use_tts: true`), ElevenLabs is used; set **`ELEVENLABS_API_KEY`** in the environment.
+- **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`), speech is generated per **`tts.provider`**: **`elevenlabs`** (set **`ELEVENLABS_API_KEY`**) or **`kokoro`** (local; `uv sync --extra tts_kokoro`). See [TTS (text-to-speech)](#tts-text-to-speech).
+- **ASR** — Voice pipeline and audio upload use **`audio.asr_model`**: **`voxtral`** / **`whisper`** (local; `uv sync --extra audio`) or **`scribe`** (ElevenLabs API; **`ELEVENLABS_API_KEY`**).
 - **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](reference/.env.example)).
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

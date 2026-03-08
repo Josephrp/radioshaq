@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from radioshaq.radio import compliance
 from radioshaq.radio.compliance import is_restricted, is_tx_allowed, log_tx
 from radioshaq.radio.bands import BAND_PLANS
 
@@ -24,6 +25,19 @@ def test_is_restricted_fcc_amateur_in_band():
     assert is_restricted(7.2e6, region="FCC") is False   # 40m
     assert is_restricted(14.2e6, region="FCC") is False  # 20m
     assert is_restricted(145e6, region="FCC") is False   # 2m
+
+
+def test_is_restricted_itu_r1_warns_band_plan_only():
+    """ITU_R1 is band-plan-only; is_restricted returns False and logs a one-time warning."""
+    from unittest.mock import patch
+
+    compliance._WARNED_RESTRICTED_REGIONS.discard("ITU_R1")
+    with patch.object(compliance.logger, "warning") as mock_warn:
+        result = is_restricted(144e6, region="ITU_R1")
+    assert result is False
+    mock_warn.assert_called_once()
+    msg = mock_warn.call_args[0][0]
+    assert "ITU_R1" in msg or "band-plan-only" in msg
 
 
 def test_is_tx_allowed_in_band():

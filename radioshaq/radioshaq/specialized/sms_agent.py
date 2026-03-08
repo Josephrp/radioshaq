@@ -1,4 +1,4 @@
-"""SMS specialized agent (Twilio integration)."""
+"""SMS specialized agent (Twilio integration). Twilio expects E.164 for phone numbers."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from typing import Any
 from loguru import logger
 
 from radioshaq.specialized.base import SpecializedAgent
+from radioshaq.utils.phone import normalize_e164
 
 
 class SMSAgent(SpecializedAgent):
@@ -47,8 +48,8 @@ class SMSAgent(SpecializedAgent):
     async def _send(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Send SMS via Twilio."""
-        to = (task.get("to") or "").strip()
+        """Send SMS via Twilio. Phone numbers are normalized to E.164."""
+        to = normalize_e164(task.get("to") or "")
         body = task.get("message", "") or task.get("body", "")
 
         await self.emit_progress(upstream_callback, "sending", to=to)
@@ -60,12 +61,13 @@ class SMSAgent(SpecializedAgent):
                 "success": False,
                 "to": to,
                 "notes": "Twilio client or from_number not configured",
+                "reason": "twilio_not_configured",
             }
 
         try:
             msg = self.twilio_client.messages.create(
                 body=body,
-                from_=self.from_number,
+                from_=normalize_e164(self.from_number),
                 to=to,
             )
             result = {

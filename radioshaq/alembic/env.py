@@ -1,6 +1,6 @@
 """Alembic environment configuration.
 
-This module configures Alembic to work with SHAKODS database models,
+This module configures Alembic to work with RadioShaq database models,
 supporting both synchronous (for migrations) and asynchronous (for runtime)
 PostgreSQL connections with PostGIS extension.
 """
@@ -20,7 +20,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import Connection
 
-# Import SHAKODS models for autogenerate support
+# Import RadioShaq models for autogenerate support
 from radioshaq.database.models import Base
 
 # Alembic Config object

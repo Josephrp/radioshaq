@@ -75,7 +75,13 @@ class LLMClient:
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
-        api_key = self.api_key or os.environ.get("MISTRAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        api_key = (
+            self.api_key
+            or os.environ.get("MISTRAL_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("HF_TOKEN")
+            or os.environ.get("HUGGINGFACE_API_KEY")
+        )
 
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -121,7 +127,13 @@ class LLMClient:
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
-        api_key = self.api_key or os.environ.get("MISTRAL_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        api_key = (
+            self.api_key
+            or os.environ.get("MISTRAL_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("HF_TOKEN")
+            or os.environ.get("HUGGINGFACE_API_KEY")
+        )
 
         kwargs_tools: dict[str, Any] = {
             "model": self.model,

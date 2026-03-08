@@ -1,13 +1,24 @@
-"""Internal message bus endpoints (nanobot InboundMessage ingestion)."""
+"""Internal message bus endpoints (nanobot InboundMessage ingestion) and opt-out (§8.1)."""
 
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Body, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
 
+from radioshaq.api.dependencies import get_current_user
+from radioshaq.auth.jwt import TokenPayload
 from radioshaq.vendor.nanobot.bus.events import InboundMessage
 
 router = APIRouter()
+
+
+class OptOutBody(BaseModel):
+    """Body for POST /internal/opt-out. Used by webhook when user sends STOP."""
+
+    callsign: str | None = Field(None, description="Callsign to opt out")
+    phone: str | None = Field(None, description="Phone (E.164) to opt out; used if callsign not set")
+    channel: str = Field(..., description="sms or whatsapp")
 
 
 @router.post("/bus/inbound")
@@ -49,3 +60,29 @@ async def publish_inbound(
     if not ok:
         raise HTTPException(status_code=507, detail="Inbound queue full")
     return {"accepted": True, "channel": channel, "chat_id": chat_id}
+
+
+@router.post("/opt-out")
+async def opt_out(
+    request: Request,
+    body: OptOutBody,
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """
+    Record opt-out for notify-on-relay (§8.1). Call when user sends STOP via SMS/WhatsApp.
+    Provide either callsign or phone + channel (sms/whatsapp). Clears that contact and sets opt_out_at.
+    Requires a valid Bearer token (e.g. service JWT used by your Twilio webhook handler or Lambda).
+    """
+    if body.channel not in ("sms", "whatsapp"):
+        raise HTTPException(status_code=400, detail="channel must be sms or whatsapp")
+    db = getattr(request.app.state, "db", None)
+    if db is None or not hasattr(db, "record_opt_out"):
+        raise HTTPException(status_code=503, detail="Database not available")
+    if body.callsign and body.callsign.strip():
+        normalized = body.callsign.strip().upper()
+        updated = await db.record_opt_out(normalized, body.channel)
+    elif body.phone and body.phone.strip():
+        updated = await db.record_opt_out_by_phone(body.phone.strip(), body.channel)
+    else:
+        raise HTTPException(status_code=400, detail="Provide callsign or phone")
+    return {"ok": True, "opted_out": updated}

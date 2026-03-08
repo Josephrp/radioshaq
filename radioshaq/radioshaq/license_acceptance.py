@@ -17,13 +17,19 @@ ACCEPTANCE_FILE = Path.home() / ".radioshaq" / "license_acceptance.json"
 def _license_path() -> str:
     """Best-effort path or URL for the GPL license text.
 
-    Prefers a repo-local LICENSE for editable installs, then falls back to the
-    wheel's dist-info license file when available, and finally a canonical URL.
+    Prefers a repo-local LICENSE for editable installs (monorepo root, then
+    radioshaq dir), then falls back to the wheel's dist-info license file when
+    available, and finally a canonical URL.
     """
-    # Editable / source checkout: repo root contains LICENSE.md next to package dir
-    repo_candidate = Path(__file__).resolve().parent.parent / "LICENSE.md"
-    if repo_candidate.exists():
-        return str(repo_candidate)
+    base = Path(__file__).resolve().parent.parent
+    # Monorepo root (e.g. .../monorepo/LICENSE.md)
+    repo_root_candidate = base.parent / "LICENSE.md"
+    if repo_root_candidate.exists():
+        return str(repo_root_candidate)
+    # Radioshaq package dir (e.g. .../monorepo/radioshaq/LICENSE.md)
+    pkg_candidate = base / "LICENSE.md"
+    if pkg_candidate.exists():
+        return str(pkg_candidate)
 
     # Regular wheel install: LICENSE.md is included via license-files in dist-info
     try:

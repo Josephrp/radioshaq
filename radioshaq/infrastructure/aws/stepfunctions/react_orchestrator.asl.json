@@ -1,5 +1,5 @@
 {
-  "Comment": "SHAKODS REACT orchestrator - single Lambda invocation; expand to full Reason/Act/Evaluate loop when judge/agent Lambdas exist",
+  "Comment": "RadioShaq REACT orchestrator - single Lambda invocation; expand to full Reason/Act/Evaluate loop when judge/agent Lambdas exist",
   "StartAt": "InvokeOrchestrator",
   "States": {
     "InvokeOrchestrator": {

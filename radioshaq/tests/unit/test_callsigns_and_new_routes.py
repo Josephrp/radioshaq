@@ -120,11 +120,12 @@ def test_callsigns_register_valid_returns_ok_or_503(
 
 
 @pytest.mark.unit
-def test_callsigns_unregister_returns_503_or_404(
+def test_callsigns_unregister_returns_503_or_404_or_200(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
+    """Unregister returns 503 (no db), 404 (not in registry), or 200 (removed)."""
     r = client.delete("/callsigns/registered/K5ABC", headers=auth_headers)
-    assert r.status_code in (503, 404)
+    assert r.status_code in (200, 503, 404)
 
 
 # ----- Messages inject-and-store (with auth) -----
@@ -185,14 +186,18 @@ def test_transcripts_search_accepts_band_and_destination_only(
 def test_transcripts_get_by_id_no_db_returns_503(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
+    """When db is not available, GET /transcripts/{id} returns 503."""
+    client.app.state.db = None
     r = client.get("/transcripts/1", headers=auth_headers)
-    assert r.status_code in (503, 404)
+    assert r.status_code == 503
 
 
 @pytest.mark.unit
 def test_transcripts_play_no_db_or_no_agent_returns_503_or_404(
     client: TestClient, auth_headers: dict[str, str]
 ) -> None:
+    """When db is not available, POST /transcripts/{id}/play returns 503 (avoids TTS/API key path)."""
+    client.app.state.db = None
     r = client.post("/transcripts/1/play", headers=auth_headers)
     assert r.status_code in (503, 404)
 

@@ -1,4 +1,4 @@
-"""SQLAlchemy models for SHAKODS database.
+"""SQLAlchemy models for RadioShaq database.
 
 Defines the core database schema with PostGIS support for
 location-based operations and ham radio coordination.
@@ -119,6 +119,20 @@ class RegisteredCallsign(Base):
     preferred_bands: Mapped[list | None] = mapped_column(JSON, nullable=True)  # e.g. ["40m", "2m"]
     last_band: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
+    # Contact preferences: notify when a message is left for this callsign (§8.1, §8.3)
+    notify_sms_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # E.164
+    notify_whatsapp_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)  # E.164
+    notify_on_relay: Mapped[bool] = mapped_column(nullable=False, default=False)
+    notify_consent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notify_consent_source: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        doc="api / web / voice",
+    )
+    notify_opt_out_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notify_opt_out_at_sms: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    notify_opt_out_at_whatsapp: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return {
@@ -128,6 +142,14 @@ class RegisteredCallsign(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "preferred_bands": self.preferred_bands,
             "last_band": self.last_band,
+            "notify_sms_phone": self.notify_sms_phone,
+            "notify_whatsapp_phone": self.notify_whatsapp_phone,
+            "notify_on_relay": self.notify_on_relay,
+            "notify_consent_at": self.notify_consent_at.isoformat() if self.notify_consent_at else None,
+            "notify_consent_source": self.notify_consent_source,
+            "notify_opt_out_at": self.notify_opt_out_at.isoformat() if self.notify_opt_out_at else None,
+            "notify_opt_out_at_sms": self.notify_opt_out_at_sms.isoformat() if self.notify_opt_out_at_sms else None,
+            "notify_opt_out_at_whatsapp": self.notify_opt_out_at_whatsapp.isoformat() if self.notify_opt_out_at_whatsapp else None,
         }
 
 
@@ -301,6 +323,7 @@ class CoordinationEvent(Base):
             "priority": self.priority,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "extra_data": self.extra_data,
         }
 
 
