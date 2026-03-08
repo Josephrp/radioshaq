@@ -71,22 +71,29 @@ async def run_relay_delivery_worker(
                 destination_phone = extra.get("destination_phone")
 
                 mark_delivered = False
-                if delivery_channel in ("sms", "whatsapp") and destination_phone and message_bus and hasattr(message_bus, "publish_outbound"):
-                    from radioshaq.vendor.nanobot.bus.events import OutboundMessage
-                    ok_pub = await message_bus.publish_outbound(
-                        OutboundMessage(
-                            channel=delivery_channel,
-                            chat_id=destination_phone,
-                            content=text,
-                            reply_to=None,
-                            media=[],
-                            metadata={"relay_transcript_id": tid, "source_callsign": source},
+                if delivery_channel in ("sms", "whatsapp"):
+                    if destination_phone and message_bus and hasattr(message_bus, "publish_outbound"):
+                        from radioshaq.vendor.nanobot.bus.events import OutboundMessage
+                        ok_pub = await message_bus.publish_outbound(
+                            OutboundMessage(
+                                channel=delivery_channel,
+                                chat_id=destination_phone,
+                                content=text,
+                                reply_to=None,
+                                media=[],
+                                metadata={"relay_transcript_id": tid, "source_callsign": source},
+                            )
                         )
-                    )
-                    if not ok_pub:
-                        logger.warning("Relay delivery: outbound queue full for transcript %s (%s)", tid, delivery_channel)
+                        if not ok_pub:
+                            logger.warning("Relay delivery: outbound queue full for transcript %s (%s)", tid, delivery_channel)
+                        else:
+                            mark_delivered = True
                     else:
-                        mark_delivered = True
+                        logger.warning(
+                            "Relay delivery: cannot deliver transcript %s via %s (bus unavailable or no phone)",
+                            tid, delivery_channel,
+                        )
+                        # Do NOT fall through to radio injection; leave undelivered for retry
                 else:
                     band = extra.get("band") or extra.get("relay_from_band") or "unknown"
                     mode = t.get("mode") or "FM"

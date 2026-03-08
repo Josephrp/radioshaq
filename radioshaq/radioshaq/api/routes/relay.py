@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 from radioshaq.api.callsign_whitelist import get_effective_allowed_callsigns, is_callsign_allowed
 from radioshaq.api.dependencies import get_config, get_current_user, get_radio_tx_agent, get_transcript_storage
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.utils.phone import normalize_e164
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.injection import get_injection_queue
 from radioshaq.relay.service import relay_message_between_bands_service
@@ -81,8 +82,7 @@ async def relay_message_between_bands(
     if target_channel in ("sms", "whatsapp"):
         if not (body.destination_phone and str(body.destination_phone).strip()):
             raise HTTPException(status_code=400, detail="destination_phone required when target_channel is sms or whatsapp")
-        _raw_phone = re.sub(r"\D", "", (body.destination_phone or "").strip())
-        destination_phone_e164 = "+" + _raw_phone if _raw_phone else ""
+        destination_phone_e164 = normalize_e164(body.destination_phone or "")
         if not E164_PATTERN.match(destination_phone_e164):
             raise HTTPException(status_code=400, detail="destination_phone must be E.164 (10–15 digits)")
     if source_band not in band_plans:

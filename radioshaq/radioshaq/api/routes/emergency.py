@@ -182,6 +182,7 @@ async def approve_emergency_event(
         raise HTTPException(status_code=400, detail="Event already processed")
     event = await db.get_coordination_event_by_id(event_id)
     if not event or event.get("event_type") != "emergency":
+        await db.update_coordination_event(event_id, status="pending")  # roll back claim
         raise HTTPException(status_code=400, detail="Not an emergency event")
     extra = event.get("extra_data") or {}
     phone = extra.get("emergency_contact_phone")

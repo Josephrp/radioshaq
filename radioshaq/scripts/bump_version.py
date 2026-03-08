@@ -163,7 +163,8 @@ def main() -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
-    print(new_version)
+    print(f"Set version to {new_version}", file=sys.stderr)
+    print(new_version, flush=True)
     return 0
 
 
