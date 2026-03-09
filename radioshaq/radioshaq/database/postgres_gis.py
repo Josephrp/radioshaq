@@ -513,11 +513,33 @@ class PostGISManager:
             return event.id
 
     async def get_coordination_event_by_id(self, event_id: int) -> dict[str, Any] | None:
-        """Get a single coordination event by id. Returns None if not found."""
+        """Get a single coordination event by id. Returns None if not found. Uses to_dict() (redacted for API)."""
         async with self.async_session() as session:
             result = await session.execute(select(CoordinationEvent).where(CoordinationEvent.id == event_id))
             row = result.scalar_one_or_none()
             return row.to_dict() if row else None
+
+    async def get_coordination_event_by_id_raw(self, event_id: int) -> dict[str, Any] | None:
+        """Get a coordination event with unredacted extra_data (for internal use e.g. approve handler)."""
+        async with self.async_session() as session:
+            result = await session.execute(select(CoordinationEvent).where(CoordinationEvent.id == event_id))
+            row = result.scalar_one_or_none()
+            if not row:
+                return None
+            return {
+                "id": row.id,
+                "event_type": row.event_type,
+                "initiator_callsign": row.initiator_callsign,
+                "target_callsign": row.target_callsign,
+                "scheduled_time": row.scheduled_time.isoformat() if row.scheduled_time else None,
+                "frequency_hz": row.frequency_hz,
+                "mode": row.mode,
+                "status": row.status,
+                "priority": row.priority,
+                "notes": row.notes,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "extra_data": dict(row.extra_data) if row.extra_data else {},
+            }
 
     async def update_coordination_event(
         self,

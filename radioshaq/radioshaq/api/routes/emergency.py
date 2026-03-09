@@ -179,13 +179,16 @@ async def approve_emergency_event(
     if not emergency_messaging_allowed(region, getattr(config, "emergency_contact", None)):
         raise HTTPException(status_code=403, detail="Emergency SMS/WhatsApp not allowed in this region")
     db = getattr(request.app.state, "db", None)
-    if db is None or not hasattr(db, "claim_emergency_event_pending") or not hasattr(db, "get_coordination_event_by_id") or not hasattr(db, "update_coordination_event"):
+    if db is None or not hasattr(db, "claim_emergency_event_pending") or not hasattr(db, "update_coordination_event"):
         raise HTTPException(status_code=503, detail="Database not available")
+    if not (hasattr(db, "get_coordination_event_by_id_raw") or hasattr(db, "get_coordination_event_by_id")):
+        raise HTTPException(status_code=503, detail="Database not available")
+    get_event = getattr(db, "get_coordination_event_by_id_raw", db.get_coordination_event_by_id)
     # Atomic claim: only one concurrent approval can transition pending -> approving
     claimed = await db.claim_emergency_event_pending(event_id)
     if claimed is None:
         raise HTTPException(status_code=400, detail="Event already processed")
-    event = await db.get_coordination_event_by_id(event_id)
+    event = await get_event(event_id)
     if not event or event.get("event_type") != "emergency":
         await db.update_coordination_event(event_id, status="pending")  # roll back claim
         raise HTTPException(status_code=400, detail="Not an emergency event")
@@ -253,7 +256,13 @@ async def reject_emergency_event(
         raise HTTPException(status_code=400, detail="Not an emergency event")
     rejector = getattr(_user, "sub", None) or getattr(_user, "callsign", "api")
     now = datetime.now(timezone.utc).isoformat()
-    extra = event.get("extra_data") or {}
-    extra.update({"rejected_at": now, "rejected_by": str(rejector), **({"notes": body.notes} if body.notes else {})})
-    await db.update_coordination_event(event_id, status="rejected", extra_data=extra)
+    await db.update_coordination_event(
+        event_id,
+        status="rejected",
+        extra_data={
+            "rejected_at": now,
+            "rejected_by": str(rejector),
+            **({"notes": body.notes} if body.notes else {}),
+        },
+    )
     return {"ok": True, "event_id": event_id, "status": "rejected"}
