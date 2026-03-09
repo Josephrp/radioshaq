@@ -85,9 +85,9 @@ export function EmergencyPage() {
     }
   };
 
-  const requestNotificationPermission = () => {
+  const requestNotificationPermission = async () => {
     if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
+      void Notification.requestPermission();
     }
   };
 

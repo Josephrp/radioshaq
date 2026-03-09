@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from radioshaq.api.dependencies import get_current_user, get_db
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.api.routes.callsigns import CALLSIGN_PATTERN
 
 router = APIRouter()
 
@@ -60,6 +61,11 @@ async def post_location(
     callsign = body.callsign.strip().upper()
     if not callsign:
         raise HTTPException(status_code=400, detail="callsign is required")
+    if not CALLSIGN_PATTERN.match(callsign):
+        raise HTTPException(
+            status_code=400,
+            detail="callsign must be 3–7 alphanumeric chars, optional -digit (e.g. K5ABC or W1XYZ-1)",
+        )
 
     lat, lon = body.latitude, body.longitude
     if lat is not None and lon is not None:
@@ -109,6 +115,11 @@ async def get_location(
     normalized = callsign.strip().upper()
     if not normalized:
         raise HTTPException(status_code=400, detail="callsign is required")
+    if not CALLSIGN_PATTERN.match(normalized):
+        raise HTTPException(
+            status_code=400,
+            detail="callsign must be 3–7 alphanumeric chars, optional -digit (e.g. K5ABC or W1XYZ-1)",
+        )
 
     loc = await db.get_latest_location_decoded(normalized)
     if loc is None:

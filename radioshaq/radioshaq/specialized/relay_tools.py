@@ -216,6 +216,12 @@ class RelayMessageTool:
         if callable(self._get_radio_tx):
             tx_agent = self._get_radio_tx()
 
+        # Normalize destination_phone once, after validation, so stored metadata and downstream
+        # delivery use consistent E.164 formatting.
+        normalized_destination_phone: str | None = None
+        if destination_phone and (target_channel or "radio").strip().lower() in ("sms", "whatsapp"):
+            normalized_destination_phone = normalize_e164((destination_phone or "").strip()) or None
+
         result = await relay_message_between_bands_service(
             message=message,
             source_band=source_band.strip(),
@@ -231,7 +237,7 @@ class RelayMessageTool:
             config=config,
             store_only_relayed=getattr(radio_cfg, "relay_store_only_relayed", False),
             target_channel=(target_channel or "radio").strip().lower(),
-            destination_phone=(destination_phone or "").strip() or None,
+            destination_phone=normalized_destination_phone if normalized_destination_phone is not None else (destination_phone or "").strip() or None,
             emergency=emergency,
             message_bus=self._message_bus,
         )
