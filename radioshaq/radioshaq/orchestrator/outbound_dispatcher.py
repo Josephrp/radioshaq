@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+from datetime import datetime, timezone
 from typing import Any
 
 from loguru import logger
@@ -41,10 +42,28 @@ async def _maybe_reenqueue_outbound(bus: Any, msg: Any, channel_label: str) -> N
         logger.error("Failed to re-enqueue outbound %s message to %s", channel_label, msg.chat_id)
 
 
+async def _mark_emergency_sent(db: Any, msg: Any) -> None:
+    """Stamp sent_at only after the downstream channel agent reports success."""
+    if not db or not hasattr(db, "update_coordination_event"):
+        return
+    meta = dict(getattr(msg, "metadata", None) or {})
+    event_id = meta.get("emergency_event_id")
+    if not event_id:
+        return
+    try:
+        await db.update_coordination_event(
+            int(event_id),
+            extra_data={"sent_at": datetime.now(timezone.utc).isoformat()},
+        )
+    except Exception as e:
+        logger.warning("Could not update sent_at for emergency event %s: %s", event_id, e)
+
+
 async def run_outbound_handler(
     bus: Any,
     config: Any,
     agent_registry: Any,
+    db: Any = None,
     *,
     stop_event: asyncio.Event,
 ) -> None:
@@ -66,7 +85,9 @@ async def run_outbound_handler(
             if msg.channel == "radio_rx":
                 radio_tx = agent_registry.get_agent("radio_tx") if agent_registry else None
                 try:
-                    await handle_one_outbound_radio(msg, radio_tx, config)
+                    handled = await handle_one_outbound_radio(msg, radio_tx, config)
+                    if handled is False:
+                        await _maybe_reenqueue_outbound(bus, msg, "radio_rx")
                 except Exception as e:
                     logger.warning("Outbound radio_rx failed: %s", e)
                     await _maybe_reenqueue_outbound(bus, msg, "radio_rx")
@@ -74,10 +95,15 @@ async def run_outbound_handler(
                 sms_agent = agent_registry.get_agent("sms") if agent_registry else None
                 if sms_agent and hasattr(sms_agent, "execute"):
                     try:
-                        await sms_agent.execute(
+                        result = await sms_agent.execute(
                             {"action": "send", "to": msg.chat_id, "message": msg.content or ""},
                             upstream_callback=None,
                         )
+                        if result.get("success") is False:
+                            logger.warning("Outbound sms execute returned unsuccessful result for %s", msg.chat_id)
+                            await _maybe_reenqueue_outbound(bus, msg, "sms")
+                        else:
+                            await _mark_emergency_sent(db, msg)
                     except Exception as e:
                         logger.warning("Outbound sms execute failed: %s", e)
                         await _maybe_reenqueue_outbound(bus, msg, "sms")
@@ -88,7 +114,7 @@ async def run_outbound_handler(
                 wa_agent = agent_registry.get_agent("whatsapp") if agent_registry else None
                 if wa_agent and hasattr(wa_agent, "execute"):
                     try:
-                        await wa_agent.execute(
+                        result = await wa_agent.execute(
                             {
                                 "action": "send_message",
                                 "to": msg.chat_id,
@@ -96,6 +122,11 @@ async def run_outbound_handler(
                             },
                             upstream_callback=None,
                         )
+                        if result.get("success") is False:
+                            logger.warning("Outbound whatsapp execute returned unsuccessful result for %s", msg.chat_id)
+                            await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
+                        else:
+                            await _mark_emergency_sent(db, msg)
                     except Exception as e:
                         logger.warning("Outbound whatsapp execute failed: %s", e)
                         await _maybe_reenqueue_outbound(bus, msg, "whatsapp")

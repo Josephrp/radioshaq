@@ -126,6 +126,7 @@ async def lifespan(app: FastAPI):
                         app.state.message_bus,
                         config,
                         getattr(app.state, "agent_registry", None),
+                        getattr(app.state, "db", None),
                         stop_event=_outbound_radio_stop,
                     )
                 )

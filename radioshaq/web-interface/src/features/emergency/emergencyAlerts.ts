@@ -31,12 +31,12 @@ export async function requestNotificationPermission(): Promise<void> {
  * Play the emergency alert tone. Uses the AudioContext from initAudioContext().
  * If initAudioContext() was never called (no user gesture), the sound is silently skipped.
  */
-export function playEmergencyAlertSound(): void {
+export async function playEmergencyAlertSound(): Promise<void> {
   const ctx = _ctx;
   if (!ctx) return;
   try {
     if (ctx.state === 'suspended') {
-      ctx.resume();
+      await ctx.resume();
     }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();

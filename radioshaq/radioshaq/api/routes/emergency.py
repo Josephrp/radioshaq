@@ -172,8 +172,8 @@ async def approve_emergency_event(
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Approve an emergency event and send the SMS/WhatsApp. Sets status=approved,
-    records approved_at and approved_by, publishes OutboundMessage, then sets sent_at.
+    Approve an emergency event and queue the SMS/WhatsApp for outbound delivery.
+    Sets status=approved, records approved_at/approved_by/queued_at, and returns queued state.
     """
     region = getattr(config.radio, "restricted_bands_region", None) or ""
     if not emergency_messaging_allowed(region, getattr(config, "emergency_contact", None)):
@@ -229,11 +229,11 @@ async def approve_emergency_event(
         extra_data={
             "approved_at": now,
             "approved_by": str(approver),
-            "sent_at": now,
+            "queued_at": now,
             **({"notes": body.notes} if body.notes else {}),
         },
     )
-    return {"ok": True, "event_id": event_id, "status": "approved", "sent": True}
+    return {"ok": True, "event_id": event_id, "status": "approved", "queued": True, "sent": False}
 
 
 @router.post("/events/{event_id:int}/reject")

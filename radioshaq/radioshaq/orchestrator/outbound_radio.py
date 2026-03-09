@@ -15,7 +15,7 @@ async def handle_one_outbound_radio(
     msg: Any,
     radio_tx_agent: Any,
     config: Any,
-) -> None:
+) -> bool:
     """
     Handle a single outbound message for channel=radio_rx: resolve band/freq/mode and
     call radio_tx agent. No-op if tx disabled or agent missing. Used by run_outbound_radio_handler
@@ -32,14 +32,16 @@ async def handle_one_outbound_radio(
         if radio_cfg
         else BAND_PLANS
     )
-    if not tx_enabled or not radio_tx_agent or not hasattr(radio_tx_agent, "execute"):
-        return
+    if not tx_enabled:
+        return True
+    if not radio_tx_agent or not hasattr(radio_tx_agent, "execute"):
+        return False
     band = msg.chat_id or msg.metadata.get("reply_band") or ""
     freq = msg.metadata.get("frequency_hz")
     mode = msg.metadata.get("mode")
     if not band and freq is None:
         logger.warning("Outbound radio_rx: no band or frequency_hz, skipping")
-        return
+        return False
     plan = band_plans.get(band) if band else None
     if plan:
         if freq is None or freq <= 0:
@@ -50,7 +52,7 @@ async def handle_one_outbound_radio(
         mode = mode or "FM"
     if freq is None or freq <= 0:
         logger.warning("Outbound radio_rx: could not resolve frequency for band %s", band)
-        return
+        return False
     try:
         await radio_tx_agent.execute({
             "transmission_type": "voice",
@@ -59,8 +61,10 @@ async def handle_one_outbound_radio(
             "mode": mode,
             "use_tts": bool(reply_use_tts),
         })
+        return True
     except Exception as e:
         logger.warning("Outbound radio_tx execute failed: %s", e)
+        return False
 
 
 async def run_outbound_radio_handler(

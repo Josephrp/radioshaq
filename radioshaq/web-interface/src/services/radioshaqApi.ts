@@ -401,6 +401,7 @@ export interface EmergencyEvent {
     message?: string;
     approved_at?: string;
     approved_by?: string;
+    queued_at?: string;
     sent_at?: string;
     rejected_at?: string;
     rejected_by?: string;
@@ -421,7 +422,7 @@ export async function listEmergencyEvents(status?: string): Promise<{ events: Em
   return res.json();
 }
 
-export async function approveEmergencyEvent(eventId: number, notes?: string): Promise<{ ok: boolean; event_id: number; status: string; sent?: boolean }> {
+export async function approveEmergencyEvent(eventId: number, notes?: string): Promise<{ ok: boolean; event_id: number; status: string; queued?: boolean; sent?: boolean }> {
   const res = await fetch(`${API_BASE}/emergency/events/${eventId}/approve`, {
     method: 'POST',
     headers: authHeaders(),

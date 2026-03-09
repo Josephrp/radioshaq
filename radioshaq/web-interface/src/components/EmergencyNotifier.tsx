@@ -30,7 +30,7 @@ export function EmergencyNotifier() {
         const prev = prevCountRef.current;
         prevCountRef.current = count;
         if (prev !== null && count > 0 && prev === 0) {
-          playEmergencyAlertSound();
+          void playEmergencyAlertSound();
           showEmergencyBrowserNotification(count);
         }
       } catch {

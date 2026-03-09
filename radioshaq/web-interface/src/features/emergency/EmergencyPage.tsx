@@ -16,7 +16,7 @@ export function EmergencyPage() {
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionLoading, setActionLoading] = useState<number | null>(null);
+  const [actionLoadingSet, setActionLoadingSet] = useState<Set<number>>(new Set());
   const [notes, setNotes] = useState<Record<number, string>>({});
   const load = useCallback(async () => {
     try {
@@ -44,7 +44,11 @@ export function EmergencyPage() {
   }, [load]);
 
   const handleApprove = async (eventId: number) => {
-    setActionLoading(eventId);
+    setActionLoadingSet((prev) => {
+      const next = new Set(prev);
+      next.add(eventId);
+      return next;
+    });
     try {
       await approveEmergencyEvent(eventId, notes[eventId]);
       setNotes((prev) => ({ ...prev, [eventId]: '' }));
@@ -52,12 +56,20 @@ export function EmergencyPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.failedToUpdate'));
     } finally {
-      setActionLoading(null);
+      setActionLoadingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
     }
   };
 
   const handleReject = async (eventId: number) => {
-    setActionLoading(eventId);
+    setActionLoadingSet((prev) => {
+      const next = new Set(prev);
+      next.add(eventId);
+      return next;
+    });
     try {
       await rejectEmergencyEvent(eventId, notes[eventId]);
       setNotes((prev) => ({ ...prev, [eventId]: '' }));
@@ -65,7 +77,11 @@ export function EmergencyPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : t('common.failedToUpdate'));
     } finally {
-      setActionLoading(null);
+      setActionLoadingSet((prev) => {
+        const next = new Set(prev);
+        next.delete(eventId);
+        return next;
+      });
     }
   };
 
@@ -112,7 +128,7 @@ export function EmergencyPage() {
             const phone = extra.emergency_contact_phone ?? '—';
             const channel = extra.emergency_contact_channel ?? '—';
             const message = extra.message ?? ev.notes ?? '—';
-            const loadingEv = actionLoading === id;
+            const loadingEv = actionLoadingSet.has(id);
 
             return (
               <li
