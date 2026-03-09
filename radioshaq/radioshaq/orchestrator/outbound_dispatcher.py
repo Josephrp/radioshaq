@@ -65,7 +65,11 @@ async def run_outbound_handler(
             msg = await asyncio.wait_for(bus.consume_outbound(), timeout=consume_timeout)
             if msg.channel == "radio_rx":
                 radio_tx = agent_registry.get_agent("radio_tx") if agent_registry else None
-                await handle_one_outbound_radio(msg, radio_tx, config)
+                try:
+                    await handle_one_outbound_radio(msg, radio_tx, config)
+                except Exception as e:
+                    logger.warning("Outbound radio_rx failed: %s", e)
+                    await _maybe_reenqueue_outbound(bus, msg, "radio_rx")
             elif msg.channel == "sms":
                 sms_agent = agent_registry.get_agent("sms") if agent_registry else None
                 if sms_agent and hasattr(sms_agent, "execute"):

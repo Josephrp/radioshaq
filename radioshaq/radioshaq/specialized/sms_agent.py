@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.constants import E164_PATTERN
 from radioshaq.specialized.base import SpecializedAgent
 from radioshaq.utils.phone import normalize_e164
 
@@ -57,6 +58,13 @@ class SMSAgent(SpecializedAgent):
 
         if not to:
             return {"success": False, "error": "to (phone number) is required"}
+        if not E164_PATTERN.match(to):
+            return {
+                "success": False,
+                "error": "to must be E.164 (10–15 digits)",
+                "to": to,
+                "reason": "invalid_e164",
+            }
         if not self.twilio_client or not self.from_number:
             return {
                 "success": False,

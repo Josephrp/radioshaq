@@ -1,6 +1,43 @@
-export function playEmergencyAlertSound(): void {
+/** Module-level AudioContext created on user gesture; kept alive for alert sounds. */
+let _ctx: AudioContext | null = null;
+
+/**
+ * Create (and resume) the AudioContext during a user gesture (e.g. "Enable alerts" click).
+ * Must be called before playEmergencyAlertSound() or the sound will not play (browser autoplay policy).
+ */
+export function initAudioContext(): void {
+  if (_ctx) return;
   try {
-    const ctx = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+    const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+    _ctx = new Ctx();
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * Request browser notification permission. Call during a user gesture (e.g. "Enable alerts" click).
+ * Until permission is granted, showEmergencyBrowserNotification is a no-op.
+ */
+export async function requestNotificationPermission(): Promise<void> {
+  if (typeof window === 'undefined' || !('Notification' in window)) return;
+  if (Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+}
+
+/**
+ * Play the emergency alert tone. Uses the AudioContext from initAudioContext().
+ * If initAudioContext() was never called (no user gesture), the sound is silently skipped.
+ */
+export function playEmergencyAlertSound(): void {
+  const ctx = _ctx;
+  if (!ctx) return;
+  try {
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -21,8 +58,6 @@ export function playEmergencyAlertSound(): void {
     gain2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.7);
     osc2.start(ctx.currentTime + 0.4);
     osc2.stop(ctx.currentTime + 0.7);
-    // Close context after sounds finish to avoid hitting browser limit (typically 6 contexts)
-    setTimeout(() => ctx.close(), 1000);
   } catch {
     /* ignore */
   }
