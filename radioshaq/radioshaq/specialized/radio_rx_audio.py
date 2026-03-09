@@ -392,7 +392,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             return
 
         # Optionally store voice transcript (band, source=voice_listener) for GET /transcripts and relay
-        if getattr(self._radio_config, "voice_store_transcript", False) and self._transcript_storage and getattr(self._transcript_storage, "_db", None):
+        if getattr(self._radio_config, "voice_store_transcript", False) and self._transcript_storage and getattr(self._transcript_storage, "db", None):
             min_len = getattr(self._radio_config, "voice_store_min_length", 0) or 0
             keywords = getattr(self._radio_config, "voice_store_keywords", None) or []
             stripped = transcript.strip()

@@ -64,12 +64,20 @@ class SMSAgent(SpecializedAgent):
                 "notes": "Twilio client or from_number not configured",
                 "reason": "twilio_not_configured",
             }
+        from_e164 = normalize_e164(self.from_number)
+        if not from_e164:
+            return {
+                "success": False,
+                "to": to,
+                "notes": "from_number normalizes to empty string; check Twilio sender config",
+                "reason": "invalid_from",
+            }
 
         try:
             msg = await asyncio.to_thread(
                 self.twilio_client.messages.create,
                 body=body,
-                from_=normalize_e164(self.from_number),
+                from_=from_e164,
                 to=to,
             )
             result = {

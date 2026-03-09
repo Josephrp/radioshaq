@@ -369,7 +369,7 @@ async def inject_and_store(
     )
     transcript_id = None
     storage = get_transcript_storage(request)
-    if storage and getattr(storage, "_db", None):
+    if storage and getattr(storage, "db", None):
         transcript_id = await storage.store(
             session_id=f"inject-store-{uuid.uuid4().hex[:12]}",
             source_callsign=src,

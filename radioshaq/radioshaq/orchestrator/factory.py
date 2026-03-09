@@ -408,12 +408,14 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
                 app.state.agent_registry.get_agent("radio_tx")
                 if getattr(app.state, "agent_registry", None) else None
             )
+            message_bus = getattr(app.state, "message_bus", None) if app else None
             relay_tool = RelayMessageTool(
                 storage=storage,
                 injection_queue=injection_queue,
                 get_radio_tx=get_radio_tx,
                 config=config,
                 callsign_repository=callsign_repo,
+                message_bus=message_bus,
             )
             registry.register(relay_tool)
             logger.debug("Registered relay tool: %s", relay_tool.name)

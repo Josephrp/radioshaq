@@ -94,7 +94,8 @@ async def test_relay_tool_execute_no_storage_returns_error() -> None:
 @pytest.mark.asyncio
 async def test_relay_tool_execute_calls_service_and_formats_result() -> None:
     """Execute calls relay_message_between_bands_service and returns string with Relayed and ids."""
-    storage = MagicMock(_db=MagicMock())
+    storage = MagicMock()
+    storage.db = MagicMock()
     storage.store = AsyncMock(side_effect=[101, 102])
     queue = MagicMock()
     get_radio_tx = MagicMock(return_value=None)

@@ -83,6 +83,12 @@ class WhatsAppAgent(SpecializedAgent):
                 "to": to,
                 "notes": "to (phone number) is required",
             }
+        if not from_e164:
+            return {
+                "success": False,
+                "to": to,
+                "notes": "from_number normalizes to empty string; check Twilio WhatsApp sender config",
+            }
         try:
             msg = await asyncio.to_thread(
                 self.client.messages.create,

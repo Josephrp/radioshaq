@@ -6,8 +6,10 @@ import re
 from typing import Any
 
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
+from radioshaq.constants import E164_PATTERN
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.relay.service import relay_message_between_bands_service
+from radioshaq.utils.phone import normalize_e164
 
 # Optional ISO datetime for deliver_at (lenient)
 DELIVER_AT_PATTERN = re.compile(
@@ -34,12 +36,14 @@ class RelayMessageTool:
         get_radio_tx: Any = None,
         config: Any = None,
         callsign_repository: Any = None,
+        message_bus: Any = None,
     ) -> None:
         self._storage = storage
         self._injection_queue = injection_queue
         self._get_radio_tx = get_radio_tx
         self._config = config
         self._callsign_repository = callsign_repository
+        self._message_bus = message_bus
 
     def to_schema(self) -> dict[str, Any]:
         return {
@@ -119,6 +123,12 @@ class RelayMessageTool:
             errors.append("target_channel must be radio, sms, or whatsapp")
         if target_channel in ("sms", "whatsapp") and not destination_phone:
             errors.append("destination_phone is required when target_channel is sms or whatsapp")
+        if target_channel in ("sms", "whatsapp") and destination_phone:
+            normalised = normalize_e164(destination_phone)
+            if not E164_PATTERN.match(normalised):
+                errors.append(
+                    f"destination_phone must be E.164 (e.g. +14155552671); got: {destination_phone!r}"
+                )
         if params.get("emergency") is True and target_channel not in ("sms", "whatsapp"):
             errors.append("emergency only applies when target_channel is sms or whatsapp")
         config = self._config
@@ -165,7 +175,7 @@ class RelayMessageTool:
         emergency: bool = False,
         **kwargs: Any,
     ) -> str:
-        if self._storage is None or not getattr(self._storage, "_db", None):
+        if self._storage is None or getattr(self._storage, "db", None) is None:
             return "Error: Relay not available (no storage)."
 
         config = self._config
@@ -223,6 +233,7 @@ class RelayMessageTool:
             target_channel=(target_channel or "radio").strip().lower(),
             destination_phone=(destination_phone or "").strip() or None,
             emergency=emergency,
+            message_bus=self._message_bus,
         )
 
         if not result.get("ok"):

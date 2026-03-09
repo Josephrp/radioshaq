@@ -310,7 +310,11 @@ class CoordinationEvent(Base):
     )
     
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary."""
+        """Convert to dictionary. Redacts emergency_contact_phone in extra_data for privacy."""
+        extra = dict(self.extra_data) if self.extra_data else {}
+        if "emergency_contact_phone" in extra and extra["emergency_contact_phone"]:
+            raw = str(extra["emergency_contact_phone"])
+            extra["emergency_contact_phone"] = "****" + raw[-4:] if len(raw) >= 4 else "****"
         return {
             "id": self.id,
             "event_type": self.event_type,
@@ -323,7 +327,7 @@ class CoordinationEvent(Base):
             "priority": self.priority,
             "notes": self.notes,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "extra_data": self.extra_data,
+            "extra_data": extra,
         }
 
 
