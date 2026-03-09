@@ -1,9 +1,12 @@
 """Message and orchestrator request endpoints.
 
-Request body may include InboundMessage-compatible fields for outbound routing:
+When the MessageBus consumer is enabled (RADIOSHAQ_BUS_CONSUMER_ENABLED=1), the orchestrator's
+reply is published as an OutboundMessage. The request body can include:
 - message or text: required, content to process
-- channel: optional (e.g. whatsapp, sms, api), for future OutboundMessage routing
-- chat_id: optional, for future OutboundMessage routing
+- channel: optional (e.g. whatsapp, sms, api, radio_rx). Reply is delivered to this channel
+  via the outbound dispatcher (radio_rx -> radio_tx; sms/whatsapp -> Twilio).
+- chat_id: optional. For sms/whatsapp this should be the destination phone (E.164).
+  Preserved on the outbound message so the dispatcher sends to the correct recipient.
 - sender_id: optional, for logging/context
 """
 
@@ -27,6 +30,8 @@ from radioshaq.api.dependencies import (
     get_transcript_storage,
 )
 from radioshaq.auth.jwt import TokenPayload
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
+from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
 
@@ -75,6 +80,7 @@ async def process_message(
 @router.post("/whitelist-request")
 async def whitelist_request(
     request: Request,
+    config: Config = Depends(get_config),
     user: TokenPayload = Depends(get_current_user),
     orchestrator: Any = Depends(get_orchestrator),
     radio_tx_agent: Any = Depends(get_radio_tx_agent),
@@ -152,10 +158,14 @@ async def whitelist_request(
                     f.write(content)
                     temp_path = f.name
                 try:
-                    from radioshaq.audio.asr import transcribe_audio_voxtral
-                    request_text = await asyncio.to_thread(transcribe_audio_voxtral, temp_path, language="en")
-                except ImportError:
-                    raise HTTPException(status_code=503, detail="ASR not available")
+                    from radioshaq.audio.asr_plugin import transcribe_audio
+                    asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+                    asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
+                    request_text = await asyncio.to_thread(
+                        transcribe_audio, temp_path, asr_model, language=asr_lang
+                    )
+                except (ImportError, RuntimeError) as e:
+                    raise HTTPException(status_code=503, detail=f"ASR not available: {e!s}")
                 finally:
                     Path(temp_path).unlink(missing_ok=True)
                 request_text = (request_text or "").strip()
@@ -176,8 +186,12 @@ async def whitelist_request(
         orchestrator_input += f" Stated callsign: {callsign}."
     
     result = await orchestrator.process_request(request=orchestrator_input, callsign=callsign)
-    if response_frequency_hz is None and response_band and response_band in BAND_PLANS:
-        plan = BAND_PLANS[response_band]
+    band_plans = get_band_plan_source_for_config(
+        config.radio.restricted_bands_region,
+        getattr(config.radio, "band_plan_region", None),
+    )
+    if response_frequency_hz is None and response_band and response_band in band_plans:
+        plan = band_plans[response_band]
         response_frequency_hz = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
         if not response_mode:
             response_mode = (plan.modes or ["FM"])[0]
@@ -253,14 +267,16 @@ async def message_from_audio(
         f.write(content)
         temp_path = f.name
     try:
-        from radioshaq.audio.asr import transcribe_audio_voxtral
+        from radioshaq.audio.asr_plugin import transcribe_audio
+        asr_lang = getattr(config.audio, "asr_language", "en") or "en"
+        asr_model = getattr(config.audio, "asr_model", "voxtral") or "voxtral"
         transcript_text = await asyncio.to_thread(
-            transcribe_audio_voxtral, temp_path, language="en"
+            transcribe_audio, temp_path, asr_model, language=asr_lang
         )
-    except ImportError:
+    except (ImportError, RuntimeError) as e:
         raise HTTPException(
             status_code=503,
-            detail="ASR not available (uv sync --extra audio)",
+            detail=f"ASR not available: {e!s}",
         )
     finally:
         Path(temp_path).unlink(missing_ok=True)
@@ -269,16 +285,20 @@ async def message_from_audio(
     if not transcript_text:
         raise HTTPException(status_code=400, detail="No speech detected in audio")
 
+    band_plans = get_band_plan_source_for_config(
+        config.radio.restricted_bands_region,
+        getattr(config.radio, "band_plan_region", None),
+    )
     storage = get_transcript_storage(request)
     db = getattr(request.app.state, "db", None)
     transcript_id = 0
     if storage and db:
         sid = session_id or f"from-audio-{uuid.uuid4().hex[:12]}"
         freq = frequency_hz
-        if freq <= 0 and band and band in BAND_PLANS:
-            plan = BAND_PLANS[band]
+        if freq <= 0 and band and band in band_plans:
+            plan = band_plans[band]
             freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
-        mode_val = (BAND_PLANS[band].modes[0]) if band and band in BAND_PLANS else mode
+        mode_val = (band_plans[band].modes[0]) if band and band in band_plans else mode
         transcript_id = await storage.store(
             session_id=sid,
             source_callsign=src,
@@ -349,7 +369,7 @@ async def inject_and_store(
     )
     transcript_id = None
     storage = get_transcript_storage(request)
-    if storage and getattr(storage, "_db", None):
+    if storage and getattr(storage, "db", None):
         transcript_id = await storage.store(
             session_id=f"inject-store-{uuid.uuid4().hex[:12]}",
             source_callsign=src,

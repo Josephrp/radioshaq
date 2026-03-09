@@ -1,6 +1,6 @@
 [project]
 name = "radioshaq"
-version = "0.1.2"
+version = "0.1.3"
 description = "RadioShaq: Ham Radio AI Orchestration and Remote SDR Reception System"
 readme = "../.github/PYPI_README.md"
 requires-python = ">=3.11"
@@ -105,8 +105,11 @@ test = [
 sdr = [
     "pyrtlsdr>=0.4",
 ]
+# python-hackrf requires HackRF SDK (hackrf.h) at build time; SDK not commonly
+# installed on Windows. Install only on non-Windows; use hackrf on Linux/macOS or
+# install HackRF for Windows and sync without --all-extras then add hackrf manually.
 hackrf = [
-    "python-hackrf>=1.5",
+    "python-hackrf>=1.5; sys_platform != 'win32'",
 ]
 
 # Optional: Hindsight semantic memory. Requires urllib3>=2 (conflicts with boto3 urllib3<2).
@@ -118,13 +121,14 @@ radio = [
     # "pyham-ax25",  # For packet radio
 ]
 
-# ASR (radioshaq/voxtral-asr-en) + TTS (ElevenLabs)
+# ASR: Voxtral (shakods/voxtral-asr-en), Whisper (local). Scribe uses ELEVENLABS_API_KEY.
 audio = [
     "transformers>=4.54",
     "peft>=0.18",
     "accelerate>=1.0",
     "torch>=2.0",
     "mistral-common[audio]>=1.8.1",
+    "openai-whisper>=20231117",
 ]
 
 # Voice TX: play audio to rig (sound device → rig line-in)
@@ -146,6 +150,13 @@ voice_rx = [
     "webrtcvad-wheels>=2.0.11",
     "numpy>=2.4",
     "noisereduce>=3.0",
+]
+
+# Local TTS: Kokoro-82M (no API key). Kokoro pulls in torch, transformers, misaki[en], etc.
+# On Linux, soundfile may need libsndfile: apt install libsndfile1 (or equivalent).
+tts_kokoro = [
+    "kokoro>=0.9.4",
+    "soundfile>=0.12.1",
 ]
 
 [project.scripts]

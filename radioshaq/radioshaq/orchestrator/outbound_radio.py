@@ -7,7 +7,64 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.radio.bands import BAND_PLANS
+
+
+async def handle_one_outbound_radio(
+    msg: Any,
+    radio_tx_agent: Any,
+    config: Any,
+) -> bool:
+    """
+    Handle a single outbound message for channel=radio_rx: resolve band/freq/mode and
+    call radio_tx agent. No-op if tx disabled or agent missing. Used by run_outbound_radio_handler
+    and by the single outbound dispatcher.
+    """
+    radio_cfg = getattr(config, "radio", None)
+    tx_enabled = getattr(radio_cfg, "radio_reply_tx_enabled", True) if radio_cfg else True
+    reply_use_tts = getattr(radio_cfg, "radio_reply_use_tts", True) if radio_cfg else True
+    band_plans = (
+        get_band_plan_source_for_config(
+            getattr(radio_cfg, "restricted_bands_region", "FCC"),
+            getattr(radio_cfg, "band_plan_region", None),
+        )
+        if radio_cfg
+        else BAND_PLANS
+    )
+    if not tx_enabled:
+        return True
+    if not radio_tx_agent or not hasattr(radio_tx_agent, "execute"):
+        return False
+    band = msg.chat_id or msg.metadata.get("reply_band") or ""
+    freq = msg.metadata.get("frequency_hz")
+    mode = msg.metadata.get("mode")
+    if not band and freq is None:
+        logger.warning("Outbound radio_rx: no band or frequency_hz, skipping")
+        return False
+    plan = band_plans.get(band) if band else None
+    if plan:
+        if freq is None or freq <= 0:
+            freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
+        if not mode:
+            mode = (plan.modes or ["FM"])[0]
+    else:
+        mode = mode or "FM"
+    if freq is None or freq <= 0:
+        logger.warning("Outbound radio_rx: could not resolve frequency for band %s", band)
+        return False
+    try:
+        await radio_tx_agent.execute({
+            "transmission_type": "voice",
+            "frequency": freq,
+            "message": msg.content or "",
+            "mode": mode,
+            "use_tts": bool(reply_use_tts),
+        })
+        return True
+    except Exception as e:
+        logger.warning("Outbound radio_tx execute failed: %s", e)
+        return False
 
 
 async def run_outbound_radio_handler(
@@ -24,47 +81,13 @@ async def run_outbound_radio_handler(
     if not bus or not hasattr(bus, "consume_outbound"):
         logger.debug("Outbound radio handler: no bus or consume_outbound, exiting")
         return
-    radio_cfg = getattr(config, "radio", None)
-    tx_enabled = getattr(radio_cfg, "radio_reply_tx_enabled", True) if radio_cfg else True
-    reply_use_tts = getattr(radio_cfg, "radio_reply_use_tts", True) if radio_cfg else True
 
     while not stop_event.is_set():
         try:
             msg = await bus.consume_outbound()
             if msg.channel != "radio_rx":
                 continue
-            if not tx_enabled:
-                continue
-            if not radio_tx_agent or not hasattr(radio_tx_agent, "execute"):
-                logger.debug("Outbound radio: no radio_tx agent, skipping TX")
-                continue
-            band = msg.chat_id or msg.metadata.get("reply_band") or ""
-            freq = msg.metadata.get("frequency_hz")
-            mode = msg.metadata.get("mode")
-            if not band and freq is None:
-                logger.warning("Outbound radio_rx: no band or frequency_hz, skipping")
-                continue
-            plan = BAND_PLANS.get(band) if band else None
-            if plan:
-                if freq is None or freq <= 0:
-                    freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
-                if not mode:
-                    mode = (plan.modes or ["FM"])[0]
-            else:
-                mode = mode or "FM"
-            if freq is None or freq <= 0:
-                logger.warning("Outbound radio_rx: could not resolve frequency for band %s", band)
-                continue
-            try:
-                await radio_tx_agent.execute({
-                    "transmission_type": "voice",
-                    "frequency": freq,
-                    "message": msg.content or "",
-                    "mode": mode,
-                    "use_tts": bool(reply_use_tts),
-                })
-            except Exception as e:
-                logger.warning("Outbound radio_tx execute failed: %s", e)
+            await handle_one_outbound_radio(msg, radio_tx_agent, config)
         except asyncio.CancelledError:
             logger.debug("Outbound radio handler cancelled")
             break

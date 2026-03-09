@@ -11,13 +11,13 @@ from radioshaq.specialized.relay_tools import RelayMessageTool
 
 @pytest.mark.unit
 def test_relay_tool_to_schema_has_required_params() -> None:
-    """to_schema() includes required message, source_band, target_band."""
+    """to_schema() requires only message and source_band; target_band is optional (required for radio in validate_params)."""
     tool = RelayMessageTool()
     schema = tool.to_schema()
     required = schema["function"]["parameters"]["required"]
     assert "message" in required
     assert "source_band" in required
-    assert "target_band" in required
+    assert "target_band" not in required
     assert schema["function"]["name"] == "relay_message_between_bands"
 
 
@@ -67,6 +67,20 @@ def test_relay_tool_validate_params_accepts_valid() -> None:
 
 
 @pytest.mark.unit
+def test_relay_tool_validate_params_target_band_required_only_for_radio() -> None:
+    """target_band is required when target_channel is radio; optional for sms/whatsapp."""
+    tool = RelayMessageTool()
+    err_radio = tool.validate_params({"message": "Hi", "source_band": "40m", "target_channel": "radio"})
+    assert any("target_band" in e for e in err_radio)
+    assert tool.validate_params({
+        "message": "Hi",
+        "source_band": "40m",
+        "target_channel": "whatsapp",
+        "destination_phone": "+15551234567",
+    }) == []
+
+
+@pytest.mark.unit
 @pytest.mark.asyncio
 async def test_relay_tool_execute_no_storage_returns_error() -> None:
     """When storage is None, execute returns error string."""
@@ -80,7 +94,8 @@ async def test_relay_tool_execute_no_storage_returns_error() -> None:
 @pytest.mark.asyncio
 async def test_relay_tool_execute_calls_service_and_formats_result() -> None:
     """Execute calls relay_message_between_bands_service and returns string with Relayed and ids."""
-    storage = MagicMock(_db=MagicMock())
+    storage = MagicMock()
+    storage.db = MagicMock()
     storage.store = AsyncMock(side_effect=[101, 102])
     queue = MagicMock()
     get_radio_tx = MagicMock(return_value=None)

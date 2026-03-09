@@ -1,1 +1,1 @@
-"""SHAKODS utility scripts."""
+"""RadioShaq utility scripts."""

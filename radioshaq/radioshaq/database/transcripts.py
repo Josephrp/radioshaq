@@ -60,6 +60,11 @@ class TranscriptStorage:
     def __init__(self, db: TranscriptStoreProtocol | None = None):
         self._db = db
 
+    @property
+    def db(self) -> TranscriptStoreProtocol | None:
+        """Public accessor to the database manager (e.g. for emergency coordination events)."""
+        return self._db
+
     async def store(
         self,
         session_id: str,

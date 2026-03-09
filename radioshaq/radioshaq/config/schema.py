@@ -1,11 +1,18 @@
-"""Configuration schema for SHAKODS using Pydantic.
+"""Configuration schema for RadioShaq using Pydantic.
 
-This module defines all configuration models for the SHAKODS system,
+This module defines all configuration models for the RadioShaq system,
 supporting file-based config, environment variables, and validation.
+
+Runtime overrides applied via the config API (PATCH /config/audio, etc.) are
+stored in app state only and merged into GET responses; they do not modify
+the Config instance used at startup. Agents and the orchestrator are created
+with the startup Config and do not see API overrides until process restart.
+See radioshaq.api.config_semantics for API semantics.
 """
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from enum import Enum, StrEnum
@@ -15,9 +22,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from radioshaq.constants import ASR_LANGUAGE_AUTO, ASR_LANGUAGE_VALUES
+
+logger = logging.getLogger(__name__)
+
 
 class Mode(StrEnum):
-    """Operational mode for SHAKODS."""
+    """Operational mode for RadioShaq."""
     
     FIELD = "field"  # Edge/field station mode
     HQ = "hq"  # Headquarters/central mode
@@ -36,11 +47,12 @@ class LogLevel(StrEnum):
 
 class LLMProvider(StrEnum):
     """Supported LLM providers."""
-    
+
     MISTRAL = "mistral"
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
     CUSTOM = "custom"
+    HUGGINGFACE = "huggingface"
 
 
 class RadioMode(StrEnum):
@@ -176,7 +188,14 @@ class LLMConfig(BaseModel):
     # Custom provider
     custom_api_base: str | None = Field(default=None)
     custom_api_key: str | None = Field(default=None)
-    
+
+    # Hugging Face Inference Providers (https://router.huggingface.co/v1)
+    huggingface_api_key: str | None = Field(default=None)
+    huggingface_api_base: str | None = Field(
+        default=None,
+        description="Default: https://router.huggingface.co/v1 when provider is huggingface.",
+    )
+
     # Generation parameters
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     max_tokens: int = Field(default=4096, ge=1, le=100000)
@@ -229,6 +248,10 @@ class RadioConfig(BaseModel):
     tx_audit_log_path: str | None = Field(default=None, description="Path to JSONL file for TX audit log")
     tx_allowed_bands_only: bool = Field(default=True, description="Only allow TX in band_plan bands")
     restricted_bands_region: str = Field(default="FCC", description="Region for restricted bands (FCC, CEPT)")
+    band_plan_region: str | None = Field(
+        default=None,
+        description="Band plan region override (e.g. ITU_R1, ITU_R2). None = use backend from restricted_bands_region.",
+    )
 
     # Multi-band listening (Project 1)
     default_band: str | None = Field(default=None, description="Default band when listen_bands not set (e.g. 40m, 2m)")
@@ -423,10 +446,27 @@ class AudioConfig(BaseModel):
     max_speech_duration_ms: int = Field(default=30000, ge=5000, le=60000)
     silence_duration_ms: int = Field(default=800, ge=200, le=2000)
 
-    # ASR
-    asr_model: str = Field(default="voxtral")
-    asr_language: str = Field(default="en")
+    # ASR (voxtral, whisper = local; scribe = ElevenLabs API)
+    asr_model: str = Field(
+        default="voxtral",
+        description="ASR backend: voxtral (local, default), whisper (local), scribe (ElevenLabs API).",
+    )
+    asr_language: str = Field(
+        default="en",
+        description="ASR language: en, fr, es, or auto (detect).",
+    )
     asr_min_confidence: float = Field(default=0.6, ge=0.0, le=1.0)
+
+    @field_validator("asr_language", mode="before")
+    @classmethod
+    def _normalize_asr_language(cls, v: Any) -> str:
+        raw = (v or "").strip().lower()
+        if raw in ("", ASR_LANGUAGE_AUTO):
+            return ASR_LANGUAGE_AUTO
+        if raw in ASR_LANGUAGE_VALUES:
+            return raw
+        logger.warning("Unrecognized asr_language %r; falling back to 'en'", raw)
+        return "en"
 
     # Response behavior
     auto_respond: bool = Field(default=False)  # Legacy; prefer response_mode
@@ -473,6 +513,40 @@ class AudioConfig(BaseModel):
         default=None,
         description="Default sender_id for voice segments when not parsed from transcript (e.g. 'VOICE'). None = use 'UNKNOWN'.",
     )
+
+
+class TTSConfig(BaseModel):
+    """Text-to-speech provider and options (used when voice_use_tts or use_tts is true)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["elevenlabs", "kokoro"] = Field(
+        default="elevenlabs",
+        description="TTS provider: elevenlabs (API) or kokoro (local).",
+    )
+    # ElevenLabs
+    elevenlabs_voice_id: str = Field(
+        default="21m00Tcm4TlvDq8ikWAM",
+        description="ElevenLabs voice ID (e.g. Rachel). List voices: GET /v1/voices.",
+    )
+    elevenlabs_model_id: str = Field(
+        default="eleven_multilingual_v2",
+        description="ElevenLabs model: eleven_multilingual_v2, eleven_turbo_v2_5, eleven_flash_v2_5, etc.",
+    )
+    elevenlabs_output_format: str = Field(
+        default="mp3_44100_128",
+        description="ElevenLabs output format, e.g. mp3_44100_128, wav_22050.",
+    )
+    # Kokoro (local)
+    kokoro_voice: str = Field(
+        default="af_heart",
+        description="Kokoro voice name (e.g. af_heart, am_michael). Requires uv sync --extra tts_kokoro.",
+    )
+    kokoro_lang_code: str = Field(
+        default="a",
+        description="Kokoro language code: a (US English), b (UK English), e (es), f (fr), etc.",
+    )
+    kokoro_speed: float = Field(default=1.0, ge=0.5, le=2.0, description="Kokoro speech rate.")
 
 
 class PendingResponse(BaseModel):
@@ -588,6 +662,49 @@ class HQConfig(BaseModel):
     coordination_interval_seconds: int = Field(default=30, ge=5)
 
 
+class TwilioConfig(BaseModel):
+    """Twilio configuration for SMS and WhatsApp (same account; E.164 for numbers)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    account_sid: str | None = Field(
+        default=None,
+        description="Twilio Account SID (env: RADIOSHAQ_TWILIO__ACCOUNT_SID)",
+    )
+    auth_token: str | None = Field(
+        default=None,
+        description="Twilio Auth Token (env: RADIOSHAQ_TWILIO__AUTH_TOKEN)",
+    )
+    from_number: str | None = Field(
+        default=None,
+        description="SMS sender phone number, E.164 (env: RADIOSHAQ_TWILIO__FROM_NUMBER)",
+    )
+    whatsapp_from: str | None = Field(
+        default=None,
+        description="WhatsApp sender phone number, E.164; must be WhatsApp-enabled in Twilio (env: RADIOSHAQ_TWILIO__WHATSAPP_FROM)",
+    )
+
+
+class EmergencyContactConfig(BaseModel):
+    """Region-aware emergency SMS/WhatsApp contact loop (§9). Human approval required when approval_required=True."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    enabled: bool = Field(
+        default=False,
+        description="Enable emergency contact (SMS/WhatsApp) flow; only allowed in regions_allowed.",
+    )
+    regions_allowed: list[str] = Field(
+        default_factory=list,
+        description="Region codes where emergency SMS/WhatsApp is allowed (e.g. FCC, CA). See docs/notify-and-emergency-compliance-plan.md.",
+    )
+    approval_required: bool = Field(default=True, description="Require human approval before sending emergency message.")
+    allowed_event_types: list[str] = Field(
+        default_factory=lambda: ["emergency"],
+        description="Event types that use this config (e.g. emergency).",
+    )
+
+
 # =============================================================================
 # Main Configuration
 # =============================================================================
@@ -626,7 +743,10 @@ class Config(BaseSettings):
     radio: RadioConfig = Field(default_factory=RadioConfig)
     memory: MemoryConfig = Field(default_factory=MemoryConfig)
     audio: AudioConfig = Field(default_factory=AudioConfig)
+    tts: TTSConfig = Field(default_factory=TTSConfig)
     pm2: PM2Config = Field(default_factory=PM2Config)
+    twilio: TwilioConfig = Field(default_factory=TwilioConfig)
+    emergency_contact: EmergencyContactConfig = Field(default_factory=EmergencyContactConfig)
 
     # Per-role overrides: keys e.g. orchestrator, judge, whitelist, daily_summary, memory
     llm_overrides: dict[str, Any] | None = Field(
@@ -727,6 +847,9 @@ __all__ = [
     "AudioActivationMode",
     "AudioConfig",
     "Config",
+    "EmergencyContactConfig",
+    "TwilioConfig",
+    "TTSConfig",
     "MemoryConfig",
     "DatabaseConfig",
     "FieldConfig",

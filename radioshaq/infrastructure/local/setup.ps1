@@ -53,6 +53,7 @@ Write-Host "`nInstalling Python dependencies..." -ForegroundColor Yellow
 if ($uvAvailable) {
     uv sync --extra dev --extra test
     Write-Host "RadioShaq and dev/test deps installed (uv)"
+    Write-Host "Optional: uv sync --extra audio (ASR: Voxtral, Whisper; Scribe uses API). Optional: uv sync --extra tts_kokoro (local TTS: Kokoro)."
 } else {
     if (-not (Test-Path ".venv")) {
         python -m venv .venv
@@ -100,6 +101,11 @@ llm:
 radio:
   enabled: false
   port: COM3
+
+tts:
+  provider: elevenlabs
+  # For kokoro (local TTS): set provider to kokoro and run uv sync --extra tts_kokoro
+  # For elevenlabs: set ELEVENLABS_API_KEY
 
 field:
   station_id: DEV-FIELD-01

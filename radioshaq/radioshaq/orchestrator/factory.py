@@ -7,6 +7,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.resolve import get_llm_config_for_role, get_memory_config_for_role
 from radioshaq.config.schema import Config, LLMConfig
 from radioshaq.llm.client import LLMClient
@@ -27,6 +28,11 @@ from radioshaq.specialized.radio_tools import SendAudioOverRadioTool
 from radioshaq.specialized.whitelist_tools import ListRegisteredCallsignsTool, RegisterCallsignTool
 from radioshaq.specialized.memory_tools import RecallMemoryTool, ReflectMemoryTool
 from radioshaq.specialized.relay_tools import RelayMessageTool
+from radioshaq.specialized.gis_tools import (
+    GetOperatorLocationTool,
+    OperatorsNearbyTool,
+    SetOperatorLocationTool,
+)
 from radioshaq.callsign import get_callsign_repository
 
 
@@ -56,11 +62,28 @@ def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
         return f"openai/{model}"
     if p == "anthropic" and "/" not in model:
         return f"anthropic/{model}"
+    if p == "huggingface":
+        if not model:
+            raise ValueError("huggingface provider requires a non-empty model name")
+        if model.startswith("openai/"):
+            return model
+        return f"openai/{model}"
     if p == "custom":
         return f"custom/{model}" if "/" not in model else model
     if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
         return f"mistral/{model}"
     return model
+
+
+def _llm_api_base_for_provider(llm_cfg: LLMConfig) -> str | None:
+    """Return api_base for the configured provider (huggingface router or custom)."""
+    provider = getattr(llm_cfg, "provider", None)
+    p = str(provider).lower() if provider else ""
+    if p == "huggingface":
+        return getattr(llm_cfg, "huggingface_api_base", None) or "https://router.huggingface.co/v1"
+    if p == "custom":
+        return getattr(llm_cfg, "custom_api_base", None)
+    return None
 
 
 def _llm_api_key(config: Config) -> str | None:
@@ -69,15 +92,19 @@ def _llm_api_key(config: Config) -> str | None:
 
 
 def _llm_api_key_from_llm_config(llm: LLMConfig) -> str | None:
-    """Get API key from an LLMConfig."""
-    if getattr(llm, "mistral_api_key", None):
-        return llm.mistral_api_key
-    if getattr(llm, "openai_api_key", None):
-        return llm.openai_api_key
-    if getattr(llm, "anthropic_api_key", None):
-        return llm.anthropic_api_key
-    if getattr(llm, "custom_api_key", None):
-        return llm.custom_api_key
+    """Get API key for the configured provider (provider-matched key only)."""
+    provider = getattr(llm, "provider", None)
+    p = str(provider).lower() if provider else ""
+    if p == "huggingface":
+        return getattr(llm, "huggingface_api_key", None)
+    if p == "custom":
+        return getattr(llm, "custom_api_key", None)
+    if p == "anthropic":
+        return getattr(llm, "anthropic_api_key", None)
+    if p == "openai":
+        return getattr(llm, "openai_api_key", None)
+    if p == "mistral":
+        return getattr(llm, "mistral_api_key", None)
     return None
 
 
@@ -102,7 +129,7 @@ def create_judge(config: Config) -> JudgeSystem:
     provider = LLMClient(
         model=model,
         api_key=api_key,
-        api_base=getattr(llm_cfg, "custom_api_base", None),
+        api_base=_llm_api_base_for_provider(llm_cfg),
         temperature=getattr(llm_cfg, "temperature", 0.1),
         max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
@@ -174,6 +201,10 @@ def _create_sdr_transmitter(config: Config) -> Any:
         return None
     try:
         from radioshaq.radio.sdr_tx import HackRFTransmitter
+        band_plan = get_band_plan_source_for_config(
+            getattr(config.radio, "restricted_bands_region", "FCC"),
+            getattr(config.radio, "band_plan_region", None),
+        )
         return HackRFTransmitter(
             device_index=getattr(config.radio, "sdr_tx_device_index", 0),
             serial_number=getattr(config.radio, "sdr_tx_serial", None),
@@ -181,6 +212,7 @@ def _create_sdr_transmitter(config: Config) -> Any:
             allow_bands_only=getattr(config.radio, "sdr_tx_allow_bands_only", True),
             audit_log_path=getattr(config.radio, "tx_audit_log_path", None),
             restricted_region=getattr(config.radio, "restricted_bands_region", "FCC"),
+            band_plan_source=band_plan,
         )
     except Exception as e:
         logger.warning("SDR TX (HackRF) not available: %s", e)
@@ -211,21 +243,23 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
             except Exception as e:
                 logger.warning("PTTCoordinator not created: %s", e)
 
+    twilio_cfg = getattr(config, "twilio", None)
     sms_client = None
     sms_from = None
-    if getattr(config, "twilio_sid", None) or getattr(config, "twilio_from", None):
+    if twilio_cfg and getattr(twilio_cfg, "account_sid", None) and getattr(twilio_cfg, "auth_token", None):
         try:
             from twilio.rest import Client
-            sid = getattr(config, "twilio_sid", None) or getattr(config, "twilio_account_sid", None)
-            token = getattr(config, "twilio_token", None) or getattr(config, "twilio_auth_token", None)
-            if sid and token:
-                sms_client = Client(sid, token)
-                sms_from = getattr(config, "twilio_from", None) or getattr(config, "twilio_from_number", None)
+            sms_client = Client(twilio_cfg.account_sid, twilio_cfg.auth_token)
+            sms_from = getattr(twilio_cfg, "from_number", None)
         except ImportError:
             pass
 
     registry.register_agent(SMSAgent(twilio_client=sms_client, from_number=sms_from))
-    registry.register_agent(WhatsAppAgent(client=None))
+    whatsapp_from = getattr(twilio_cfg, "whatsapp_from", None) if twilio_cfg else None
+    if sms_client and whatsapp_from:
+        registry.register_agent(WhatsAppAgent(client=sms_client, from_number=whatsapp_from))
+    else:
+        registry.register_agent(WhatsAppAgent(client=None, from_number=None))
 
     registry.register_agent(
         RadioTransmissionAgent(
@@ -317,7 +351,7 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
     llm_client = LLMClient(
         model=_llm_model_string_from_llm_config(llm_cfg),
         api_key=_llm_api_key_from_llm_config(llm_cfg),
-        api_base=getattr(llm_cfg, "custom_api_base", None),
+        api_base=_llm_api_base_for_provider(llm_cfg),
         temperature=getattr(llm_cfg, "temperature", 0.1),
         max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
@@ -346,6 +380,14 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
         logger.debug("Registered whitelist tools: list_registered_callsigns, register_callsign")
     except Exception as e:
         logger.warning("Could not register whitelist tools: %s", e)
+    if db is not None:
+        try:
+            registry.register(SetOperatorLocationTool(db))
+            registry.register(GetOperatorLocationTool(db))
+            registry.register(OperatorsNearbyTool(db))
+            logger.debug("Registered GIS tools: set_operator_location, get_operator_location, operators_nearby")
+        except Exception as e:
+            logger.warning("Could not register GIS tools: %s", e)
     if getattr(config, "memory", None) and getattr(config.memory, "enabled", False):
         try:
             from types import SimpleNamespace
@@ -366,12 +408,14 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
                 app.state.agent_registry.get_agent("radio_tx")
                 if getattr(app.state, "agent_registry", None) else None
             )
+            message_bus = getattr(app.state, "message_bus", None) if app else None
             relay_tool = RelayMessageTool(
                 storage=storage,
                 injection_queue=injection_queue,
                 get_radio_tx=get_radio_tx,
                 config=config,
                 callsign_repository=callsign_repo,
+                message_bus=message_bus,
             )
             registry.register(relay_tool)
             logger.debug("Registered relay tool: %s", relay_tool.name)
@@ -427,7 +471,7 @@ def create_orchestrator(
         llm_client = LLMClient(
             model=_llm_model_string_from_llm_config(llm_cfg),
             api_key=_llm_api_key_from_llm_config(llm_cfg),
-            api_base=getattr(llm_cfg, "custom_api_base", None),
+            api_base=_llm_api_base_for_provider(llm_cfg),
             temperature=getattr(llm_cfg, "temperature", 0.1),
             max_tokens=getattr(llm_cfg, "max_tokens", 4096),
         )
@@ -441,6 +485,7 @@ def create_orchestrator(
         tool_registry=tool_registry,
         llm_client=llm_client,
         memory_manager=memory_manager,
+        db=db,
     )
     setattr(orchestrator, "_config", config)
     if message_bus is not None:

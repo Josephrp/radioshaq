@@ -10,7 +10,7 @@ from loguru import logger
 
 
 class HQClient:
-    """Upload receiver data to SHAKODS HQ with JWT."""
+    """Upload receiver data to RadioShaq HQ with JWT."""
 
     def __init__(
         self,

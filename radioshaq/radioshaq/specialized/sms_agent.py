@@ -1,12 +1,15 @@
-"""SMS specialized agent (Twilio integration)."""
+"""SMS specialized agent (Twilio integration). Twilio expects E.164 for phone numbers."""
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from loguru import logger
 
+from radioshaq.constants import E164_PATTERN
 from radioshaq.specialized.base import SpecializedAgent
+from radioshaq.utils.phone import normalize_e164
 
 
 class SMSAgent(SpecializedAgent):
@@ -47,25 +50,42 @@ class SMSAgent(SpecializedAgent):
     async def _send(
         self, task: dict[str, Any], upstream_callback: Any
     ) -> dict[str, Any]:
-        """Send SMS via Twilio."""
-        to = (task.get("to") or "").strip()
+        """Send SMS via Twilio. Phone numbers are normalized to E.164."""
+        to = normalize_e164(task.get("to") or "")
         body = task.get("message", "") or task.get("body", "")
 
         await self.emit_progress(upstream_callback, "sending", to=to)
 
         if not to:
             return {"success": False, "error": "to (phone number) is required"}
+        if not E164_PATTERN.match(to):
+            return {
+                "success": False,
+                "error": "to must be E.164 (10–15 digits)",
+                "to": to,
+                "reason": "invalid_e164",
+            }
         if not self.twilio_client or not self.from_number:
             return {
                 "success": False,
                 "to": to,
                 "notes": "Twilio client or from_number not configured",
+                "reason": "twilio_not_configured",
+            }
+        from_e164 = normalize_e164(self.from_number)
+        if not from_e164:
+            return {
+                "success": False,
+                "to": to,
+                "notes": "from_number normalizes to empty string; check Twilio sender config",
+                "reason": "invalid_from",
             }
 
         try:
-            msg = self.twilio_client.messages.create(
+            msg = await asyncio.to_thread(
+                self.twilio_client.messages.create,
                 body=body,
-                from_=self.from_number,
+                from_=from_e164,
                 to=to,
             )
             result = {

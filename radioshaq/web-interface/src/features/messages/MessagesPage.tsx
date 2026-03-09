@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { processMessage, whitelistRequest, injectMessage, injectAndStore, relayMessage } from '../../services/radioshaqApi';
 
 type Tab = 'process' | 'whitelist' | 'inject' | 'inject_store' | 'relay';
 
 export function MessagesPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('process');
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function MessagesPage() {
       const res = await processMessage({ message: processText.trim() });
       setResult(JSON.stringify({ success: res.success, message: res.message, task_id: res.task_id }, null, 2));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -61,7 +63,7 @@ export function MessagesPage() {
       });
       setResult(JSON.stringify({ success: res.success, message: res.message, approved: res.approved }, null, 2));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -82,7 +84,7 @@ export function MessagesPage() {
       });
       setResult(JSON.stringify(res, null, 2));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -103,7 +105,7 @@ export function MessagesPage() {
       });
       setResult(JSON.stringify(res, null, 2));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
@@ -125,60 +127,60 @@ export function MessagesPage() {
       });
       setResult(JSON.stringify(res, null, 2));
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setSubmitting(false);
     }
   };
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'process', label: 'Process (REACT)' },
-    { key: 'whitelist', label: 'Whitelist request' },
-    { key: 'inject', label: 'Inject (demo)' },
-    { key: 'inject_store', label: 'Inject & store' },
-    { key: 'relay', label: 'Relay (band translation)' },
+  const tabs: { key: Tab; labelKey: string }[] = [
+    { key: 'process', labelKey: 'messages.process' },
+    { key: 'whitelist', labelKey: 'messages.whitelist' },
+    { key: 'inject', labelKey: 'messages.inject' },
+    { key: 'inject_store', labelKey: 'messages.injectStore' },
+    { key: 'relay', labelKey: 'messages.relay' },
   ];
 
   return (
     <div className="messages-page">
-      <h1>Messages & commands</h1>
+      <h1>{t('messages.title')}</h1>
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
       {result && <pre style={{ background: '#f5f5f5', padding: '0.75rem', overflow: 'auto', fontSize: '0.9rem' }}>{result}</pre>}
 
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        {tabs.map(({ key, label }) => (
+        {tabs.map(({ key, labelKey }) => (
           <button
             key={key}
             type="button"
             onClick={() => setTab(key)}
             style={{ fontWeight: tab === key ? 600 : 400, padding: '0.4rem 0.75rem' }}
           >
-            {label}
+            {t(labelKey)}
           </button>
         ))}
       </div>
 
       {tab === 'process' && (
         <form onSubmit={runProcess}>
-          <h2>Process message (REACT)</h2>
+          <h2>{t('messages.process')}</h2>
           <textarea
             value={processText}
             onChange={(e) => setProcessText(e.target.value)}
-            placeholder="Message for orchestration…"
+            placeholder={t('messages.processPlaceholder')}
             rows={3}
             style={{ width: '100%', maxWidth: 400, padding: '0.5rem', marginBottom: '0.5rem' }}
           />
-          <button type="submit" disabled={submitting || !processText.trim()}>{submitting ? 'Sending…' : 'Send'}</button>
+          <button type="submit" disabled={submitting || !processText.trim()}>{submitting ? t('messages.sending') : t('messages.send')}</button>
         </form>
       )}
 
       {tab === 'whitelist' && (
         <form onSubmit={runWhitelist}>
-          <h2>Whitelist request</h2>
+          <h2>{t('messages.whitelist')}</h2>
           <textarea
             value={whitelistText}
             onChange={(e) => setWhitelistText(e.target.value)}
-            placeholder="Request text…"
+            placeholder={t('messages.requestPlaceholder')}
             rows={3}
             style={{ width: '100%', maxWidth: 400, padding: '0.5rem', marginBottom: '0.5rem' }}
           />
@@ -186,11 +188,11 @@ export function MessagesPage() {
             type="text"
             value={whitelistCallsign}
             onChange={(e) => setWhitelistCallsign(e.target.value)}
-            placeholder="Callsign (optional)"
+            placeholder={t('messages.callsignOptional')}
             maxLength={10}
             style={{ display: 'block', marginBottom: '0.5rem', padding: '0.4rem', width: 120 }}
           />
-          <button type="submit" disabled={submitting || !whitelistText.trim()}>{submitting ? 'Sending…' : 'Send'}</button>
+          <button type="submit" disabled={submitting || !whitelistText.trim()}>{submitting ? t('messages.sending') : t('messages.send')}</button>
         </form>
       )}
 
@@ -233,11 +235,11 @@ export function MessagesPage() {
 
       {tab === 'relay' && (
         <form onSubmit={runRelay}>
-          <h2>Relay (band translation)</h2>
+          <h2>{t('messages.relayTitle')}</h2>
           <textarea
             value={relayMessageText}
             onChange={(e) => setRelayMessageText(e.target.value)}
-            placeholder="Message to relay…"
+            placeholder={t('messages.messageToRelay')}
             rows={2}
             style={{ width: '100%', maxWidth: 400, padding: '0.5rem', marginBottom: '0.5rem' }}
           />

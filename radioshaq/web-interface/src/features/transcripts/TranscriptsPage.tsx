@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { searchTranscripts, playTranscript, type TranscriptItem } from '../../services/radioshaqApi';
 
 export function TranscriptsPage() {
+  const { t } = useTranslation();
   const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,7 +25,7 @@ export function TranscriptsPage() {
       });
       setTranscripts(res.transcripts ?? []);
     } catch (e) {
-      if (!silent) setError(e instanceof Error ? e.message : 'Failed to load');
+      if (!silent) setError(e instanceof Error ? e.message : t('common.failedToLoad'));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -45,7 +47,7 @@ export function TranscriptsPage() {
     try {
       await playTranscript(id);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to play');
+      setError(e instanceof Error ? e.message : t('common.failed'));
     } finally {
       setPlayingId(null);
     }
@@ -56,7 +58,7 @@ export function TranscriptsPage() {
 
   return (
     <div className="transcripts-page">
-      <h1>Transcripts</h1>
+      <h1>{t('transcripts.title')}</h1>
       {error && <p role="alert" style={{ color: 'crimson' }}>{error}</p>}
 
       <section style={{ marginBottom: '1rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>

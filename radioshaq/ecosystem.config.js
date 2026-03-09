@@ -117,9 +117,10 @@ module.exports = {
     },
     
     // =====================================================
-    // WhatsApp Bridge (Node.js)
+    // WhatsApp Bridge (Node.js) – optional; only started if bridge/dist exists
     // =====================================================
-    {
+    ...(require('fs').existsSync(path.join(__dirname, 'bridge', 'dist', 'index.js'))
+      ? [{
       name: 'radioshaq-bridge',
       script: './bridge/dist/index.js',
       cwd: __dirname,
@@ -166,7 +167,8 @@ module.exports = {
       min_uptime: '10s',
       max_restarts: 5,
       restart_delay: 5000,
-    },
+    }]
+      : []),
     
     // =====================================================
     // REACT Orchestrator Worker

@@ -11,17 +11,21 @@ from loguru import logger
 from radioshaq.config.resolve import get_llm_config_for_role
 from radioshaq.config.schema import Config
 from radioshaq.llm.client import LLMClient
-from radioshaq.orchestrator.factory import _llm_api_key_from_llm_config, _llm_model_string_from_llm_config
+from radioshaq.orchestrator.factory import (
+    _llm_api_base_for_provider,
+    _llm_api_key_from_llm_config,
+    _llm_model_string_from_llm_config,
+)
 
 DEFAULT_TZ = ZoneInfo("America/New_York")
-SUMMARY_PROMPT = """You are summarizing a day's conversation between a ham radio operator and SHAKODS (an AI assistant for ham radio operations).
+SUMMARY_PROMPT = """You are summarizing a day's conversation between a ham radio operator and RadioShaq (an AI assistant for ham radio operations).
 
 Below are the messages from this operator's conversation today. Write a concise daily summary (3-8 sentences) covering:
 - Key topics discussed
 - Tasks or requests handled
 - Anything worth remembering for future context
 
-Be factual and concise. Write in third person ("The operator asked...", "SHAKODS helped...").
+Be factual and concise. Write in third person ("The operator asked...", "RadioShaq helped...").
 
 Messages:
 {messages}
@@ -113,7 +117,7 @@ async def run_midnight_cron_loop(
     llm_cfg = get_llm_config_for_role(config, "daily_summary")
     model = _llm_model_string_from_llm_config(llm_cfg)
     api_key = _llm_api_key_from_llm_config(llm_cfg)
-    api_base = getattr(llm_cfg, "custom_api_base", None)
+    api_base = _llm_api_base_for_provider(llm_cfg)
     llm = LLMClient(model=model, api_key=api_key, api_base=api_base, temperature=0.2, max_tokens=512)
 
     while True:

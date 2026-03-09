@@ -1,4 +1,4 @@
-"""Database layer for SHAKODS.
+"""Database layer for RadioShaq.
 
 Provides SQLAlchemy models, PostGIS integration, and data access layers.
 """

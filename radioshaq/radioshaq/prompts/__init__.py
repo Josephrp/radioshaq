@@ -1,4 +1,4 @@
-"""Prompt loading system for SHAKODS.
+"""Prompt loading system for RadioShaq.
 
 All prompts are stored as markdown files in the prompts/ directory
 and loaded dynamically by the PromptLoader class.

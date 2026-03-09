@@ -8,6 +8,7 @@ from typing import Any
 
 from loguru import logger
 
+from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.config.schema import Config
 from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.injection import get_injection_queue
@@ -23,9 +24,10 @@ def _resolve_bands(config: Config) -> list[str]:
     return []
 
 
-def _band_frequency_and_mode(band: str) -> tuple[float, str]:
+def _band_frequency_and_mode(band: str, band_plans: dict | None = None) -> tuple[float, str]:
     """Center frequency (Hz) and default mode for a band."""
-    plan = BAND_PLANS.get(band)
+    plans = band_plans if band_plans is not None else BAND_PLANS
+    plan = plans.get(band)
     if not plan:
         return 0.0, "FM"
     freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
@@ -114,11 +116,12 @@ async def _monitor_band_loop(
     publish_to_bus: bool,
     stop_event: asyncio.Event,
     *,
+    band_plans: dict | None = None,
     store_enabled: bool = True,
     store_min_length: int = 0,
 ) -> None:
     """Single-band loop: monitor for cycle_seconds, process messages, repeat until stop."""
-    freq, mode = _band_frequency_and_mode(band)
+    freq, mode = _band_frequency_and_mode(band, band_plans)
     if freq <= 0:
         logger.warning("Band %s has no plan, skipping", band)
         return
@@ -178,6 +181,10 @@ async def run_band_listener(
     concurrent = getattr(radio, "listener_concurrent_bands", True)
     store_enabled = storage is not None and getattr(radio, "band_listener_store", True)
     store_min_length = getattr(radio, "band_listener_store_min_length", 0) or 0
+    band_plans = get_band_plan_source_for_config(
+        radio.restricted_bands_region,
+        getattr(radio, "band_plan_region", None),
+    )
 
     if concurrent:
         tasks = [
@@ -191,6 +198,7 @@ async def run_band_listener(
                     inject_into_queue,
                     publish_to_bus,
                     stop_event,
+                    band_plans=band_plans,
                     store_enabled=store_enabled,
                     store_min_length=store_min_length,
                 )
@@ -218,6 +226,7 @@ async def run_band_listener(
                     inject_into_queue,
                     publish_to_bus,
                     stop_event,
+                    band_plans=band_plans,
                     store_enabled=store_enabled,
                     store_min_length=store_min_length,
                 )

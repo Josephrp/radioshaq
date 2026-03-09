@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from radioshaq.auth.jwt import JWTAuthManager, TokenPayload
-from radioshaq.config.schema import Config as ShakodsConfig
-from radioshaq.config.schema import JWTConfig
+from radioshaq.config.schema import Config, JWTConfig
 
 
 class FieldAuthManager:
@@ -20,7 +19,7 @@ class FieldAuthManager:
     ):
         if config is None:
             try:
-                config = ShakodsConfig().jwt
+                config = Config().jwt
             except Exception:
                 config = JWTConfig()
         self.jwt = jwt_manager or JWTAuthManager(config=config)

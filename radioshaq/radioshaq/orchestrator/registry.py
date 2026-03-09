@@ -56,11 +56,11 @@ class AgentRegistry:
         Find the best agent for a task based on task type, required capability, or description.
 
         DecomposedTask.agent can be the exact agent name from this registry (e.g. radio_tx,
-        whitelist, sms, gis_agent); pass it as task["agent"]. If agent is None, lookup uses
+        whitelist, sms, gis); pass it as task["agent"]. If agent is None, lookup uses
         capability and description below.
 
         Task dict may include:
-        - agent: explicit agent name (e.g. radio_tx, whitelist, sms, gis_agent)
+        - agent: explicit agent name (e.g. radio_tx, whitelist, sms, gis)
         - capability: required capability (e.g. "voice_transmission", "frequency_monitoring")
         - transmission_type: for radio tasks (voice, digital, packet)
         - description: free-text task description for keyword matching

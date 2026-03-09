@@ -56,6 +56,7 @@ echo "Installing Python dependencies..."
 if [ "$UV_AVAILABLE" = true ]; then
   uv sync --extra dev --extra test
   echo "RadioShaq and dev/test deps installed (uv)"
+  echo "Optional: uv sync --extra audio (ASR: Voxtral, Whisper; Scribe uses API). Optional: uv sync --extra tts_kokoro (local TTS: Kokoro)."
 else
   if [ ! -d ".venv" ]; then
     "$PYTHON_CMD" -m venv .venv
@@ -103,6 +104,11 @@ llm:
 radio:
   enabled: false
   port: /dev/ttyUSB0
+
+tts:
+  provider: elevenlabs
+  # For kokoro (local TTS): set provider to kokoro and run uv sync --extra tts_kokoro
+  # For elevenlabs: set ELEVENLABS_API_KEY
 
 field:
   station_id: DEV-FIELD-01
