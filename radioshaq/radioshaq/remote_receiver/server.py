@@ -555,7 +555,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
             status_code=400,
             detail=f"sample_rate must be a positive integer, got {sample_rate}",
         )
-    broker: HackRFBroker | None = request.app.state.hackrf_broker
+    broker: HackRFBroker | None = getattr(request.app.state, "hackrf_broker", None)
 
     # Determine restricted-region key from device manager when available; fall back to env.
     restricted_region = os.environ.get("RESTRICTED_BANDS_REGION", "FCC")

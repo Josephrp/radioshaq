@@ -802,6 +802,7 @@ class Config(BaseSettings):
         return (
             env_settings,
             *yaml_settings,
+            dotenv_settings,
             init_settings,
             file_secret_settings,
         )

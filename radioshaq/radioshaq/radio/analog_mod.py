@@ -20,9 +20,10 @@ def _require_scipy() -> None:
 
 def _to_mono_float(audio: np.ndarray) -> np.ndarray:
     a = np.asarray(audio)
+    is_integer = np.issubdtype(a.dtype, np.integer)  # check original dtype before mean()
     if a.ndim == 2:
         a = a.mean(axis=1)
-    if np.issubdtype(a.dtype, np.integer):
+    if is_integer:
         # Assume int16-like PCM.
         a = a.astype(np.float32) / 32768.0
     else:
