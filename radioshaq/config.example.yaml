@@ -26,7 +26,7 @@ database:
   dynamodb_endpoint: null       # e.g. http://localhost:4566 for localstack
   dynamodb_region: us-east-1
   redis_url: "redis://localhost:6379/0"
-  alembic_config: "infrastructure/local/alembic.ini"
+  alembic_config: "alembic.ini"
   auto_migrate: false
 
 # -----------------------------------------------------------------------------
@@ -155,6 +155,7 @@ audio:
   denoising_backend: rnnoise     # rnnoise | spectral | none
   noise_calibration_seconds: 3.0
   min_snr_db: 3.0
+  eleven_voice_isolator_enabled: false  # When true and asr_model is 'scribe', run ElevenLabs Voice Isolator before Scribe STT (requires ELEVENLABS_API_KEY).
   vad_enabled: true
   vad_threshold: 0.02
   vad_mode: aggressive           # normal | low | aggressive | very_aggressive

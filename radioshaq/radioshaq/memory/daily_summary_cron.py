@@ -94,9 +94,9 @@ async def run_daily_summary_job(
                 summary,
             )
             written += 1
-            logger.info("Daily summary written for %s (%s)", callsign, summary_date)
+            logger.info("Daily summary written for {} ({})", callsign, summary_date)
         except Exception as e:
-            logger.warning("Daily summary failed for %s: %s", callsign, e)
+            logger.warning("Daily summary failed for {}: {}", callsign, e)
 
     return written
 
@@ -128,7 +128,7 @@ async def run_midnight_cron_loop(
         )
         wait_seconds = (next_midnight - now).total_seconds()
         logger.info(
-            "Daily summary cron: next run at %s (in %.0f s)",
+            "Daily summary cron: next run at {} (in {:.0f} s)",
             next_midnight,
             wait_seconds,
         )
@@ -155,6 +155,10 @@ async def run_midnight_cron_loop(
                 summary_date=yesterday,
                 timezone=timezone,
             )
-            logger.info("Daily summary cron: wrote %d summaries for %s", n, yesterday)
+            logger.info(
+                "Daily summary cron: wrote {} summaries for {}",
+                n,
+                yesterday,
+            )
         except Exception as e:
-            logger.exception("Daily summary cron failed: %s", e)
+            logger.exception("Daily summary cron failed: {}", e)

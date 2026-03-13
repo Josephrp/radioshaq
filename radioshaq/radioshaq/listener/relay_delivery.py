@@ -76,14 +76,19 @@ async def run_relay_delivery_worker(
                             )
                         )
                         if not ok_pub:
-                            logger.warning("Relay delivery: outbound queue full for transcript %s (%s)", tid, delivery_channel)
+                            logger.warning(
+                                "Relay delivery: outbound queue full for transcript {} ({})",
+                                tid,
+                                delivery_channel,
+                            )
                         else:
                             mark_delivered = True
-                    else:
-                        logger.warning(
-                            "Relay delivery: cannot deliver transcript %s via %s (bus unavailable or no phone)",
-                            tid, delivery_channel,
-                        )
+                        else:
+                            logger.warning(
+                                "Relay delivery: cannot deliver transcript {} via {} (bus unavailable or no phone)",
+                                tid,
+                                delivery_channel,
+                            )
                         # Do NOT fall through to radio injection; leave undelivered for retry
                 else:
                     band = extra.get("band") or extra.get("relay_from_band") or "unknown"
@@ -112,7 +117,7 @@ async def run_relay_delivery_worker(
                                 "mode": mode,
                             })
                         except Exception as e:
-                            logger.warning("Relay delivery radio_tx failed for transcript %s: %s", tid, e)
+                            logger.warning("Relay delivery radio_tx failed for transcript {}: {}", tid, e)
                     mark_delivered = True
 
                 if mark_delivered:
@@ -160,19 +165,28 @@ async def run_relay_delivery_worker(
                                             content=notify_text,
                                             reply_to=None,
                                             media=[],
-                                            metadata={"notify_on_relay": True, "destination_callsign": dest, "relay_transcript_id": tid},
+                                            metadata={
+                                                "notify_on_relay": True,
+                                                "destination_callsign": dest,
+                                                "relay_transcript_id": tid,
+                                            },
                                         )
                                     )
                                     if ok_pub:
-                                        logger.info("Notify-on-relay sent to %s for callsign %s (transcript %s)", ch, dest, tid)
+                                        logger.info(
+                                            "Notify-on-relay sent to {} for callsign {} (transcript {})",
+                                            ch,
+                                            dest,
+                                            tid,
+                                        )
                                     else:
-                                        logger.warning("Notify-on-relay queue full for %s %s", ch, dest)
+                                        logger.warning("Notify-on-relay queue full for {} {}", ch, dest)
                             except Exception as e:
-                                logger.warning("Notify-on-relay failed for dest %s: %s", dest, e)
+                                logger.warning("Notify-on-relay failed for dest {}: {}", dest, e)
                     else:
-                        logger.warning("Could not mark transcript %s delivered", tid)
+                        logger.warning("Could not mark transcript {} delivered", tid)
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.exception("Relay delivery worker error: %s", e)
+            logger.exception("Relay delivery worker error: {}", e)
         await asyncio.sleep(interval_seconds)

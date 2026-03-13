@@ -43,7 +43,8 @@ class MemoryUpstreamMiddleware:
             self._event_queue.put_nowait(event)
         except asyncio.QueueFull:
             logger.warning(
-                "Upstream event queue full, dropping event from %s", event.source
+                "Upstream event queue full, dropping event from {}",
+                event.source,
             )
 
     def subscribe(self, source_id: str) -> None:
@@ -78,12 +79,12 @@ class MemoryUpstreamMiddleware:
                 try:
                     await handler(event)
                 except Exception as e:
-                    logger.warning("Upstream handler error: %s", e)
+                    logger.warning("Upstream handler error: {}", e)
 
             processed += 1
 
         if processed:
-            logger.debug("Processed %d upstream events into context", processed)
+            logger.debug("Processed {} upstream events into context", processed)
 
     async def _integrate_memory(self, event: UpstreamEvent, context: REACTState) -> None:
         """Integrate upstreamed memory into orchestrator context."""

@@ -105,7 +105,7 @@ class LLMClient:
                 },
             )
         except Exception as e:
-            logger.error("LLM chat failed: %s", e)
+            logger.error("LLM chat failed: {}", e)
             raise
 
     async def chat_with_tools(
@@ -173,5 +173,5 @@ class LLMClient:
                 tool_calls=tool_calls,
             )
         except Exception as e:
-            logger.error("LLM chat_with_tools failed: %s", e)
+            logger.error("LLM chat_with_tools failed: {}", e)
             raise

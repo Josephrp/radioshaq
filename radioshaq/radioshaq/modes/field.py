@@ -80,7 +80,7 @@ class FieldMode:
             if success:
                 self._pending_propagation.clear()
         except Exception as e:
-            logger.error("Propagation to HQ failed: %s", e)
+            logger.error("Propagation to HQ failed: {}", e)
 
     async def run_sync_loop(self) -> None:
         """Background loop: periodic propagate and pull updates."""
@@ -94,8 +94,8 @@ class FieldMode:
                     for update in updates:
                         await self._apply_hq_update(update)
                 except Exception as e:
-                    logger.error("Failed to get updates from HQ: %s", e)
+                    logger.error("Failed to get updates from HQ: {}", e)
 
     async def _apply_hq_update(self, update: dict[str, Any]) -> None:
         """Apply an update from HQ (override for custom logic)."""
-        logger.debug("HQ update: %s", update)
+        logger.debug("HQ update: {}", update)

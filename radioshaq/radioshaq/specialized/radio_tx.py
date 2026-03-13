@@ -11,7 +11,10 @@ from loguru import logger
 
 from radioshaq.compliance_plugin import get_band_plan_source_for_config
 from radioshaq.middleware.upstream import UpstreamEvent
-from radioshaq.radio.compliance import is_tx_allowed, log_tx
+from radioshaq.radio.compliance import is_tx_allowed, is_tx_spectrum_allowed, log_tx
+from radioshaq.radio.modes import normalize_mode
+from radioshaq.radio.analog_mod import am_modulate, cw_tone_iq, ssb_modulate
+from radioshaq.radio.fm import nfm_modulate
 from radioshaq.specialized.base import SpecializedAgent
 
 
@@ -119,7 +122,7 @@ class RadioTransmissionAgent(SpecializedAgent):
             await self.emit_result(upstream_callback, result)
             return result
         except Exception as e:
-            logger.exception("Radio TX failed: %s", e)
+            logger.exception("Radio TX failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 
@@ -139,11 +142,72 @@ class RadioTransmissionAgent(SpecializedAgent):
             False,
         )
         if use_sdr and self.sdr_transmitter:
-            # SDR path: transmit tone (voice-over-SDR would need modulation later)
+            # SDR path: transmit NFM if we have an audio file, else a short tone.
             try:
-                await self.sdr_transmitter.transmit_tone(
-                    frequency_hz, duration_sec=0.5, sample_rate=2_000_000
-                )
+                mode_name = normalize_mode(mode)
+                if audio_path:
+                    try:
+                        import soundfile as sf
+                    except Exception as e:
+                        raise RuntimeError(
+                            "SDR voice TX from file requires optional deps: uv sync --extra voice_tx"
+                        ) from e
+                    data, sr = sf.read(str(audio_path), dtype="float32", always_2d=False)
+                    # Modulate to 2 MHz (HackRF-friendly) NFM and transmit IQ.
+                    tx_rate = 2_000_000
+                    if mode_name.value in ("NFM",):
+                        iq = nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                    elif mode_name.value == "AM":
+                        iq = am_modulate(data, int(sr), tx_rate)
+                    elif mode_name.value in ("USB", "LSB"):
+                        iq = ssb_modulate(data, int(sr), tx_rate, sideband=mode_name.value)
+                    elif mode_name.value == "CW":
+                        # CW audio TX is typically keying; as a minimal baseline, emit a short carrier.
+                        iq = cw_tone_iq(duration_sec=0.5, rf_rate_hz=tx_rate)
+                    else:
+                        iq = nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                    # Compliance for SDR TX should consider occupied bandwidth (not just center).
+                    bw = {
+                        "NFM": 12_500.0,
+                        "AM": 10_000.0,
+                        "USB": 3_000.0,
+                        "LSB": 3_000.0,
+                        "CW": 500.0,
+                    }.get(mode_name.value, 12_500.0)
+                    radio_cfg = getattr(self.config, "radio", None) if self.config else None
+                    if radio_cfg and getattr(radio_cfg, "tx_allowed_bands_only", True):
+                        restricted_region = getattr(radio_cfg, "restricted_bands_region", "FCC")
+                        band_plan_source = get_band_plan_source_for_config(
+                            restricted_region,
+                            getattr(radio_cfg, "band_plan_region", None),
+                        )
+                        if not is_tx_spectrum_allowed(
+                            frequency_hz,
+                            bw,
+                            band_plan_source=band_plan_source,
+                            allow_tx_only_amateur_bands=True,
+                            restricted_region=restricted_region,
+                        ):
+                            return {
+                                "success": False,
+                                "frequency": frequency_hz,
+                                "mode": mode,
+                                "transmission_type": "voice",
+                                "message_sent": message[:100],
+                                "timestamp": datetime.now(timezone.utc).isoformat(),
+                                "notes": f"TX spectrum not allowed for BW={bw} Hz (mode={mode_name.value})",
+                            }
+
+                    await self.sdr_transmitter.transmit_iq(
+                        frequency_hz,
+                        iq,
+                        sample_rate=tx_rate,
+                        occupied_bandwidth_hz=bw,
+                    )
+                else:
+                    await self.sdr_transmitter.transmit_tone(
+                        frequency_hz, duration_sec=0.5, sample_rate=2_000_000
+                    )
                 return {
                     "success": True,
                     "frequency": frequency_hz,
@@ -151,7 +215,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                     "transmission_type": "voice",
                     "message_sent": message[:100],
                     "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "notes": "SDR tone (HackRF)",
+                    "notes": f"SDR {mode_name.value} voice (HackRF)" if audio_path else "SDR tone (HackRF)",
                 }
             except ValueError as e:
                 return {
@@ -172,6 +236,7 @@ class RadioTransmissionAgent(SpecializedAgent):
                 "message_sent": message[:100],
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "notes": "Rig manager not configured",
+                "error": "Rig manager not configured; enable radio.enabled for CAT control or configure SDR TX (radio.sdr_tx_enabled=true).",
             }
 
         play_path: str | Path | None = None
@@ -215,7 +280,7 @@ class RadioTransmissionAgent(SpecializedAgent):
             except Exception as e:
                 if play_path:
                     Path(play_path).unlink(missing_ok=True)
-                logger.warning("TTS failed for voice TX: %s", e)
+                logger.warning("TTS failed for voice TX: {}", e)
                 return {
                     "success": False,
                     "frequency": frequency_hz,

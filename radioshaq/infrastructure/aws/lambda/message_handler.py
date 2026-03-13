@@ -38,7 +38,7 @@ def _forward_to_hq(payload: dict[str, Any]) -> bool:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return 200 <= resp.status < 300
     except Exception as e:
-        logger.warning("HQ forward failed: %s", e)
+        logger.warning("HQ forward failed: {}", e)
         return False
 
 

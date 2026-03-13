@@ -7,7 +7,7 @@ from typing import Any
 
 from loguru import logger
 
-from radioshaq.radio.cat_control import HamlibCATControl, RigMode, RigState
+from radioshaq.radio.cat_control import HamlibCATControl, RigState
 
 
 class RigManager:
@@ -27,7 +27,7 @@ class RigManager:
         self._rigs[name] = cat
         if self._active_rig is None:
             self._active_rig = name
-        logger.debug("Registered rig %s", name)
+        logger.debug("Registered rig {}", name)
 
     def unregister_rig(self, name: str) -> None:
         """Remove a rig."""
@@ -54,7 +54,7 @@ class RigManager:
             try:
                 await rig.connect()
             except Exception as e:
-                logger.warning("Failed to connect rig %s: %s", name, e)
+                logger.warning("Failed to connect rig {}: {}", name, e)
 
     async def set_frequency(self, frequency_hz: float, rig_name: str | None = None) -> None:
         """Set frequency on active or specified rig."""
@@ -72,7 +72,7 @@ class RigManager:
         async with self._lock:
             await rig.set_ptt(state)
 
-    async def set_mode(self, mode: RigMode | str, rig_name: str | None = None) -> None:
+    async def set_mode(self, mode: str, rig_name: str | None = None) -> None:
         """Set mode on active or specified rig."""
         rig = self.get_rig(rig_name)
         if not rig:

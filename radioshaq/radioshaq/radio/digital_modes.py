@@ -39,7 +39,7 @@ class FLDIGIInterface:
         try:
             version = await asyncio.to_thread(self._proxy.main.get_version)
             self._connected = True
-            logger.info("Connected to FLDIGI at %s (version: %s)", url, version)
+            logger.info("Connected to FLDIGI at {} (version: {})", url, version)
         except Exception as e:
             self._proxy = None
             raise ConnectionError(f"Failed to connect to FLDIGI at {url}: {e}") from e
@@ -49,7 +49,7 @@ class FLDIGIInterface:
         if not self._proxy:
             raise RuntimeError("Not connected to FLDIGI")
         await asyncio.to_thread(self._proxy.modem.set_by_name, mode)
-        logger.debug("FLDIGI modem set to %s", mode)
+        logger.debug("FLDIGI modem set to {}", mode)
 
     async def transmit_text(self, text: str, delay: float = 0.5) -> None:
         """Transmit text in current digital mode."""

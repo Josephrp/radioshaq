@@ -74,7 +74,7 @@ async def _process_received_messages(
                         metadata=metadata,
                     )
                 except Exception as e:
-                    logger.warning("Band listener store failed: %s", e)
+                    logger.warning("Band listener store failed: {}", e)
         if inject:
             try:
                 queue = get_injection_queue()
@@ -87,7 +87,7 @@ async def _process_received_messages(
                     destination_callsign=None,
                 )
             except Exception as e:
-                logger.warning("Band listener inject failed: %s", e)
+                logger.warning("Band listener inject failed: {}", e)
         if publish_to_bus and message_bus:
             try:
                 from radioshaq.orchestrator.radio_ingestion import radio_received_to_inbound
@@ -101,9 +101,9 @@ async def _process_received_messages(
                 )
                 ok = await message_bus.publish_inbound(inbound)
                 if not ok:
-                    logger.debug("Bus full, dropped radio_rx message for %s", band)
+                    logger.debug("Bus full, dropped radio_rx message for {}", band)
             except Exception as e:
-                logger.warning("Band listener publish_inbound failed: %s", e)
+                logger.warning("Band listener publish_inbound failed: {}", e)
 
 
 async def _monitor_band_loop(
@@ -123,7 +123,7 @@ async def _monitor_band_loop(
     """Single-band loop: monitor for cycle_seconds, process messages, repeat until stop."""
     freq, mode = _band_frequency_and_mode(band, band_plans)
     if freq <= 0:
-        logger.warning("Band %s has no plan, skipping", band)
+        logger.warning("Band {} has no plan, skipping", band)
         return
     while not stop_event.is_set():
         try:
@@ -144,7 +144,7 @@ async def _monitor_band_loop(
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.exception("Band listener %s error: %s", band, e)
+            logger.exception("Band listener {} error: {}", band, e)
         await asyncio.sleep(0.2)
 
 

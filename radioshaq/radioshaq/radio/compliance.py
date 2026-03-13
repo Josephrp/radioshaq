@@ -77,6 +77,59 @@ def is_tx_allowed(
     return False
 
 
+def is_tx_spectrum_allowed(
+    center_hz: float,
+    occupied_bandwidth_hz: float,
+    *,
+    band_plan_source: dict[str, BandPlan] | None = None,
+    allow_tx_only_amateur_bands: bool = True,
+    restricted_region: str = "FCC",
+) -> bool:
+    """Like is_tx_allowed, but checks the occupied spectrum, not just center.
+
+    We conservatively require the full occupied bandwidth window to be:
+    - Outside restricted bands, and
+    - Fully contained within a single allowed band-plan allocation (when allow_tx_only_amateur_bands).
+    """
+    bw = float(occupied_bandwidth_hz)
+    if bw <= 0:
+        return is_tx_allowed(
+            center_hz,
+            band_plan_source=band_plan_source,
+            allow_tx_only_amateur_bands=allow_tx_only_amateur_bands,
+            restricted_region=restricted_region,
+        )
+    low_hz = float(center_hz) - bw / 2.0
+    high_hz = float(center_hz) + bw / 2.0
+
+    # Restricted-band overlap check.
+    from radioshaq.compliance_plugin import get_backend
+
+    backend = get_backend(restricted_region)
+    restricted = backend.get_restricted_bands_hz() if backend is not None else []
+    # Warn-once behavior is handled by is_restricted; reuse it at edges for band-plan-only backends.
+    _ = is_restricted(center_hz, region=restricted_region)
+    for rlow, rhigh in restricted:
+        if not (high_hz < rlow or low_hz > rhigh):
+            return False
+
+    if not allow_tx_only_amateur_bands:
+        return True
+
+    if band_plan_source is None:
+        b = get_backend(restricted_region)
+        if b is not None:
+            _plans = b.get_band_plans()
+            band_plan_source = _plans if _plans is not None else BAND_PLANS
+        else:
+            band_plan_source = BAND_PLANS
+
+    for plan in band_plan_source.values():
+        if plan.freq_start_hz <= low_hz and high_hz <= plan.freq_end_hz:
+            return True
+    return False
+
+
 def log_tx(
     frequency_hz: float,
     duration_sec: float,
@@ -114,4 +167,4 @@ def log_tx(
             with path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(payload, ensure_ascii=False) + "\n")
         except OSError as e:
-            logger.warning("Could not write TX audit log to %s: %s", path, e)
+            logger.warning("Could not write TX audit log to {}: {}", path, e)

@@ -59,7 +59,7 @@ class AudioCaptureService:
             status: Any,
         ) -> None:
             if status:
-                logger.warning("Audio callback status: %s", status)
+                logger.warning("Audio callback status: {}", status)
             frame = indata.copy().flatten().astype(np.float32)
             try:
                 self._frame_queue.put_nowait(frame)
@@ -91,7 +91,7 @@ class AudioCaptureService:
             self.stream_processor.set_segment_callback(on_segment)
 
         self._capture_task = asyncio.create_task(self._process_loop())
-        logger.info("Audio capture started on device %s", self.input_device)
+        logger.info("Audio capture started on device {}", self.input_device)
 
     async def _process_loop(self) -> None:
         """Main processing loop: dequeue frames and feed to stream processor."""
@@ -107,7 +107,7 @@ class AudioCaptureService:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.exception("Frame processing error: %s", e)
+                logger.exception("Frame processing error: {}", e)
 
     async def stop(self) -> None:
         """Stop audio capture and await task cleanup."""

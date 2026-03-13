@@ -149,7 +149,7 @@ def _create_rig_manager(config: Config) -> Any:
         from radioshaq.radio import RigManager
         from radioshaq.radio.cat_control import HamlibCATControl
     except ImportError as e:
-        logger.warning("Radio stack not available: %s", e)
+        logger.warning("Radio stack not available: {}", e)
         return None
     rm = RigManager()
     cat = HamlibCATControl(
@@ -194,28 +194,56 @@ def _create_packet_radio(config: Config) -> Any:
 
 
 def _create_sdr_transmitter(config: Config) -> Any:
-    """Create HackRF transmitter if sdr_tx_enabled and backend is hackrf. Return None otherwise."""
-    if not getattr(config.radio, "sdr_tx_enabled", False):
+    """Create SDR transmitter for HackRF.
+
+    When radio.sdr_tx_mode == 'local', return a HackRFTransmitter using pyhackrf2.
+    When radio.sdr_tx_mode == 'remote', return a HackRFServiceClient that calls a
+    remote HackRF broker service (e.g. the remote receiver).
+    """
+    radio_cfg = getattr(config, "radio", None)
+    if not radio_cfg or not getattr(radio_cfg, "sdr_tx_enabled", False):
         return None
-    if getattr(config.radio, "sdr_tx_backend", "hackrf").strip().lower() != "hackrf":
+    if getattr(radio_cfg, "sdr_tx_backend", "hackrf").strip().lower() != "hackrf":
         return None
+    mode = getattr(radio_cfg, "sdr_tx_mode", "local").strip().lower()
+    band_plan = get_band_plan_source_for_config(
+        getattr(radio_cfg, "restricted_bands_region", "FCC"),
+        getattr(radio_cfg, "band_plan_region", None),
+    )
     try:
+        if mode == "remote":
+            from radioshaq.radio.sdr_tx import HackRFServiceClient
+
+            base_url = getattr(radio_cfg, "sdr_tx_service_base_url", None)
+            if not base_url:
+                logger.warning(
+                    "sdr_tx_mode='remote' but radio.sdr_tx_service_base_url is not set; SDR TX disabled"
+                )
+                return None
+            return HackRFServiceClient(
+                base_url=base_url,
+                auth_token=None,
+                request_timeout_sec=30.0,
+                allow_bands_only=getattr(radio_cfg, "sdr_tx_allow_bands_only", True),
+                audit_log_path=getattr(radio_cfg, "tx_audit_log_path", None),
+                restricted_region=getattr(radio_cfg, "restricted_bands_region", "FCC"),
+                band_plan_source=band_plan,
+            )
+
+        # Default: local HackRF via pyhackrf2.
         from radioshaq.radio.sdr_tx import HackRFTransmitter
-        band_plan = get_band_plan_source_for_config(
-            getattr(config.radio, "restricted_bands_region", "FCC"),
-            getattr(config.radio, "band_plan_region", None),
-        )
+
         return HackRFTransmitter(
-            device_index=getattr(config.radio, "sdr_tx_device_index", 0),
-            serial_number=getattr(config.radio, "sdr_tx_serial", None),
-            max_gain=getattr(config.radio, "sdr_tx_max_gain", 47),
-            allow_bands_only=getattr(config.radio, "sdr_tx_allow_bands_only", True),
-            audit_log_path=getattr(config.radio, "tx_audit_log_path", None),
-            restricted_region=getattr(config.radio, "restricted_bands_region", "FCC"),
+            device_index=getattr(radio_cfg, "sdr_tx_device_index", 0),
+            serial_number=getattr(radio_cfg, "sdr_tx_serial", None),
+            max_gain=getattr(radio_cfg, "sdr_tx_max_gain", 47),
+            allow_bands_only=getattr(radio_cfg, "sdr_tx_allow_bands_only", True),
+            audit_log_path=getattr(radio_cfg, "tx_audit_log_path", None),
+            restricted_region=getattr(radio_cfg, "restricted_bands_region", "FCC"),
             band_plan_source=band_plan,
         )
     except Exception as e:
-        logger.warning("SDR TX (HackRF) not available: %s", e)
+        logger.warning("SDR TX (HackRF) not available: {}", e)
         return None
 
 
@@ -241,7 +269,7 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
                 )
                 logger.debug("PTTCoordinator created for half-duplex safety")
             except Exception as e:
-                logger.warning("PTTCoordinator not created: %s", e)
+                logger.warning("PTTCoordinator not created: {}", e)
 
     twilio_cfg = getattr(config, "twilio", None)
     sms_client = None
@@ -330,9 +358,9 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
             registry.register_agent(rx_audio_agent)
             logger.debug("Registered RadioAudioReceptionAgent (voice_rx)")
         except ImportError as e:
-            logger.warning("Voice RX not available (missing voice_rx deps): %s", e)
+            logger.warning("Voice RX not available (missing voice_rx deps): {}", e)
         except Exception as e:
-            logger.warning("Could not register RadioAudioReceptionAgent: %s", e)
+            logger.warning("Could not register RadioAudioReceptionAgent: {}", e)
 
     gis_agent = GISAgent(db=db)
     registry.register_agent(gis_agent)
@@ -356,10 +384,13 @@ def create_agent_registry(config: Config, db: Any = None, message_bus: Any = Non
         max_tokens=getattr(llm_cfg, "max_tokens", 4096),
     )
     registry.register_agent(
-        WhitelistAgent(repository=callsign_repo, llm_client=llm_client, eval_prompt=whitelist_eval_prompt)
+        WhitelistAgent(
+            repository=callsign_repo,
+            llm_client=llm_client,
+            eval_prompt=whitelist_eval_prompt,
+        )
     )
-
-    logger.debug("Agent registry created with %d agents", len(registry.list_agents()))
+    logger.debug("Agent registry created with {} agents", len(registry.list_agents()))
     return registry
 
 
@@ -370,16 +401,16 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
     try:
         tool = SendAudioOverRadioTool(rig_manager=rig_manager, config=config)
         registry.register(tool)
-        logger.debug("Tool registry created with tool: %s", tool.name)
+        logger.debug("Tool registry created with tool: {}", tool.name)
     except Exception as e:
-        logger.warning("Could not register SendAudioOverRadioTool: %s", e)
+        logger.warning("Could not register SendAudioOverRadioTool: {}", e)
     callsign_repo = get_callsign_repository(db)
     try:
         registry.register(ListRegisteredCallsignsTool(callsign_repo))
         registry.register(RegisterCallsignTool(callsign_repo))
         logger.debug("Registered whitelist tools: list_registered_callsigns, register_callsign")
     except Exception as e:
-        logger.warning("Could not register whitelist tools: %s", e)
+        logger.warning("Could not register whitelist tools: {}", e)
     if db is not None:
         try:
             registry.register(SetOperatorLocationTool(db))
@@ -387,7 +418,7 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
             registry.register(OperatorsNearbyTool(db))
             logger.debug("Registered GIS tools: set_operator_location, get_operator_location, operators_nearby")
         except Exception as e:
-            logger.warning("Could not register GIS tools: %s", e)
+            logger.warning("Could not register GIS tools: {}", e)
     if getattr(config, "memory", None) and getattr(config.memory, "enabled", False):
         try:
             from types import SimpleNamespace
@@ -397,7 +428,7 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
             registry.register(ReflectMemoryTool(tools_config))
             logger.debug("Registered memory tools: recall_memory, reflect_memory")
         except Exception as e:
-            logger.warning("Could not register memory tools: %s", e)
+            logger.warning("Could not register memory tools: {}", e)
     if db is not None and app is not None:
         try:
             from radioshaq.database.transcripts import TranscriptStorage
@@ -418,9 +449,9 @@ def create_tool_registry(config: Config, db: Any = None, *, app: Any = None) -> 
                 message_bus=message_bus,
             )
             registry.register(relay_tool)
-            logger.debug("Registered relay tool: %s", relay_tool.name)
+            logger.debug("Registered relay tool: {}", relay_tool.name)
         except Exception as e:
-            logger.warning("Could not register RelayMessageTool: %s", e)
+            logger.warning("Could not register RelayMessageTool: {}", e)
     return registry
 
 

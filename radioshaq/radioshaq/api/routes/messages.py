@@ -20,6 +20,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field as PydanticField
+from loguru import logger
 
 from radioshaq.api.callsign_whitelist import get_effective_allowed_callsigns, is_callsign_allowed
 from radioshaq.api.dependencies import (
@@ -299,15 +300,22 @@ async def message_from_audio(
             plan = band_plans[band]
             freq = plan.freq_start_hz + (plan.freq_end_hz - plan.freq_start_hz) / 2
         mode_val = (band_plans[band].modes[0]) if band and band in band_plans else mode
-        transcript_id = await storage.store(
-            session_id=sid,
-            source_callsign=src,
-            frequency_hz=freq,
-            mode=mode_val,
-            transcript_text=transcript_text,
-            destination_callsign=dest,
-            metadata={"band": band, "source": "from_audio"},
-        )
+        try:
+            transcript_id = await storage.store(
+                session_id=sid,
+                source_callsign=src,
+                frequency_hz=freq,
+                mode=mode_val,
+                transcript_text=transcript_text,
+                destination_callsign=dest,
+                metadata={"band": band, "source": "from_audio"},
+            )
+        except Exception as e:
+            logger.exception("Failed to store transcript from /messages/from-audio: {}", e)
+            raise HTTPException(
+                status_code=503,
+                detail="Database not ready for transcripts; run alembic upgrade head and restart the API.",
+            ) from e
     if inject:
         queue = get_injection_queue()
         queue.inject_message(

@@ -97,6 +97,6 @@ class SMSAgent(SpecializedAgent):
             await self.emit_result(upstream_callback, result)
             return result
         except Exception as e:
-            logger.exception("SMS send failed: %s", e)
+            logger.exception("SMS send failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise

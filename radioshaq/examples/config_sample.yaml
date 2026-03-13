@@ -20,6 +20,14 @@ radio:
   listener_concurrent_bands: true   # false = single receiver, round-robin
   receiver_upload_store: false
   receiver_upload_inject: false
+  # SDR TX (HackRF) coordination
+  # When enabled, RadioShaq can transmit via HackRF either directly from HQ (local)
+  # or via a remote receiver service (broker).
+  sdr_tx_enabled: false
+  sdr_tx_backend: hackrf
+  # sdr_tx_mode: local   # HQ owns HackRF directly (pyhackrf2); do not also run run-receiver with HackRF.
+  # sdr_tx_mode: remote  # Remote receiver owns HackRF; HQ calls /tx endpoints on the receiver service.
+  # sdr_tx_service_base_url: "http://localhost:8765"  # Required when sdr_tx_mode=remote
   cat_enabled: false
   audio_input_enabled: false
   audio_output_enabled: false

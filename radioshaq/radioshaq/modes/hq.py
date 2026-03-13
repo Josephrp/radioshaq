@@ -37,8 +37,17 @@ class HQMode:
             raise AuthenticationError(f"Invalid auth for station {station_id}")
 
         if self.database and hasattr(self.database, "store_coordination_event"):
-            # Store as coordination event if DB supports it
-            pass  # Optional: store field submission in DB
+            # Store a coordination event for traceability when DB support is available.
+            try:
+                await self.database.store_coordination_event(  # type: ignore[attr-defined]
+                    event_type="field_submission",
+                    initiator_callsign=getattr(payload, "sub", None),
+                    target_callsign=station_id,
+                    notes=str(packet.get("original_message") or "")[:512],
+                    status="received",
+                )
+            except Exception as e:  # pragma: no cover - defensive logging only
+                logger.warning("Failed to store coordination event for field submission: {}", e)
 
         task_id = packet.get("orchestrator_result", {}).get("task_id")
         if self._requires_hq_coordination(packet):
@@ -108,5 +117,5 @@ class HQMode:
             "frequency": None,
             "mode": "FM",
         }
-        logger.info("Coordination plan: %s", coordination_plan)
+        logger.info("Coordination plan: {}", coordination_plan)
         return {"success": True, "plan": coordination_plan}

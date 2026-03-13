@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
                 )
             except Exception as e:
                 from loguru import logger
-                logger.warning("Memory manager or cron not started: %s", e)
+                logger.warning("Memory manager or cron not started: {}", e)
 
         from radioshaq.orchestrator.factory import create_orchestrator, create_tool_registry
         from radioshaq.vendor.nanobot.bus.queue import MessageBus
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
         try:
             app.state.tool_registry = create_tool_registry(config, db=getattr(app.state, "db", None), app=app)
         except Exception as e:
-            logger.warning("Tool registry not created: %s", e)
+            logger.warning("Tool registry not created: {}", e)
         try:
             app.state.orchestrator = create_orchestrator(
                 config,
@@ -98,7 +98,7 @@ async def lifespan(app: FastAPI):
             if rx_audio and hasattr(rx_audio, "set_metrics_callback"):
                 rx_audio.set_metrics_callback(lambda d: setattr(app.state, "audio_metrics_latest", d))
         except Exception as e:
-            logger.warning("Orchestrator not created (messages/process will be unavailable): %s", e)
+            logger.warning("Orchestrator not created (messages/process will be unavailable): {}", e)
 
         # Optional: run MessageBus inbound consumer and single outbound dispatcher (radio_rx, sms, whatsapp)
         _consumer_task = None
@@ -164,7 +164,7 @@ async def lifespan(app: FastAPI):
                     )
                     app.state._band_listener_stop = _listener_stop
                     app.state._band_listener_task = _listener_task
-                    logger.info("Band listener started for bands: %s", bands)
+                    logger.info("Band listener started for bands: {}", bands)
 
         # Optional: voice listener (audio_input_enabled + voice_listener_enabled)
         _voice_listener_task = None
@@ -279,7 +279,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, emergency, gis, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts
+    from radioshaq.api.routes import auth, audio, bus, callsigns, config_routes, emergency, gis, health, inject, memory, messages, metrics, radio, receiver, relay, transcripts, twilio
     app.include_router(health.router, prefix="/health", tags=["health"])
     app.include_router(metrics.metrics_router, prefix="/metrics", tags=["metrics"])
     app.include_router(auth.router, prefix="/auth", tags=["auth"])
@@ -294,6 +294,7 @@ def create_app() -> FastAPI:
     app.include_router(inject.router, prefix="/inject", tags=["inject"])
     app.include_router(receiver.router, prefix="/receiver", tags=["receiver"])
     app.include_router(bus.router, prefix="/internal", tags=["internal"])
+    app.include_router(twilio.router, prefix="/twilio", tags=["twilio"])
     app.include_router(audio.router, prefix="/api/v1")
     app.include_router(config_routes.router, prefix="/api/v1")
     app.include_router(audio.ws_router, prefix="/ws")
