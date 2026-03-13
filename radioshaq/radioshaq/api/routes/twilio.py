@@ -92,8 +92,11 @@ def _validate_twilio_signature_if_configured(
     try:
         from twilio.request_validator import RequestValidator
     except Exception as e:  # pragma: no cover
-        logger.warning("Twilio SDK missing; cannot validate signature: {}", e)
-        return False
+        # If auth_token is configured, we MUST validate — missing SDK is a hard error.
+        raise HTTPException(
+            status_code=503,
+            detail="Twilio SDK not installed; cannot validate webhook signature",
+        ) from e
 
     url = _twilio_request_url_for_signature(request)
     # Twilio validator expects a plain dict of str->str values.

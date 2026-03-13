@@ -95,6 +95,8 @@ class SsbDemodulator:
             return np.zeros(0, dtype=np.float32)
         if not np.iscomplexobj(x):
             x = x.astype(np.complex64)
+        if self.sideband == "LSB":
+            x = np.conj(x)
         # Resample complex baseband to audio rate and take the in-phase component.
         _require_scipy()
         x_audio = signal.resample_poly(x, up=int(self.cfg.audio_rate_hz), down=int(self.rf_rate_hz)).astype(np.complex64)

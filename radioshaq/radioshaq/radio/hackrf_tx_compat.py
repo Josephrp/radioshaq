@@ -104,7 +104,11 @@ def stream_hackrf_iq_bytes(dev: Any, payload: bytes, duration_sec: float) -> Non
     if start_tx is None:
         raise AttributeError("HackRF device does not expose start_tx")
 
-    param_count = len(inspect.signature(start_tx).parameters)
+    try:
+        param_count = len(inspect.signature(start_tx).parameters)
+    except (ValueError, TypeError):
+        # C extension or built-in method — cannot inspect signature; use callback path.
+        param_count = 1  # assume callback-style
     if param_count == 0:
         _stream_via_start_tx_buffer(dev, payload, duration_sec)
         return
