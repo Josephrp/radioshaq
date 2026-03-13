@@ -4,9 +4,8 @@ import base64
 from typing import Any
 
 import pytest
-import httpx
 
-from radioshaq.radio.sdr_tx import HackRFServiceClient
+from radioshaq.radio.sdr_tx import HackRFServiceClient, _AsyncClient as CompatAsyncClient
 from radioshaq.remote_receiver import server
 
 
@@ -79,9 +78,8 @@ async def test_hackrf_service_client_hits_remote_tx_endpoints(monkeypatch: pytes
     receiver.jwt_auth.verify_token = _accept_any_token  # type: ignore[assignment]
 
     # Route HackRFServiceClient HTTP calls into the receiver ASGI app.
-    RealAsyncClient = httpx.AsyncClient
-
-    class _AppAsyncClient(RealAsyncClient):
+    # Subclass the module's compat client so "app" is accepted (real httpx.AsyncClient does not).
+    class _AppAsyncClient(CompatAsyncClient):
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             kwargs.setdefault("app", server.app)
             kwargs.setdefault("base_url", "http://testserver")
