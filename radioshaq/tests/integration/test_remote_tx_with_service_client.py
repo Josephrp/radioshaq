@@ -59,6 +59,7 @@ class _DeviceManager:
 
 @pytest.mark.asyncio
 async def test_hackrf_service_client_hits_remote_tx_endpoints(monkeypatch: pytest.MonkeyPatch) -> None:
+    server.ensure_test_state(server.app)
     # Wire a fake broker and device manager into the receiver app.
     broker = _FakeBroker()
     server.app.state.hackrf_broker = broker

@@ -107,8 +107,9 @@ def is_tx_spectrum_allowed(
 
     backend = get_backend(restricted_region)
     restricted = backend.get_restricted_bands_hz() if backend is not None else []
-    # Warn-once behavior is handled by is_restricted; reuse it at edges for band-plan-only backends.
-    _ = is_restricted(center_hz, region=restricted_region)
+    # Use is_restricted for center check and warn-once for band-plan-only regions.
+    if is_restricted(center_hz, region=restricted_region):
+        return False
     for rlow, rhigh in restricted:
         if not (high_hz < rlow or low_hz > rhigh):
             return False

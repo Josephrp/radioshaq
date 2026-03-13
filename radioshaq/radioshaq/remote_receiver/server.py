@@ -443,13 +443,13 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="RadioShaq Remote Receiver", lifespan=lifespan)
 
 
-def _ensure_test_state(app: FastAPI) -> None:
+def ensure_test_state(app: FastAPI) -> None:
     """
     Ensure app.state has receiver / hackrf_broker attributes for tests that
     import the module-level `app` without running the lifespan context.
 
-    This keeps production behavior unchanged (lifespan still owns the real
-    startup/shutdown) but gives unit tests a lightweight, in-process default.
+    Must be called explicitly from test fixtures (e.g. remote_receiver conftest).
+    Production uses the lifespan context only; this is opt-in for tests.
     """
 
     if not hasattr(app.state, "receiver"):
@@ -492,9 +492,6 @@ def _ensure_test_state(app: FastAPI) -> None:
 
     if not hasattr(app.state, "hackrf_broker_device_manager"):
         app.state.hackrf_broker_device_manager = None
-
-
-_ensure_test_state(app)
 
 
 @app.websocket("/ws/stream")
@@ -597,6 +594,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
     if broker is None:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
 
+    tx_succeeded = False
     try:
         broker.request_tx()
         await broker.tx_tone(
@@ -604,6 +602,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
             duration_sec=duration_sec,
             sample_rate=sample_rate,
         )
+        tx_succeeded = True
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -611,21 +610,20 @@ async def tx_tone(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail="HackRF TX tone failed")
     finally:
         broker.clear_tx()
-    # Log TX event for audit.
-    operator_id: str | None = None
-    try:
-        receiver: ReceiverService = request.app.state.receiver
-        # Best-effort extraction: JWT scopes/subject were already validated in _require_broker_auth.
-        operator_id = receiver.station_id
-    except Exception:
-        operator_id = None
-    log_tx(
-        frequency_hz=frequency_hz,
-        duration_sec=duration_sec,
-        mode="tone",
-        rig_or_sdr="hackrf_broker",
-        operator_id=operator_id,
-    )
+        operator_id: str | None = None
+        try:
+            receiver = request.app.state.receiver
+            operator_id = receiver.station_id
+        except Exception:
+            operator_id = None
+        log_tx(
+            frequency_hz=frequency_hz,
+            duration_sec=duration_sec,
+            mode="tone",
+            rig_or_sdr="hackrf_broker",
+            operator_id=operator_id,
+            success=tx_succeeded,
+        )
     return {"success": True, "notes": "HackRF tone transmitted via remote receiver"}
 
 
@@ -696,6 +694,8 @@ async def tx_iq(request: Request) -> dict[str, Any]:
     if broker is None:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
 
+    duration_sec = len(iq_bytes) / (2.0 * sample_rate) if sample_rate > 0 else 0.0
+    tx_succeeded = False
     try:
         broker.request_tx()
         await broker.tx_iq(
@@ -704,6 +704,7 @@ async def tx_iq(request: Request) -> dict[str, Any]:
             iq_bytes=iq_bytes,
             occupied_bandwidth_hz=occupied_bandwidth_hz,
         )
+        tx_succeeded = True
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
@@ -711,22 +712,21 @@ async def tx_iq(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail="HackRF TX IQ failed")
     finally:
         broker.clear_tx()
-    # Approximate duration from IQ payload length (int8 interleaved I/Q).
-    duration_sec = len(iq_bytes) / (2.0 * sample_rate) if sample_rate > 0 else 0.0
-    operator_id: str | None = None
-    try:
-        receiver: ReceiverService = request.app.state.receiver
-        operator_id = receiver.station_id
-    except Exception:
         operator_id = None
-    log_tx(
-        frequency_hz=frequency_hz,
-        duration_sec=duration_sec,
-        mode="iq",
-        rig_or_sdr="hackrf_broker",
-        operator_id=operator_id,
-        occupied_bandwidth_hz=occupied_bandwidth_hz,
-    )
+        try:
+            receiver = request.app.state.receiver
+            operator_id = receiver.station_id
+        except Exception:
+            pass
+        log_tx(
+            frequency_hz=frequency_hz,
+            duration_sec=duration_sec,
+            mode="iq",
+            rig_or_sdr="hackrf_broker",
+            operator_id=operator_id,
+            occupied_bandwidth_hz=occupied_bandwidth_hz,
+            success=tx_succeeded,
+        )
     return {"success": True, "notes": "HackRF IQ transmitted via remote receiver"}
 
 
