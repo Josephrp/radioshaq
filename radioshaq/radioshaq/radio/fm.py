@@ -22,10 +22,11 @@ def _to_mono_float(audio: np.ndarray) -> np.ndarray:
     a = np.asarray(audio)
     if a.ndim == 2:
         a = a.mean(axis=1)
-    a = a.astype(np.float32, copy=False)
-    # Normalize if input looks like int PCM.
     if np.issubdtype(a.dtype, np.integer):
+        # Assume int16-like PCM.
         a = a.astype(np.float32) / 32768.0
+    else:
+        a = a.astype(np.float32, copy=False)
     return np.clip(a, -1.0, 1.0)
 
 

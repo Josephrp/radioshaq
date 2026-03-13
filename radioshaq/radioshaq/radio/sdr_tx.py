@@ -306,7 +306,12 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
         if self._auth_token:
             headers["Authorization"] = f"Bearer {self._auth_token}"
         async with _AsyncClient(base_url=self._base_url, timeout=self._timeout, headers=headers) as client:
-            response = await client.post(path, json=payload)
+            try:
+                response = await client.post(path, json=payload)
+            except httpx.RequestError as e:
+                raise RuntimeError(
+                    f"HackRF broker unreachable at {self._base_url}: {e!r}"
+                ) from e
             response.raise_for_status()
             try:
                 data = response.json()

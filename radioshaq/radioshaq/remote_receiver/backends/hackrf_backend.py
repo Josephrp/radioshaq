@@ -30,6 +30,7 @@ class HackRFBackend(SDRBackend):
         serial_number: str | None = None,
         sample_rate: int = 10_000_000,
         device_manager: object | None = None,
+        broker: object | None = None,
     ):
         self.device_index = device_index
         self.serial_number = serial_number
@@ -38,6 +39,8 @@ class HackRFBackend(SDRBackend):
         # coordinates access across RX and TX. When absent, this backend
         # manages its own device (legacy mode).
         self._device_manager = device_manager
+        # Optional broker for RX/TX scheduling flags (e.g. should_stop_rx, rx_active).
+        self._broker = broker
         self._frequency_hz: float = 0.0
         self._device = None
         self._rx_mode = os.environ.get("RECEIVER_MODE", "none").strip().lower()

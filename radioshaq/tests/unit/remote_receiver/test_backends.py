@@ -182,9 +182,13 @@ async def test_hackrf_backend_receive_respects_broker_stop_flag(monkeypatch):
 
     dm = _FakeDeviceManager()
     broker = _FakeBroker()
-    backend = HackRFBackend(device_index=0, serial_number=None, sample_rate=1_000_000, device_manager=dm)
-    # Attach fake broker for scheduling flags.
-    setattr(backend, "_broker", broker)
+    backend = HackRFBackend(
+        device_index=0,
+        serial_number=None,
+        sample_rate=1_000_000,
+        device_manager=dm,
+        broker=broker,
+    )
 
     await backend.initialize()
     await backend.set_frequency(145e6)

@@ -145,9 +145,15 @@ async def send_audio(
         raise HTTPException(status_code=503, detail="Radio TX agent not available")
 
     suffix = Path(file.filename or "audio.wav").suffix or ".wav"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-        f.write(content)
-        temp_path = f.name
+    tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    temp_path = tmp.name
+    try:
+        tmp.write(content)
+        tmp.close()
+    except Exception:
+        tmp.close()
+        Path(temp_path).unlink(missing_ok=True)
+        raise
     try:
         task: dict[str, Any] = {
             "transmission_type": "voice",

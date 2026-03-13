@@ -50,10 +50,8 @@ def create_sdr_from_env(
             serial_number=serial,
             sample_rate=sample_rate,
             device_manager=device_manager,
+            broker=broker,
         )
-        # Broker (when provided) is used for RX/TX scheduling flags only.
-        if broker is not None:
-            setattr(backend, "_broker", broker)
     else:
         from radioshaq.remote_receiver.backends.rtlsdr_backend import RtlSdrBackend
 
