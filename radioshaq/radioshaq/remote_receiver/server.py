@@ -640,6 +640,8 @@ async def tx_iq(request: Request) -> dict[str, Any]:
     try:
         frequency_hz = float(body.get("frequency_hz"))
         sample_rate = int(body.get("sample_rate"))
+        if sample_rate <= 0:
+            raise ValueError(f"sample_rate must be a positive integer, got {sample_rate}")
         iq_b64 = body.get("iq_b64")
         if not isinstance(iq_b64, str):
             raise ValueError("iq_b64 must be a base64-encoded string")

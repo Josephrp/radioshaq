@@ -34,9 +34,9 @@ class _CompatAsyncClient(httpx.AsyncClient):
         super().__init__(*args, **kwargs)
 
 
-# Make the shim visible as httpx.AsyncClient within this module so tests that
-# monkeypatch radioshaq.radio.sdr_tx.httpx.AsyncClient continue to work.
-httpx.AsyncClient = _CompatAsyncClient  # type: ignore[assignment]
+# Module-local alias; does NOT mutate the global httpx namespace.
+# Tests can monkeypatch radioshaq.radio.sdr_tx._AsyncClient to inject a custom client.
+_AsyncClient = _CompatAsyncClient
 
 
 class SDRTransmitter(Protocol):
@@ -305,7 +305,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
         headers: dict[str, str] = {}
         if self._auth_token:
             headers["Authorization"] = f"Bearer {self._auth_token}"
-        async with httpx.AsyncClient(base_url=self._base_url, timeout=self._timeout, headers=headers) as client:
+        async with _AsyncClient(base_url=self._base_url, timeout=self._timeout, headers=headers) as client:
             response = await client.post(path, json=payload)
             response.raise_for_status()
             try:

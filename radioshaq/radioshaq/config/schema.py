@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -147,9 +148,11 @@ class DatabaseConfig(BaseModel):
         """Ensure URL uses asyncpg driver and normalize local host naming."""
         if v.startswith("postgresql://") and "asyncpg" not in v:
             v = v.replace("postgresql://", "postgresql+asyncpg://")
-        # Normalize 127.0.0.1 to localhost for consistency with tests and docs.
-        if "127.0.0.1" in v:
-            v = v.replace("127.0.0.1", "localhost")
+        # Normalize 127.0.0.1 to localhost in the host component only (avoid corrupting password/db).
+        parsed = urlparse(v)
+        if parsed.hostname == "127.0.0.1":
+            netloc = parsed.netloc.replace("127.0.0.1", "localhost", 1)
+            v = urlunparse(parsed._replace(netloc=netloc))
         return v
 
 

@@ -16,8 +16,11 @@ except ImportError:  # pragma: no cover - optional dependency
 
 def _stream_via_direct_libhackrf(dev: Any, payload: bytes, duration_sec: float) -> None:
     """Use libhackrf directly with a safe TX callback."""
-    assert lib_hackrf_transfer is not None  # narrow type for static checkers
-    assert libhackrf is not None
+    if lib_hackrf_transfer is None or libhackrf is None:
+        raise RuntimeError(
+            "Direct libhackrf TX path requires pyhackrf2.cinterface. "
+            "Install with: uv sync --extra hackrf (or pip install pyhackrf2)"
+        )
 
     sent = 0
 

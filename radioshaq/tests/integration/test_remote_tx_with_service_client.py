@@ -87,7 +87,7 @@ async def test_hackrf_service_client_hits_remote_tx_endpoints(monkeypatch: pytes
             kwargs.setdefault("base_url", "http://testserver")
             super().__init__(*args, **kwargs)
 
-    monkeypatch.setattr("radioshaq.radio.sdr_tx.httpx.AsyncClient", _AppAsyncClient)
+    monkeypatch.setattr("radioshaq.radio.sdr_tx._AsyncClient", _AppAsyncClient)
 
     client = HackRFServiceClient(
         base_url="http://testserver",
