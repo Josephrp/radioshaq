@@ -550,6 +550,11 @@ async def tx_tone(request: Request) -> dict[str, Any]:
         sample_rate = int(body.get("sample_rate", 2_000_000))
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid TX tone payload: {e}")
+    if sample_rate <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sample_rate must be a positive integer, got {sample_rate}",
+        )
     broker: HackRFBroker | None = request.app.state.hackrf_broker
 
     # Determine restricted-region key from device manager when available; fall back to env.

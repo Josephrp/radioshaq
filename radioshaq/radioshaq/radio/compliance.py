@@ -102,13 +102,18 @@ def is_tx_spectrum_allowed(
     low_hz = float(center_hz) - bw / 2.0
     high_hz = float(center_hz) + bw / 2.0
 
-    # Restricted-band overlap check.
+    # Restricted-band overlap check. Use a single backend lookup for both restricted list and band plans.
     from radioshaq.compliance_plugin import get_backend
 
     backend = get_backend(restricted_region)
     restricted = backend.get_restricted_bands_hz() if backend is not None else []
-    # Use is_restricted for center check and warn-once for band-plan-only regions.
-    if is_restricted(center_hz, region=restricted_region):
+
+    # Check center and both band edges against built-in is_restricted (works even when backend is None).
+    if (
+        is_restricted(center_hz, region=restricted_region)
+        or is_restricted(low_hz, region=restricted_region)
+        or is_restricted(high_hz, region=restricted_region)
+    ):
         return False
     for rlow, rhigh in restricted:
         if not (high_hz < rlow or low_hz > rhigh):
@@ -118,9 +123,8 @@ def is_tx_spectrum_allowed(
         return True
 
     if band_plan_source is None:
-        b = get_backend(restricted_region)
-        if b is not None:
-            _plans = b.get_band_plans()
+        if backend is not None:
+            _plans = backend.get_band_plans()
             band_plan_source = _plans if _plans is not None else BAND_PLANS
         else:
             band_plan_source = BAND_PLANS

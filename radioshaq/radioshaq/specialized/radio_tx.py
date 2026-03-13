@@ -153,19 +153,28 @@ class RadioTransmissionAgent(SpecializedAgent):
                             "SDR voice TX from file requires optional deps: uv sync --extra voice_tx"
                         ) from e
                     data, sr = sf.read(str(audio_path), dtype="float32", always_2d=False)
-                    # Modulate to 2 MHz (HackRF-friendly) NFM and transmit IQ.
+                    # Modulate to 2 MHz (HackRF-friendly); run CPU-heavy scipy in executor to avoid blocking event loop.
                     tx_rate = 2_000_000
+                    loop = asyncio.get_running_loop()
                     if mode_name.value in ("NFM",):
-                        iq = nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                        iq = await loop.run_in_executor(
+                            None, lambda: nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                        )
                     elif mode_name.value == "AM":
-                        iq = am_modulate(data, int(sr), tx_rate)
+                        iq = await loop.run_in_executor(
+                            None, lambda: am_modulate(data, int(sr), tx_rate)
+                        )
                     elif mode_name.value in ("USB", "LSB"):
-                        iq = ssb_modulate(data, int(sr), tx_rate, sideband=mode_name.value)
+                        iq = await loop.run_in_executor(
+                            None, lambda: ssb_modulate(data, int(sr), tx_rate, sideband=mode_name.value)
+                        )
                     elif mode_name.value == "CW":
                         # CW audio TX is typically keying; as a minimal baseline, emit a short carrier.
                         iq = cw_tone_iq(duration_sec=0.5, rf_rate_hz=tx_rate)
                     else:
-                        iq = nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                        iq = await loop.run_in_executor(
+                            None, lambda: nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)
+                        )
                     # Compliance for SDR TX should consider occupied bandwidth (not just center).
                     bw = {
                         "NFM": 12_500.0,
