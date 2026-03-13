@@ -222,7 +222,7 @@ def _create_sdr_transmitter(config: Config) -> Any:
                 return None
             return HackRFServiceClient(
                 base_url=base_url,
-                auth_token=None,
+                auth_token=getattr(radio_cfg, "sdr_tx_service_token", None),
                 request_timeout_sec=30.0,
                 allow_bands_only=getattr(radio_cfg, "sdr_tx_allow_bands_only", True),
                 audit_log_path=getattr(radio_cfg, "tx_audit_log_path", None),

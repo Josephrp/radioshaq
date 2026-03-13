@@ -114,6 +114,9 @@ async def send_tts(
         # Misconfiguration (no rig, SDR TX disabled, etc.) should be surfaced as a service-unavailable error.
         if "Rig manager not configured" in detail or "SDR TX" in detail:
             status = 503
+        # HackRF/libusb errors from SDR TX should also be treated as transient service-unavailable conditions.
+        if "HackRF libusb error" in detail or "libusb" in detail.lower():
+            status = 503
         raise HTTPException(status_code=status, detail=detail)
     return {"ok": True}
 
@@ -161,6 +164,9 @@ async def send_audio(
             detail = result.get("error") or result.get("notes") or "TX failed"
             status = 500
             if "Rig manager not configured" in detail or "SDR TX" in detail:
+                status = 503
+            # HackRF/libusb errors from SDR TX should also be treated as transient service-unavailable conditions.
+            if "HackRF libusb error" in detail or "libusb" in detail.lower():
                 status = 503
             raise HTTPException(status_code=status, detail=detail)
         return {"ok": True, "notes": result.get("notes")}

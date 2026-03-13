@@ -56,9 +56,10 @@ def _stream_via_start_tx_buffer(dev: Any, payload: bytes, duration_sec: float) -
         dev.stop_tx()
 
 
-def _stream_via_callback(dev: Any, payload: bytes) -> None:
+def _stream_via_callback(dev: Any, payload: bytes, duration_sec: float) -> None:
     """Legacy callback-driven TX path used by tests and older shims."""
     sent = [0]
+    start_time = time.monotonic()
 
     def _tx_cb(transfer: Any) -> int:
         blen = getattr(transfer, "buffer_length", None)
@@ -78,7 +79,16 @@ def _stream_via_callback(dev: Any, payload: bytes) -> None:
         return 1 if end >= len(payload) else 0
 
     dev.start_tx(_tx_cb)
-    dev.stop_tx()
+    deadline = start_time + max(duration_sec + 0.5, 0.5)
+    try:
+        while time.monotonic() < deadline and sent[0] < len(payload):
+            time.sleep(0.01)
+    finally:
+        dev.stop_tx()
+        # Ensure we do not return significantly earlier than the requested duration
+        elapsed = time.monotonic() - start_time
+        if duration_sec > 0 and elapsed < duration_sec:
+            time.sleep(duration_sec - elapsed)
 
 
 def stream_hackrf_iq_bytes(dev: Any, payload: bytes, duration_sec: float) -> None:
@@ -95,4 +105,4 @@ def stream_hackrf_iq_bytes(dev: Any, payload: bytes, duration_sec: float) -> Non
     if param_count == 0:
         _stream_via_start_tx_buffer(dev, payload, duration_sec)
         return
-    _stream_via_callback(dev, payload)
+    _stream_via_callback(dev, payload, duration_sec)

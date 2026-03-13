@@ -45,16 +45,21 @@ def is_callsign_allowed(
 ) -> bool:
     """
     Return True if the callsign is allowed.
+
+    Semantics:
     - If callsign is None or empty, return False.
-    - If allowed set is non-empty and callsign not in it, return False.
-    - If registry_required is True and allowed is empty, return False (no one allowed).
-    - Otherwise return True.
+    - When registry_required is True:
+        * If allowed is empty, no one is allowed (False).
+        * If allowed is non-empty, callsign must be in the set.
+    - When registry_required is False:
+        * Whitelist is advisory only; any non-empty callsign is allowed.
     """
     normalized = _normalize(callsign)
     if not normalized:
         return False
-    if allowed and normalized not in allowed:
-        return False
-    if registry_required and not allowed:
-        return False
+    if registry_required:
+        if not allowed:
+            return False
+        return normalized in allowed
+    # Registry not required: accept any normalized callsign regardless of allowed set contents.
     return True

@@ -12,6 +12,13 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from loguru import logger
 
+from radioshaq.radio.compliance import (
+    is_restricted,
+    is_tx_allowed,
+    is_tx_spectrum_allowed,
+    log_tx,
+)
+from radioshaq.radio.bands import BAND_PLANS
 from radioshaq.radio.hackrf_tx_compat import stream_hackrf_iq_bytes
 from radioshaq.remote_receiver.auth import JWTReceiverAuth
 from radioshaq.remote_receiver.hq_client import HQClient
@@ -85,6 +92,137 @@ class ReceiverService:
             "mode": signal.mode,
         }
         await self._upload_queue.put(packet)
+
+    async def stream_frequency(
+        self,
+        *,
+        frequency_hz: float,
+        duration_seconds: int,
+        websocket: WebSocket,
+        token: str,
+        mode: str | None,
+        audio_rate_hz: int | None,
+        bfo_hz: float | None,
+    ) -> None:
+        """
+        Stream SDR samples to a WebSocket client with optional demodulated audio.
+
+        Messages follow a simple JSON contract:
+        - Signal frames: {"type": "signal", "timestamp": ..., "frequency_hz": ..., "signal_strength_db": ..., "decoded_text": ..., "mode": ...}
+        - Audio frames: {"type": "audio", "sample_rate_hz": ..., "audio_b64": ...}
+        - Error frames: {"type": "error", "message": "..."}
+        """
+        # Authenticate the provided token and extract operator identity.
+        try:
+            claims = await self.jwt_auth.verify_token(token)
+        except Exception as e:
+            # On auth failure, accept the socket (if not already accepted), send an error frame, and close.
+            try:
+                await websocket.accept()
+            except Exception:
+                # If accept fails, just give up on this connection.
+                return
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": f"Unauthorized: {e}",
+                }
+            )
+            await websocket.close(code=4401)
+            return
+
+        await websocket.accept()
+
+        # Configure SDR for the requested frequency and demodulation settings.
+        try:
+            await self.radio.set_frequency(frequency_hz)
+            await self.radio.configure(mode=mode, audio_rate_hz=audio_rate_hz, bfo_hz=bfo_hz)
+        except Exception as e:
+            logger.warning("Receiver configuration failed: {}", e)
+            await websocket.send_json(
+                {
+                    "type": "error",
+                    "message": "Receiver configuration failed",
+                }
+            )
+            await websocket.close(code=1011)
+            return
+
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + max(float(duration_seconds), 0.0)
+        operator_id = getattr(claims, "sub", "UNKNOWN") or "UNKNOWN"
+        default_audio_rate = audio_rate_hz or 48_000
+
+        try:
+            async for sample in self.radio.receive(float(duration_seconds)):
+                now = loop.time()
+                if now >= deadline:
+                    break
+
+                # Signal message
+                signal_payload: dict[str, Any] = {
+                    "type": "signal",
+                    "timestamp": sample.timestamp.isoformat(),
+                    "frequency_hz": sample.frequency_hz,
+                    "signal_strength_db": sample.strength_db,
+                    "decoded_text": sample.decoded_data,
+                    "mode": sample.mode,
+                }
+                await websocket.send_json(signal_payload)
+
+                # Optional audio message when raw demodulated audio is present.
+                if sample.raw_data:
+                    try:
+                        audio_b64 = base64.b64encode(sample.raw_data).decode("ascii")
+                    except Exception as e:
+                        logger.warning("Failed to encode audio frame: {}", e)
+                    else:
+                        await websocket.send_json(
+                            {
+                                "type": "audio",
+                                "sample_rate_hz": default_audio_rate,
+                                "audio_b64": audio_b64,
+                            }
+                        )
+
+                # Queue interesting signals for HQ upload when configured.
+                if sample.is_interesting:
+                    try:
+                        await self._queue_for_hq(sample, operator_id=operator_id)
+                    except Exception as e:
+                        logger.warning("Failed to queue signal for HQ upload: {}", e)
+
+                # Re-check deadline after work in the loop body.
+                if loop.time() >= deadline:
+                    break
+            # After streaming samples, send a terminal frame and close so clients
+            # (including tests) do not hang waiting for additional messages.
+            try:
+                await websocket.send_json({"type": "done"})
+            except Exception:
+                pass
+            try:
+                await websocket.close(code=1000)
+            except Exception:
+                pass
+        except WebSocketDisconnect:
+            # Client disconnected; nothing more to do.
+            return
+        except Exception as e:
+            logger.warning("WebSocket stream error: {}", e)
+            try:
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "Internal receiver error during stream",
+                    }
+                )
+            except Exception:
+                pass
+            try:
+                await websocket.close(code=1011)
+            except Exception:
+                pass
 
 
 class HackRFDeviceManager:
@@ -295,12 +433,68 @@ async def lifespan(app: FastAPI):
     service = ReceiverService.from_env(broker=broker, device_manager=device_manager)
     app.state.receiver = service
     app.state.hackrf_broker = broker
+    # Expose device manager for compliance region lookup in TX endpoints.
+    app.state.hackrf_broker_device_manager = device_manager
     await service.start()
     yield
     # Shutdown
 
 
 app = FastAPI(title="RadioShaq Remote Receiver", lifespan=lifespan)
+
+
+def _ensure_test_state(app: FastAPI) -> None:
+    """
+    Ensure app.state has receiver / hackrf_broker attributes for tests that
+    import the module-level `app` without running the lifespan context.
+
+    This keeps production behavior unchanged (lifespan still owns the real
+    startup/shutdown) but gives unit tests a lightweight, in-process default.
+    """
+
+    if not hasattr(app.state, "receiver"):
+        class _DummyJWTAuth:
+            async def verify_token(self, token: str) -> Any:  # pragma: no cover - test shim
+                return object()
+
+        class _DummyRadio(SDRInterface):  # pragma: no cover - test shim
+            async def initialize(self) -> None:
+                return None
+
+            async def set_frequency(self, frequency_hz: float) -> None:
+                self._frequency = frequency_hz
+
+            async def configure(
+                self,
+                *,
+                mode: str | None = None,
+                audio_rate_hz: int | None = None,
+                bfo_hz: float | None = None,
+            ) -> None:
+                self._mode = mode
+                self._audio_rate_hz = audio_rate_hz
+                self._bfo_hz = bfo_hz
+
+            async def receive(self, duration_seconds: float):
+                if False:
+                    yield  # pragma: no cover - empty async iterator
+                return
+
+        app.state.receiver = ReceiverService(
+            station_id="TEST-RECEIVER",
+            jwt_auth=_DummyJWTAuth(),
+            radio=_DummyRadio(),
+            hq_client=None,
+        )
+
+    if not hasattr(app.state, "hackrf_broker"):
+        app.state.hackrf_broker = HackRFBroker(device_manager=None)
+
+    if not hasattr(app.state, "hackrf_broker_device_manager"):
+        app.state.hackrf_broker_device_manager = None
+
+
+_ensure_test_state(app)
 
 
 @app.websocket("/ws/stream")
@@ -360,8 +554,49 @@ async def tx_tone(request: Request) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid TX tone payload: {e}")
     broker: HackRFBroker | None = request.app.state.hackrf_broker
-    if broker is None or not broker.available:
+
+    # Determine restricted-region key from device manager when available; fall back to env.
+    restricted_region = os.environ.get("RESTRICTED_BANDS_REGION", "FCC")
+    try:
+        device_manager = getattr(request.app.state, "hackrf_broker_device_manager", None)
+        if device_manager is not None and getattr(device_manager, "restricted_region", None):
+            restricted_region = device_manager.restricted_region  # type: ignore[assignment]
+    except Exception:
+        pass
+
+    # Resolve band plans from compliance backend; fall back to built-in BAND_PLANS.
+    try:
+        from radioshaq.compliance_plugin import get_backend
+
+        backend = get_backend(restricted_region)
+        plans = backend.get_band_plans() if backend is not None else None
+    except Exception:
+        plans = None
+    band_plans = plans if plans else BAND_PLANS
+
+    occupied_bw = 25_000.0
+    if is_restricted(frequency_hz, region=restricted_region):
+        raise HTTPException(
+            status_code=403,
+            detail=f"Frequency {frequency_hz} Hz is in a restricted band",
+        )
+    if not is_tx_spectrum_allowed(
+        center_hz=frequency_hz,
+        occupied_bandwidth_hz=occupied_bw,
+        restricted_region=restricted_region,
+        band_plan_source=band_plans,
+        allow_tx_only_amateur_bands=True,
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="TX not allowed on this frequency (band plan)",
+        )
+
+    # Only after compliance checks do we require a broker; this allows tests and
+    # deployments without HackRF hardware to still exercise the 403 paths.
+    if broker is None:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
+
     try:
         broker.request_tx()
         await broker.tx_tone(
@@ -376,6 +611,21 @@ async def tx_tone(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail="HackRF TX tone failed")
     finally:
         broker.clear_tx()
+    # Log TX event for audit.
+    operator_id: str | None = None
+    try:
+        receiver: ReceiverService = request.app.state.receiver
+        # Best-effort extraction: JWT scopes/subject were already validated in _require_broker_auth.
+        operator_id = receiver.station_id
+    except Exception:
+        operator_id = None
+    log_tx(
+        frequency_hz=frequency_hz,
+        duration_sec=duration_sec,
+        mode="tone",
+        rig_or_sdr="hackrf_broker",
+        operator_id=operator_id,
+    )
     return {"success": True, "notes": "HackRF tone transmitted via remote receiver"}
 
 
@@ -401,8 +651,49 @@ async def tx_iq(request: Request) -> dict[str, Any]:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid TX IQ payload: {e}")
     broker: HackRFBroker | None = request.app.state.hackrf_broker
-    if broker is None or not broker.available:
+
+    # Resolve restricted-region key and band plans for compliance decisions.
+    restricted_region = os.environ.get("RESTRICTED_BANDS_REGION", "FCC")
+    try:
+        device_manager = getattr(request.app.state, "hackrf_broker_device_manager", None)
+        if device_manager is not None and getattr(device_manager, "restricted_region", None):
+            restricted_region = device_manager.restricted_region  # type: ignore[assignment]
+    except Exception:
+        pass
+    try:
+        from radioshaq.compliance_plugin import get_backend
+
+        backend = get_backend(restricted_region)
+        plans = backend.get_band_plans() if backend is not None else None
+    except Exception:
+        plans = None
+    band_plans = plans if plans else BAND_PLANS
+
+    # Compliance: either spectrum-based check when bandwidth supplied, or center-frequency check.
+    if occupied_bandwidth_hz is not None and occupied_bandwidth_hz > 0:
+        allowed = is_tx_spectrum_allowed(
+            center_hz=frequency_hz,
+            occupied_bandwidth_hz=occupied_bandwidth_hz,
+            restricted_region=restricted_region,
+            band_plan_source=band_plans,
+            allow_tx_only_amateur_bands=True,
+        )
+    else:
+        allowed = is_tx_allowed(
+            freq_hz=frequency_hz,
+            restricted_region=restricted_region,
+            band_plan_source=band_plans,
+            allow_tx_only_amateur_bands=True,
+        )
+    if not allowed:
+        raise HTTPException(
+            status_code=403,
+            detail="TX not allowed on this frequency/spectrum",
+        )
+
+    if broker is None:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
+
     try:
         broker.request_tx()
         await broker.tx_iq(
@@ -418,6 +709,22 @@ async def tx_iq(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail="HackRF TX IQ failed")
     finally:
         broker.clear_tx()
+    # Approximate duration from IQ payload length (int8 interleaved I/Q).
+    duration_sec = len(iq_bytes) / (2.0 * sample_rate) if sample_rate > 0 else 0.0
+    operator_id: str | None = None
+    try:
+        receiver: ReceiverService = request.app.state.receiver
+        operator_id = receiver.station_id
+    except Exception:
+        operator_id = None
+    log_tx(
+        frequency_hz=frequency_hz,
+        duration_sec=duration_sec,
+        mode="iq",
+        rig_or_sdr="hackrf_broker",
+        operator_id=operator_id,
+        occupied_bandwidth_hz=occupied_bandwidth_hz,
+    )
     return {"success": True, "notes": "HackRF IQ transmitted via remote receiver"}
 
 

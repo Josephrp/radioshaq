@@ -68,10 +68,23 @@ def _validate_twilio_signature_if_configured(
     cfg = getattr(request.app.state, "config", None)
     twilio_cfg = getattr(cfg, "twilio", None) if cfg else None
     auth_token = getattr(twilio_cfg, "auth_token", None) if twilio_cfg else None
+    allow_unsigned = getattr(twilio_cfg, "allow_unsigned_webhooks", False) if twilio_cfg else False
     signature = request.headers.get("x-twilio-signature")
 
     if not auth_token:
-        logger.warning("Twilio webhook received but twilio.auth_token not configured (channel={})", channel)
+        if not allow_unsigned:
+            logger.error(
+                "Twilio webhook misconfigured: twilio.auth_token is required (channel={})",
+                channel,
+            )
+            raise HTTPException(
+                status_code=503,
+                detail="Twilio webhook misconfigured: twilio.auth_token is required",
+            )
+        logger.warning(
+            "Twilio webhook accepted without signature validation (allow_unsigned_webhooks=True, channel={})",
+            channel,
+        )
         return False
     if not signature:
         raise HTTPException(status_code=403, detail="Missing X-Twilio-Signature")

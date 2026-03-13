@@ -144,9 +144,12 @@ class DatabaseConfig(BaseModel):
     @field_validator("postgres_url")
     @classmethod
     def validate_postgres_url(cls, v: str) -> str:
-        """Ensure URL uses asyncpg driver."""
+        """Ensure URL uses asyncpg driver and normalize local host naming."""
         if v.startswith("postgresql://") and "asyncpg" not in v:
             v = v.replace("postgresql://", "postgresql+asyncpg://")
+        # Normalize 127.0.0.1 to localhost for consistency with tests and docs.
+        if "127.0.0.1" in v:
+            v = v.replace("127.0.0.1", "localhost")
         return v
 
 
@@ -335,6 +338,10 @@ class RadioConfig(BaseModel):
     sdr_tx_service_base_url: str | None = Field(
         default=None,
         description="Base URL for HackRF broker when sdr_tx_mode='remote' (e.g. http://localhost:8765).",
+    )
+    sdr_tx_service_token: str | None = Field(
+        default=None,
+        description="Bearer token (JWT or opaque) used by HackRFServiceClient when sdr_tx_mode='remote'.",
     )
 
     # Audio RX/TX integration (voice_rx pipeline)
@@ -703,6 +710,24 @@ class TwilioConfig(BaseModel):
         default=None,
         description="WhatsApp sender phone number, E.164; must be WhatsApp-enabled in Twilio (env: RADIOSHAQ_TWILIO__WHATSAPP_FROM)",
     )
+    allow_unsigned_webhooks: bool = Field(
+        default=False,
+        description=(
+            "Allow processing Twilio webhooks without signature validation (development only). "
+            "When False, missing auth_token or signature blocks processing."
+        ),
+    )
+
+    @field_validator("account_sid", "auth_token", "from_number", "whatsapp_from", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v: str | None) -> str | None:
+        # Normalize empty strings (from env or YAML) to None so tests can reliably
+        # detect "Twilio not configured" via attribute is None checks.
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class EmergencyContactConfig(BaseModel):

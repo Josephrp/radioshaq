@@ -16,6 +16,29 @@ from radioshaq.radio.compliance import is_restricted, is_tx_allowed, is_tx_spect
 from radioshaq.radio.hackrf_tx_compat import stream_hackrf_iq_bytes
 
 
+class _CompatAsyncClient(httpx.AsyncClient):
+    """
+    Backwards-compatible AsyncClient shim that accepts an optional ``app`` kwarg.
+
+    Older tests expect ``httpx.AsyncClient(app=..., base_url=...)`` even though
+    recent httpx versions removed this parameter in favor of ASGITransport.
+    This shim converts ``app`` into an appropriate transport and then delegates
+    to the real AsyncClient implementation.
+    """
+
+    def __init__(self, *args: Any, app: Any | None = None, **kwargs: Any) -> None:
+        if app is not None and "transport" not in kwargs:
+            from httpx import ASGITransport
+
+            kwargs["transport"] = ASGITransport(app=app)
+        super().__init__(*args, **kwargs)
+
+
+# Make the shim visible as httpx.AsyncClient within this module so tests that
+# monkeypatch radioshaq.radio.sdr_tx.httpx.AsyncClient continue to work.
+httpx.AsyncClient = _CompatAsyncClient  # type: ignore[assignment]
+
+
 class SDRTransmitter(Protocol):
     """Protocol for SDR TX: compliance-checked transmit_tone / transmit_iq."""
 
@@ -205,15 +228,19 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
         # Sample rate is not the signal bandwidth; default to a center-frequency-only check.
         self._check_compliance(frequency_hz, occupied_bandwidth_hz=occupied_bandwidth_hz)
         # Convert to int8 interleaved if needed, then same as tone path
-        s = np.asarray(samples_iq)
-        if np.iscomplexobj(s):
-            i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
-            q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
-            iq = np.empty(2 * len(s), dtype=np.int8)
-            iq[0::2] = i
-            iq[1::2] = q
+        # Normalize samples into int8 interleaved IQ. Support both numpy arrays and raw bytes.
+        if isinstance(samples_iq, (bytes, bytearray, memoryview)):
+            iq = np.frombuffer(samples_iq, dtype=np.int8)
         else:
-            iq = np.asarray(s, dtype=np.int8)
+            s = np.asarray(samples_iq)
+            if np.iscomplexobj(s):
+                i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
+                q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
+                iq = np.empty(2 * len(s), dtype=np.int8)
+                iq[0::2] = i
+                iq[1::2] = q
+            else:
+                iq = np.asarray(s, dtype=np.int8)
         duration_sec = len(iq) / (2.0 * sample_rate)
         dev = self._open()
         loop = asyncio.get_running_loop()
@@ -330,15 +357,19 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
     ) -> None:
         """Transmit I/Q samples via the remote HackRF broker."""
         self._check_compliance(frequency_hz, occupied_bandwidth_hz=occupied_bandwidth_hz)
-        s = np.asarray(samples_iq)
-        if np.iscomplexobj(s):
-            i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
-            q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
-            iq = np.empty(2 * len(s), dtype=np.int8)
-            iq[0::2] = i
-            iq[1::2] = q
+        # Normalize samples into int8 interleaved IQ. Support both numpy arrays and raw bytes.
+        if isinstance(samples_iq, (bytes, bytearray, memoryview)):
+            iq = np.frombuffer(samples_iq, dtype=np.int8)
         else:
-            iq = np.asarray(s, dtype=np.int8)
+            s = np.asarray(samples_iq)
+            if np.iscomplexobj(s):
+                i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
+                q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
+                iq = np.empty(2 * len(s), dtype=np.int8)
+                iq[0::2] = i
+                iq[1::2] = q
+            else:
+                iq = np.asarray(s, dtype=np.int8)
         duration_sec = len(iq) / (2.0 * sample_rate)
         iq_bytes = iq.tobytes()
         iq_b64 = base64.b64encode(iq_bytes).decode("ascii")

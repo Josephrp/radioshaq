@@ -8,6 +8,7 @@ we lazily import these symbols on attribute access.
 from __future__ import annotations
 
 from importlib import import_module
+import warnings
 from typing import Any
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "ModeFamily",
     "ModeSpec",
     "RadioModeName",
+    "RigMode",
     "normalize_mode",
     "spec_for",
     "hamlib_mode_for",
@@ -62,6 +64,7 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "ModeFamily": ("radioshaq.radio.modes", "ModeFamily"),
     "ModeSpec": ("radioshaq.radio.modes", "ModeSpec"),
     "RadioModeName": ("radioshaq.radio.modes", "RadioModeName"),
+    "RigMode": ("radioshaq.radio.modes", "RadioModeName"),
     "normalize_mode": ("radioshaq.radio.modes", "normalize_mode"),
     "spec_for": ("radioshaq.radio.modes", "spec_for"),
     "hamlib_mode_for": ("radioshaq.radio.modes", "hamlib_mode_for"),
@@ -74,6 +77,12 @@ _EXPORTS: dict[str, tuple[str, str]] = {
 def __getattr__(name: str) -> Any:  # pragma: no cover
     if name not in _EXPORTS:
         raise AttributeError(name)
+    if name == "RigMode":
+        warnings.warn(
+            "RigMode is deprecated; use RadioModeName from radioshaq.radio.modes instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     mod_name, attr = _EXPORTS[name]
     mod = import_module(mod_name)
     return getattr(mod, attr)

@@ -75,12 +75,16 @@ class ScribeASRBackend:
                     iso_resp.raise_for_status()
                     cleaned_audio = iso_resp.content
                     logger.debug(
-                        "ElevenLabs Voice Isolator applied for {} (bytes={})",
+                        "ElevenLabs Voice Isolator applied for %s (bytes=%s)",
                         path,
                         len(cleaned_audio),
                     )
             except Exception as e:  # noqa: BLE001
-                logger.warning("Voice Isolator failed for {}, using raw audio: {}", path, e)
+                logger.warning(
+                    "Voice Isolator failed for %s, using raw audio: %s",
+                    path,
+                    e,
+                )
                 cleaned_audio = None
 
         data = {"model_id": api_model_id}

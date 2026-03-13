@@ -83,13 +83,13 @@ async def run_relay_delivery_worker(
                             )
                         else:
                             mark_delivered = True
-                        else:
-                            logger.warning(
-                                "Relay delivery: cannot deliver transcript {} via {} (bus unavailable or no phone)",
-                                tid,
-                                delivery_channel,
-                            )
-                        # Do NOT fall through to radio injection; leave undelivered for retry
+                    else:
+                        logger.warning(
+                            "Relay delivery: cannot deliver transcript {} via {} (bus unavailable or no phone)",
+                            tid,
+                            delivery_channel,
+                        )
+                    # Do NOT fall through to radio injection; leave undelivered for retry
                 else:
                     band = extra.get("band") or extra.get("relay_from_band") or "unknown"
                     mode = t.get("mode") or "FM"
