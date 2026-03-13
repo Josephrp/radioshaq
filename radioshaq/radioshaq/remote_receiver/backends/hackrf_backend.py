@@ -181,14 +181,16 @@ class HackRFBackend(SDRBackend):
                     strength_db = -100.0
                 if s is not None:
                     try:
+                        # Run CPU-heavy demod (resample_poly / FIR) in executor to avoid blocking the event loop.
                         if self._rx_mode in {"nfm", "fm"}:
                             if self._nfm is None:
                                 self._nfm = NfmDemodulator(
                                     NfmConfig(audio_rate_hz=self._audio_rate),
                                     rf_rate_hz=self.sample_rate,
                                 )
-                            audio = self._nfm.demod(s)
-                            audio_pcm = float_to_pcm16(audio)
+                            audio_pcm = await loop.run_in_executor(
+                                None, lambda: float_to_pcm16(self._nfm.demod(s))
+                            )
                         elif self._rx_mode in {"am"}:
                             if self._am is None:
                                 self._am = AmDemodulator(
@@ -198,7 +200,9 @@ class HackRFBackend(SDRBackend):
                                     ),
                                     rf_rate_hz=self.sample_rate,
                                 )
-                            audio_pcm = float_to_pcm16(self._am.demod(s))
+                            audio_pcm = await loop.run_in_executor(
+                                None, lambda: float_to_pcm16(self._am.demod(s))
+                            )
                         elif self._rx_mode in {"usb", "lsb"}:
                             if self._ssb is None:
                                 self._ssb = SsbDemodulator(
@@ -209,7 +213,9 @@ class HackRFBackend(SDRBackend):
                                     rf_rate_hz=self.sample_rate,
                                     sideband=self._rx_mode.upper(),
                                 )
-                            audio_pcm = float_to_pcm16(self._ssb.demod(s))
+                            audio_pcm = await loop.run_in_executor(
+                                None, lambda: float_to_pcm16(self._ssb.demod(s))
+                            )
                         elif self._rx_mode in {"cw"}:
                             if self._cw is None:
                                 self._cw = CwAudioDemodulator(
@@ -219,7 +225,9 @@ class HackRFBackend(SDRBackend):
                                     ),
                                     rf_rate_hz=self.sample_rate,
                                 )
-                            audio_pcm = float_to_pcm16(self._cw.demod(s))
+                            audio_pcm = await loop.run_in_executor(
+                                None, lambda: float_to_pcm16(self._cw.demod(s))
+                            )
                     except Exception as e:
                         logger.warning(
                             "HackRF demodulation failed (mode={}): {}",

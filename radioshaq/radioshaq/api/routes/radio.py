@@ -17,6 +17,9 @@ from radioshaq.database.gis import propagation_prediction
 
 router = APIRouter()
 
+# Max size for /send-audio uploads to avoid unbounded memory use (DoS).
+MAX_AUDIO_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
 
 class SendTTSBody(BaseModel):
     """Body for POST /radio/send-tts."""
@@ -137,7 +140,12 @@ async def send_audio(
         file.content_type.startswith("audio/") or file.content_type == "application/octet-stream"
     ):
         raise HTTPException(status_code=400, detail="Expected audio file")
-    content = await file.read()
+    content = await file.read(MAX_AUDIO_UPLOAD_BYTES + 1)
+    if len(content) > MAX_AUDIO_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Audio file too large (max {MAX_AUDIO_UPLOAD_BYTES // (1024 * 1024)} MB)",
+        )
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
     radio_tx = get_radio_tx_agent(request)
