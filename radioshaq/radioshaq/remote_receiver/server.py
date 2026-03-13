@@ -297,7 +297,7 @@ class HackRFBroker:
 
     @property
     def lock(self) -> asyncio.Lock:
-        """Global HackRF scheduling lock (RX and TX share this)."""
+        """Lock used to serialize TX operations. RX uses device_manager._lock when accessing the device."""
         return self._lock
 
     @property
@@ -632,6 +632,13 @@ async def tx_tone(request: Request) -> dict[str, Any]:
     return {"success": True, "notes": "HackRF tone transmitted via remote receiver"}
 
 
+# Max decoded IQ size: int8 interleaved = 2 bytes/sample → duration_sec = bytes / (sample_rate * 2).
+# At 2 MHz: 4 MB/s. Capped at 50 s of IQ.
+# RAM: full request body (base64 ~4/3 × this), decoded iq_bytes, and a copy during TX are all in memory;
+# disk is not used. Ensure the receiver process has enough RAM for ~2–3× MAX_IQ_BYTES peak.
+MAX_IQ_BYTES = 200 * 1024 * 1024  # 200 MB (~50 s @ 2 MHz int8 interleaved)
+
+
 @app.post("/tx/iq")
 async def tx_iq(request: Request) -> dict[str, Any]:
     """Transmit I/Q samples via the HackRF broker.
@@ -639,6 +646,16 @@ async def tx_iq(request: Request) -> dict[str, Any]:
     Body: {\"frequency_hz\": float, \"sample_rate\": int, \"iq_b64\": str, \"occupied_bandwidth_hz\": float | null }
     """
     await _require_broker_auth(request)
+    content_length = request.headers.get("content-length")
+    if content_length is not None:
+        try:
+            if int(content_length) > MAX_IQ_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail="IQ payload too large",
+                )
+        except ValueError:
+            pass  # Invalid content-length; let body parse handle it
     body = await request.json()
     try:
         frequency_hz = float(body.get("frequency_hz"))
@@ -653,9 +670,13 @@ async def tx_iq(request: Request) -> dict[str, Any]:
             float(occupied_bandwidth_hz_raw) if occupied_bandwidth_hz_raw is not None else None
         )
         iq_bytes = base64.b64decode(iq_b64.encode("ascii"))
+        if len(iq_bytes) > MAX_IQ_BYTES:
+            raise HTTPException(status_code=413, detail="IQ payload too large")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid TX IQ payload: {e}")
-    broker: HackRFBroker | None = request.app.state.hackrf_broker
+    broker: HackRFBroker | None = getattr(request.app.state, "hackrf_broker", None)
 
     # Resolve restricted-region key and band plans for compliance decisions.
     restricted_region = os.environ.get("RESTRICTED_BANDS_REGION", "FCC")
@@ -741,9 +762,9 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/tx/status")
-async def tx_status() -> dict[str, Any]:
+async def tx_status(request: Request) -> dict[str, Any]:
     """Report HackRF TX broker availability for this receiver process."""
-    broker: HackRFBroker | None = app.state.hackrf_broker
+    broker: HackRFBroker | None = getattr(request.app.state, "hackrf_broker", None)
     if broker is None or not broker.available:
         return {"available": False, "reason": "hackrf_tx_not_configured"}
     return {"available": True, "reason": "ok"}

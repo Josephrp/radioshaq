@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import StrEnum
 
+from loguru import logger
+
 
 class ModeFamily(StrEnum):
     ANALOG = "analog"
@@ -160,6 +162,11 @@ def normalize_mode(value: str | RadioModeName | None, *, default: RadioModeName 
         return RadioModeName.AX25
     if raw in ("APRS",):
         return RadioModeName.APRS
+    logger.warning(
+        "normalize_mode: unrecognized mode {!r}; falling back to {}",
+        value,
+        default.value,
+    )
     return default
 
 
