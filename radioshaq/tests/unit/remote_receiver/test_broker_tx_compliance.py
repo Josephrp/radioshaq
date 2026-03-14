@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from radioshaq.remote_receiver.server import app
+from radioshaq.remote_receiver.server import app, ensure_test_state, HackRFBroker
 
 
 class _DummyBackend:
@@ -49,16 +49,15 @@ def test_tx_tone_rejected_when_restricted(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_tx_tone_allows_when_not_restricted(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_compliance(monkeypatch, restricted=False)
-    client = TestClient(app)
-
-    # Prevent actual broker calls; just confirm compliance gate lets us through.
-    broker = app.state.hackrf_broker
-
+    ensure_test_state(app)
+    # Use a broker that reports available=True so we pass the 503 gate, then no-op TX.
+    broker = HackRFBroker(device_manager=object())
     async def _noop_tx_tone(*args: Any, **kwargs: Any) -> None:
         return None
-
     broker.tx_tone = _noop_tx_tone  # type: ignore[assignment]
+    app.state.hackrf_broker = broker
 
+    client = TestClient(app)
     resp = client.post(
         "/tx/tone",
         headers=_auth_headers(),
@@ -89,17 +88,17 @@ def test_tx_iq_rejected_when_not_allowed(monkeypatch: pytest.MonkeyPatch) -> Non
 
 def test_tx_iq_allows_when_compliant(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_compliance(monkeypatch, restricted=False)
+    ensure_test_state(app)
+    # Use a broker that reports available=True so we pass the 503 gate, then no-op TX.
+    broker = HackRFBroker(device_manager=object())
+    async def _noop_tx_iq(*args: Any, **kwargs: Any) -> None:
+        return None
+    broker.tx_iq = _noop_tx_iq  # type: ignore[assignment]
+    app.state.hackrf_broker = broker
+
     client = TestClient(app)
     iq_bytes = b"\x00" * 128
     b64 = base64.b64encode(iq_bytes).decode("ascii")
-
-    broker = app.state.hackrf_broker
-
-    async def _noop_tx_iq(*args: Any, **kwargs: Any) -> None:
-        return None
-
-    broker.tx_iq = _noop_tx_iq  # type: ignore[assignment]
-
     resp = client.post(
         "/tx/iq",
         headers=_auth_headers(),
@@ -113,4 +112,65 @@ def test_tx_iq_allows_when_compliant(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("success") is True
+
+
+def test_tx_tone_returns_503_when_broker_not_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Broker present but broker.available is False: return 503 without calling request_tx()."""
+    _patch_compliance(monkeypatch, restricted=False)
+    ensure_test_state(app)
+    # Force broker with no hardware (other tests may have set an available broker).
+    app.state.hackrf_broker = HackRFBroker(device_manager=None)
+    assert not app.state.hackrf_broker.available
+
+    client = TestClient(app)
+    resp = client.post(
+        "/tx/tone",
+        headers=_auth_headers(),
+        json={"frequency_hz": 145_000_000.0, "duration_sec": 0.1, "sample_rate": 2_000_000},
+    )
+    assert resp.status_code == 503
+    assert "not available" in resp.json().get("detail", "").lower()
+
+
+def test_tx_iq_returns_503_when_broker_not_available(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Broker present but broker.available is False: return 503 without calling request_tx()."""
+    _patch_compliance(monkeypatch, restricted=False)
+    ensure_test_state(app)
+    app.state.hackrf_broker = HackRFBroker(device_manager=None)
+    assert not app.state.hackrf_broker.available
+
+    client = TestClient(app)
+    iq_bytes = b"\x00" * 128
+    b64 = base64.b64encode(iq_bytes).decode("ascii")
+    resp = client.post(
+        "/tx/iq",
+        headers=_auth_headers(),
+        json={
+            "frequency_hz": 145_000_000.0,
+            "sample_rate": 1_000_000,
+            "iq_b64": b64,
+            "occupied_bandwidth_hz": 12_500.0,
+        },
+    )
+    assert resp.status_code == 503
+    assert "not available" in resp.json().get("detail", "").lower()
+
+
+def test_tx_returns_503_when_receiver_not_initialized(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When app.state.receiver is missing, _require_broker_auth returns 503 (not 500)."""
+    _patch_compliance(monkeypatch, restricted=False)
+    ensure_test_state(app)
+    original_receiver = app.state.receiver
+    try:
+        app.state.receiver = None  # Simulate no lifespan / receiver not initialized
+        client = TestClient(app)
+        resp = client.post(
+            "/tx/tone",
+            headers=_auth_headers(),
+            json={"frequency_hz": 145_000_000.0, "duration_sec": 0.1, "sample_rate": 2_000_000},
+        )
+        assert resp.status_code == 503
+        assert "receiver" in resp.json().get("detail", "").lower() or "not initialized" in resp.json().get("detail", "").lower()
+    finally:
+        app.state.receiver = original_receiver
 

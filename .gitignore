@@ -192,6 +192,9 @@ db.sqlite3-journal
 radioshaq/scripts/demo/recordings/
 radioshaq/config.yaml
 
+# --- RadioShaq web UI build output ---
+radioshaq/radioshaq/web_ui/assets/
+
 # --- RadioShaq local env / tools ---
 radioshaq/.venv-wsl/
 radioshaq/hackrf/

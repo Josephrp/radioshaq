@@ -456,7 +456,8 @@ async def lifespan(app: FastAPI):
     app.state.hackrf_broker_device_manager = device_manager
     await service.start()
     yield
-    # Shutdown
+    # Shutdown: close radio backend and release HackRF USB handle so hot-restart can
+    # re-open the device without the process needing to fully exit.
     await service.radio.close()
     if device_manager is not None:
         await device_manager.close()
@@ -527,7 +528,14 @@ async def websocket_stream(websocket: WebSocket):
     bfo_hz = websocket.query_params.get("bfo_hz")
     audio_rate = int(audio_rate_hz) if audio_rate_hz else None
     bfo = float(bfo_hz) if bfo_hz else None
-    receiver: ReceiverService = websocket.app.state.receiver
+    receiver: ReceiverService | None = getattr(websocket.app.state, "receiver", None)
+    if receiver is None:
+        await websocket.accept()
+        await websocket.send_json(
+            {"type": "error", "message": "Receiver not initialized"},
+        )
+        await websocket.close(code=1011)
+        return
     # HackRF RX/TX scheduling is now managed inside the backend via the shared
     # HackRFDeviceManager and HackRFBroker flags; no broad websocket lock.
     await receiver.stream_frequency(
@@ -549,9 +557,11 @@ async def _require_broker_auth(request: Request) -> None:
         token = auth_header.split(" ", 1)[1].strip()
     if not token:
         token = request.query_params.get("token", "")
-    receiver: ReceiverService = request.app.state.receiver
+    receiver = getattr(request.app.state, "receiver", None)
     if not token:
         raise HTTPException(status_code=401, detail="Missing authorization token for HackRF TX")
+    if receiver is None:
+        raise HTTPException(status_code=503, detail="Receiver not initialized")
     try:
         await receiver.jwt_auth.verify_token(token)
     except Exception:
@@ -627,7 +637,9 @@ async def tx_tone(request: Request) -> dict[str, Any]:
 
     # Only after compliance checks do we require a broker; this allows tests and
     # deployments without HackRF hardware to still exercise the 403 paths.
-    if broker is None:
+    # Reject when broker is absent or has no hardware so we don't call request_tx()
+    # and interrupt active RX for a TX that would fail anyway.
+    if broker is None or not broker.available:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
 
     tx_succeeded = False
@@ -647,11 +659,9 @@ async def tx_tone(request: Request) -> dict[str, Any]:
     finally:
         broker.clear_tx()
         operator_id: str | None = None
-        try:
-            receiver = request.app.state.receiver
-            operator_id = receiver.station_id
-        except Exception:
-            operator_id = None
+        receiver_for_audit = getattr(request.app.state, "receiver", None)
+        if receiver_for_audit is not None:
+            operator_id = receiver_for_audit.station_id
         audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
         log_tx(
             frequency_hz=frequency_hz,
@@ -753,7 +763,9 @@ async def tx_iq(request: Request) -> dict[str, Any]:
             detail="TX not allowed on this frequency/spectrum",
         )
 
-    if broker is None:
+    # Reject when broker is absent or has no hardware so we don't call request_tx()
+    # and interrupt active RX for a TX that would fail anyway.
+    if broker is None or not broker.available:
         raise HTTPException(status_code=503, detail="HackRF TX broker not available")
 
     duration_sec = len(iq_bytes) / (2.0 * sample_rate) if sample_rate > 0 else 0.0
@@ -774,12 +786,10 @@ async def tx_iq(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail="HackRF TX IQ failed")
     finally:
         broker.clear_tx()
-        operator_id = None
-        try:
-            receiver = request.app.state.receiver
-            operator_id = receiver.station_id
-        except Exception:
-            pass
+        operator_id: str | None = None
+        receiver_for_audit = getattr(request.app.state, "receiver", None)
+        if receiver_for_audit is not None:
+            operator_id = receiver_for_audit.station_id
         audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
         log_tx(
             frequency_hz=frequency_hz,
