@@ -38,6 +38,10 @@ class _FakeRadio(SDRInterface):
         for s in self._samples:
             yield s
 
+    async def close(self) -> None:  # type: ignore[override]
+        """No-op for fake; avoids _backend.close() on lifespan shutdown."""
+        return None
+
 
 def _make_sample(with_audio: bool) -> SignalSample:
     raw = b"\x01\x02\x03\x04" if with_audio else None

@@ -36,6 +36,10 @@ class _FakeRadio(SDRInterface):
         for s in self._samples:
             yield s
 
+    async def close(self) -> None:  # type: ignore[override]
+        """No-op for fake; avoids _backend.close() on lifespan shutdown."""
+        return None
+
 
 def _setup_receiver_for_integration() -> str:
     receiver: server.ReceiverService = server.app.state.receiver
