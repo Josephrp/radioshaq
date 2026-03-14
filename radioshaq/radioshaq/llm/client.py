@@ -79,8 +79,10 @@ class LLMClient:
             self.api_key
             or os.environ.get("MISTRAL_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
             or os.environ.get("HF_TOKEN")
             or os.environ.get("HUGGINGFACE_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
         )
 
         kwargs: dict[str, Any] = {
@@ -131,8 +133,10 @@ class LLMClient:
             self.api_key
             or os.environ.get("MISTRAL_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
             or os.environ.get("HF_TOKEN")
             or os.environ.get("HUGGINGFACE_API_KEY")
+            or os.environ.get("GEMINI_API_KEY")
         )
 
         kwargs_tools: dict[str, Any] = {

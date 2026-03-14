@@ -177,8 +177,9 @@ class PostGISManager:
             # Build point geometry
             point = f"SRID=4326;POINT({longitude} {latitude})"
             
-            # Base query (include lat/lon for each operator so callers can map or compute further)
+            # Base query (include id, lat/lon, distance for mapping; id for stable marker keys)
             query = select(
+                OperatorLocation.id,
                 OperatorLocation.callsign,
                 OperatorLocation.timestamp,
                 OperatorLocation.altitude_meters,
@@ -216,10 +217,12 @@ class PostGISManager:
             
             return [
                 {
+                    "id": row.id,
                     "callsign": row.callsign,
                     "latitude": float(row.latitude) if row.latitude is not None else None,
                     "longitude": float(row.longitude) if row.longitude is not None else None,
                     "timestamp": row.timestamp.isoformat() if row.timestamp else None,
+                    "last_seen_at": row.timestamp.isoformat() if row.timestamp else None,
                     "altitude_meters": row.altitude_meters,
                     "source": row.source,
                     "session_id": row.session_id,

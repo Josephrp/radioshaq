@@ -8,6 +8,7 @@ import { CallsignsPage } from './features/callsigns/CallsignsPage';
 import { MessagesPage } from './features/messages/MessagesPage';
 import { TranscriptsPage } from './features/transcripts/TranscriptsPage';
 import { RadioPage } from './features/radio/RadioPage';
+import { MapPage } from './features/map/MapPage';
 import { SettingsPage } from './features/settings/SettingsPage';
 
 const LICENSE_ACCEPTANCE_KEY = 'radioshaq_license_acceptance_v1';
@@ -40,6 +41,7 @@ function App() {
           <Route path="messages" element={<MessagesPage />} />
           <Route path="transcripts" element={<TranscriptsPage />} />
           <Route path="radio" element={<RadioPage />} />
+          <Route path="map" element={<MapPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

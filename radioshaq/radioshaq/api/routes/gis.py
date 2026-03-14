@@ -158,10 +158,15 @@ async def get_operators_nearby(
         recent_only=recent_hours > 0,
         recent_hours=recent_hours,
     )
+    # Ensure each operator has last_seen_at for mapping clients (alias of timestamp)
+    operators_for_response = [
+        {**op, "last_seen_at": op.get("last_seen_at") or op.get("timestamp")}
+        for op in operators
+    ]
     return {
         "latitude": latitude,
         "longitude": longitude,
         "radius_meters": radius_meters,
-        "operators": operators,
-        "count": len(operators),
+        "operators": operators_for_response,
+        "count": len(operators_for_response),
     }

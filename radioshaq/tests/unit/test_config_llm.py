@@ -33,3 +33,20 @@ def test_llm_config_huggingface_api_base_optional():
         huggingface_api_base="https://router.huggingface.co/v1",
     )
     assert c.huggingface_api_base == "https://router.huggingface.co/v1"
+
+
+def test_llm_config_has_gemini_provider():
+    """LLMProvider includes gemini."""
+    assert LLMProvider.GEMINI == "gemini"
+
+
+def test_llm_config_gemini_fields():
+    """LLMConfig accepts provider=gemini, model, and gemini_api_key."""
+    c = LLMConfig(
+        provider=LLMProvider.GEMINI,
+        model="gemini-2.5-flash",
+        gemini_api_key="test-key",
+    )
+    assert c.provider == LLMProvider.GEMINI
+    assert c.model == "gemini-2.5-flash"
+    assert c.gemini_api_key == "test-key"
