@@ -28,6 +28,15 @@ from radioshaq.remote_receiver.radio_interface import (
     create_sdr_from_env,
 )
 
+# Env var for TX audit log: prefer pydantic config convention so YAML/config-driven deployments work.
+TX_AUDIT_LOG_PATH_ENV = "RADIOSHAQ_RADIO__TX_AUDIT_LOG_PATH"
+TX_AUDIT_LOG_PATH_ENV_LEGACY = "TX_AUDIT_LOG_PATH"
+
+
+def _broker_tx_audit_log_path() -> str | None:
+    """Path for broker TX audit log; matches config.radio.tx_audit_log_path env override."""
+    return os.environ.get(TX_AUDIT_LOG_PATH_ENV) or os.environ.get(TX_AUDIT_LOG_PATH_ENV_LEGACY) or None
+
 
 class ReceiverService:
     """Remote receiver: SDR, JWT auth, HQ upload."""
@@ -662,7 +671,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
         receiver_for_audit = getattr(request.app.state, "receiver", None)
         if receiver_for_audit is not None:
             operator_id = receiver_for_audit.station_id
-        audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
+        audit_log_path = _broker_tx_audit_log_path()
         log_tx(
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,
@@ -790,7 +799,7 @@ async def tx_iq(request: Request) -> dict[str, Any]:
         receiver_for_audit = getattr(request.app.state, "receiver", None)
         if receiver_for_audit is not None:
             operator_id = receiver_for_audit.station_id
-        audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
+        audit_log_path = _broker_tx_audit_log_path()
         log_tx(
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,

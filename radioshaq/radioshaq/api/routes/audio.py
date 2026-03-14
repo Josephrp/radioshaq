@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -159,7 +160,12 @@ async def test_audio_device(
         # Generate a short buffer of silence for playback test.
         silence = np.zeros((frames, 1), dtype="float32")
         # Open a stream for playback and (if supported) capture; immediately close.
-        sd.play(silence, samplerate=samplerate, device=device_id, blocking=True)
+        # Run blocking audio I/O off the event loop to avoid stalling other coroutines.
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(
+            None,
+            lambda: sd.play(silence, samplerate=samplerate, device=device_id, blocking=True),
+        )
     except ImportError:
         raise HTTPException(status_code=503, detail="sounddevice not available")
     except Exception as e:

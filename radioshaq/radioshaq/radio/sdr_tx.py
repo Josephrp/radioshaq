@@ -39,6 +39,26 @@ class _CompatAsyncClient(httpx.AsyncClient):
 _AsyncClient = _CompatAsyncClient
 
 
+def _normalize_iq_for_broker(samples_iq: Any, sample_rate: int) -> tuple[str, float]:
+    """Normalize I/Q samples to int8 interleaved, then to base64. Runs in thread executor."""
+    if isinstance(samples_iq, (bytes, bytearray, memoryview)):
+        iq = np.frombuffer(samples_iq, dtype=np.int8)
+    else:
+        s = np.asarray(samples_iq)
+        if np.iscomplexobj(s):
+            i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
+            q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
+            iq = np.empty(2 * len(s), dtype=np.int8)
+            iq[0::2] = i
+            iq[1::2] = q
+        else:
+            iq = np.asarray(s, dtype=np.int8)
+    duration_sec = len(iq) / (2.0 * sample_rate)
+    iq_bytes = iq.tobytes()
+    iq_b64 = base64.b64encode(iq_bytes).decode("ascii")
+    return iq_b64, duration_sec
+
+
 class SDRTransmitter(Protocol):
     """Protocol for SDR TX: compliance-checked transmit_tone / transmit_iq."""
 
@@ -383,22 +403,11 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
     ) -> None:
         """Transmit I/Q samples via the remote HackRF broker."""
         self._check_compliance(frequency_hz, occupied_bandwidth_hz=occupied_bandwidth_hz)
-        # Normalize samples into int8 interleaved IQ. Support both numpy arrays and raw bytes.
-        if isinstance(samples_iq, (bytes, bytearray, memoryview)):
-            iq = np.frombuffer(samples_iq, dtype=np.int8)
-        else:
-            s = np.asarray(samples_iq)
-            if np.iscomplexobj(s):
-                i = (np.clip(np.real(s) * 127, -128, 127)).astype(np.int8)
-                q = (np.clip(np.imag(s) * 127, -128, 127)).astype(np.int8)
-                iq = np.empty(2 * len(s), dtype=np.int8)
-                iq[0::2] = i
-                iq[1::2] = q
-            else:
-                iq = np.asarray(s, dtype=np.int8)
-        duration_sec = len(iq) / (2.0 * sample_rate)
-        iq_bytes = iq.tobytes()
-        iq_b64 = base64.b64encode(iq_bytes).decode("ascii")
+        # Offload heavy numpy/base64 work to a thread to avoid blocking the event loop.
+        loop = asyncio.get_running_loop()
+        iq_b64, duration_sec = await loop.run_in_executor(
+            None, _normalize_iq_for_broker, samples_iq, sample_rate
+        )
         success = False
         try:
             await self._post(

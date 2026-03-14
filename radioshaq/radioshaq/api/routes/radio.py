@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,12 @@ router = APIRouter()
 
 # Max size for /send-audio uploads to avoid unbounded memory use (DoS).
 MAX_AUDIO_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
+
+def _write_temp_audio(tmp: Any, content: bytes) -> None:
+    """Write content to a temp file and close it. Used from run_in_executor to avoid blocking."""
+    tmp.write(content)
+    tmp.close()
 
 
 class SendTTSBody(BaseModel):
@@ -156,8 +163,9 @@ async def send_audio(
     tmp = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
     temp_path = tmp.name
     try:
-        tmp.write(content)
-        tmp.close()
+        # Offload large file write off the event loop to avoid blocking other requests.
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, _write_temp_audio, tmp, content)
     except Exception:
         tmp.close()
         Path(temp_path).unlink(missing_ok=True)
