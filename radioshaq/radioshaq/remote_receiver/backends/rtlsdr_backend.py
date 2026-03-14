@@ -94,6 +94,7 @@ class RtlSdrBackend(SDRBackend):
                     s = np.asarray(samples)
                     power = np.mean(np.abs(s) ** 2)
                     strength_db = 10.0 * np.log10(power + 1e-30) if power > 0 else -120.0
+                    # Run CPU-heavy demod in executor to avoid blocking the event loop (same as hackrf_backend).
                     if self._rx_mode in {"nfm", "fm"}:
                         if self._nfm is None:
                             self._nfm = NfmDemodulator(

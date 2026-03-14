@@ -358,8 +358,12 @@ class HackRFBroker:
                 try:
                     buf = iq.tobytes()
                     stream_hackrf_iq_bytes(dev, buf, duration_sec)
-                except (AttributeError, TypeError, RuntimeError) as e:
+                except (AttributeError, TypeError) as e:
+                    # Stub/test device or API mismatch — warn and skip (non-fatal for audit).
                     logger.warning("HackRF TX not available ({}); tone TX skipped", repr(e))
+                except RuntimeError:
+                    # Hardware error — propagate so the broker endpoint can return 503.
+                    raise
 
             await loop.run_in_executor(None, _blocking_tx)
 
@@ -395,8 +399,12 @@ class HackRFBroker:
                     buf = iq.tobytes()
                     duration_sec = len(buf) / (2.0 * sample_rate)
                     stream_hackrf_iq_bytes(dev, buf, duration_sec)
-                except (AttributeError, TypeError, RuntimeError) as e:
+                except (AttributeError, TypeError) as e:
+                    # Stub/test device or API mismatch — warn and skip (non-fatal for audit).
                     logger.warning("HackRF TX not available ({}); IQ TX skipped", repr(e))
+                except RuntimeError:
+                    # Hardware error — propagate so the broker endpoint can return 503.
+                    raise
 
             await loop.run_in_executor(None, _blocking_tx)
 
@@ -536,6 +544,10 @@ async def _require_broker_auth(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Invalid authorization token for HackRF TX")
 
 
+# Upper bound on tone duration to avoid OOM / event-loop blockage (e.g. 3600 s @ 2 MHz → ~57 GB).
+MAX_TONE_SEC = 30.0
+
+
 @app.post("/tx/tone")
 async def tx_tone(request: Request) -> dict[str, Any]:
     """Transmit a short tone via the HackRF broker.
@@ -554,6 +566,11 @@ async def tx_tone(request: Request) -> dict[str, Any]:
         raise HTTPException(
             status_code=400,
             detail=f"sample_rate must be a positive integer, got {sample_rate}",
+        )
+    if duration_sec <= 0 or duration_sec > MAX_TONE_SEC:
+        raise HTTPException(
+            status_code=400,
+            detail=f"duration_sec must be in (0, {MAX_TONE_SEC}], got {duration_sec}",
         )
     broker: HackRFBroker | None = getattr(request.app.state, "hackrf_broker", None)
 
