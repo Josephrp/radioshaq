@@ -2,6 +2,12 @@
 
 This walkthrough configures a **complete demo**: HackRF as a remote receiver streaming to HQ, with transcripts stored and inject/relay so you can see end-to-end flow in the API and (optionally) the web UI.
 
+**Related demos (same suite):** See [coverage-matrix.md](coverage-matrix.md) for the full map of capabilities vs. demos. Specialized playbooks: [demo-voice-rx-audio.md](demo-voice-rx-audio.md), [demo-hackrf-tx-audio.md](demo-hackrf-tx-audio.md), [demo-option-c-no-twilio.md](demo-option-c-no-twilio.md), [demo-radio-rx-injection.md](demo-radio-rx-injection.md), and others in [README.md](README.md).
+
+**Hardware vs. stub:** Steps that require a **real HackRF** are: starting the receiver (Step 5/7), triggering the live stream (Step 6/8), and any HackRF TX (send-audio/send-tts). Database, inject/relay, and transcript polling work without hardware; you can run `run_demo.py` (inject + relay + poll) with the receiver in stub mode.
+
+**Env quick reference:** See [docs/demo-env-profiles.md](../../docs/demo-env-profiles.md) for HQ vs receiver vs demo script env vars and agent/API hooks.
+
 ## What you get
 
 1. **HQ (main API)** — Stores receiver uploads as transcripts and injects them into the RX path; serves web UI and `/transcripts`, `/inject`, `/messages/relay`.

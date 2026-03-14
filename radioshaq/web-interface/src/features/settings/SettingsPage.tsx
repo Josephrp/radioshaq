@@ -113,6 +113,7 @@ export function SettingsPage() {
               <option value="anthropic">anthropic</option>
               <option value="custom">custom</option>
               <option value="huggingface">huggingface</option>
+              <option value="gemini">gemini (Google)</option>
             </select>
             <label style={LABEL_STYLE}>{t('settings.model')}</label>
             <input
@@ -137,6 +138,11 @@ export function SettingsPage() {
                   disabled={!!saving}
                 />
               </>
+            )}
+            {(llm.provider ?? 'mistral') === 'gemini' && (
+              <p style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--muted)', maxWidth: 420 }}>
+                {t('settings.geminiApiKeyNote')}
+              </p>
             )}
             {(llm.provider ?? 'mistral') === 'huggingface' && (
               <>

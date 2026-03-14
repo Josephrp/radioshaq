@@ -89,6 +89,7 @@ export interface LlmConfigResponse {
   custom_api_base?: string | null;
   huggingface_api_key?: string | null;
   huggingface_api_base?: string | null;
+  gemini_api_key?: string | null;
   temperature?: number;
   max_tokens?: number;
   _meta?: ConfigResponseMeta;
@@ -482,4 +483,75 @@ export function subscribeEmergencyStream(
       }
     })
     .catch(() => {});
+}
+
+// ----- GIS (operator locations and operators-nearby) -----
+export interface OperatorLocation {
+  id: number;
+  callsign: string;
+  latitude: number;
+  longitude: number;
+  source: string;
+  timestamp?: string;
+  confidence?: number | null;
+  last_seen_at?: string;
+  distance_meters?: number;
+}
+
+export interface OperatorsNearbyResponse {
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  operators: OperatorLocation[];
+  count: number;
+}
+
+export async function getOperatorLocation(callsign: string): Promise<OperatorLocation> {
+  const res = await fetch(
+    `${API_BASE}/gis/location/${encodeURIComponent(callsign.trim().toUpperCase())}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to get operator location');
+  return res.json();
+}
+
+export async function getOperatorsNearby(params: {
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+  recent_hours?: number;
+  max_results?: number;
+}): Promise<OperatorsNearbyResponse> {
+  const search = new URLSearchParams({
+    latitude: String(params.latitude),
+    longitude: String(params.longitude),
+  });
+  if (params.radius_meters != null) search.set('radius_meters', String(params.radius_meters));
+  if (params.recent_hours != null) search.set('recent_hours', String(params.recent_hours));
+  if (params.max_results != null) search.set('max_results', String(params.max_results));
+  const res = await fetch(`${API_BASE}/gis/operators-nearby?${search}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to get operators nearby');
+  return res.json();
+}
+
+export async function setOperatorLocation(body: {
+  callsign: string;
+  latitude: number;
+  longitude: number;
+  altitude_meters?: number;
+  accuracy_meters?: number;
+}): Promise<OperatorLocation> {
+  const res = await fetch(`${API_BASE}/gis/location`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      callsign: body.callsign.trim().toUpperCase(),
+      latitude: body.latitude,
+      longitude: body.longitude,
+      altitude_meters: body.altitude_meters,
+      accuracy_meters: body.accuracy_meters,
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to set operator location');
+  return res.json();
 }

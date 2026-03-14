@@ -70,6 +70,15 @@ def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
         return f"openai/{model}"
     if p == "custom":
         return f"custom/{model}" if "/" not in model else model
+    if p == "gemini":
+        raw_model = (getattr(llm, "model", None) or "").strip()
+        if not raw_model:
+            model = "gemini-2.5-flash"
+        else:
+            model = raw_model
+        if "gemini/" in model:
+            return model
+        return f"gemini/{model}"
     if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):
         return f"mistral/{model}"
     return model
@@ -105,6 +114,8 @@ def _llm_api_key_from_llm_config(llm: LLMConfig) -> str | None:
         return getattr(llm, "openai_api_key", None)
     if p == "mistral":
         return getattr(llm, "mistral_api_key", None)
+    if p == "gemini":
+        return getattr(llm, "gemini_api_key", None)
     return None
 
 

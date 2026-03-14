@@ -11,6 +11,7 @@ const navPaths = [
   { to: '/messages', key: 'messages' as const },
   { to: '/transcripts', key: 'transcripts' as const },
   { to: '/radio', key: 'radio' as const },
+  { to: '/map', key: 'map' as const },
   { to: '/settings', key: 'settings' as const },
 ];
 

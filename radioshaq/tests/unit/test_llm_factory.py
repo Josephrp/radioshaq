@@ -71,3 +71,33 @@ def test_llm_api_key_from_llm_config_provider_matched_only():
         huggingface_api_key="hf_xyz",
     )
     assert _llm_api_key_from_llm_config(llm) == "hf_xyz"
+
+
+def test_llm_model_string_gemini():
+    """When provider is gemini, model gets gemini/ prefix."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI, model="gemini-2.5-flash")
+    assert _llm_model_string_from_llm_config(llm) == "gemini/gemini-2.5-flash"
+
+
+def test_llm_model_string_gemini_default_model():
+    """When provider is gemini and model empty, default to gemini-2.5-flash."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI, model="")
+    assert _llm_model_string_from_llm_config(llm) == "gemini/gemini-2.5-flash"
+
+
+def test_llm_model_string_gemini_already_prefixed():
+    """When provider is gemini and model already has gemini/, keep as-is."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI, model="gemini/gemini-2.5-pro")
+    assert _llm_model_string_from_llm_config(llm) == "gemini/gemini-2.5-pro"
+
+
+def test_llm_api_key_from_llm_config_gemini():
+    """When provider is gemini, return gemini_api_key."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI, gemini_api_key="key123")
+    assert _llm_api_key_from_llm_config(llm) == "key123"
+
+
+def test_llm_api_base_for_provider_gemini_none():
+    """When provider is gemini, return None (LiteLLM uses default)."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI)
+    assert _llm_api_base_for_provider(llm) is None

@@ -44,13 +44,14 @@ jwt:
 # LLM (set API key in env or here; prefer env for secrets)
 # -----------------------------------------------------------------------------
 llm:
-  provider: mistral             # mistral | openai | anthropic | custom
+  provider: mistral             # mistral | openai | anthropic | custom | huggingface | gemini
   model: mistral-large-latest
   mistral_api_key: null
   openai_api_key: null
   anthropic_api_key: null
   custom_api_base: null
   custom_api_key: null
+  gemini_api_key: null         # For provider: gemini; or set GEMINI_API_KEY
   temperature: 0.1
   max_tokens: 4096
   timeout_seconds: 60.0
