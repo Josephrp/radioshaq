@@ -72,11 +72,13 @@ class _ComplianceCheckedTransmitter:
         audit_log_path: str | None = None,
         restricted_region: str = "FCC",
         band_plan_source: dict[str, BandPlan] | None = None,
+        rig_or_sdr: str = "hackrf",
     ) -> None:
         self.allow_bands_only = allow_bands_only
         self.audit_log_path = audit_log_path
         self.restricted_region = restricted_region
         self._band_plan_source = band_plan_source
+        self._rig_or_sdr = rig_or_sdr
 
     def _check_compliance(self, frequency_hz: float, occupied_bandwidth_hz: float | None = None) -> None:
         """Raise ValueError if TX not allowed on this frequency."""
@@ -125,7 +127,7 @@ class _ComplianceCheckedTransmitter:
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,
             mode=mode,
-            rig_or_sdr="hackrf",
+            rig_or_sdr=self._rig_or_sdr,
             operator_id=None,
             audit_log_path=self.audit_log_path,
             success=success,
@@ -304,6 +306,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
             audit_log_path=audit_log_path,
             restricted_region=restricted_region,
             band_plan_source=band_plan_source,
+            rig_or_sdr="hackrf_broker",
         )
         self._base_url = base_url.rstrip("/")
         self._auth_token = auth_token

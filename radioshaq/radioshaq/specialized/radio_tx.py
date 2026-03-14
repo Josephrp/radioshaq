@@ -152,10 +152,14 @@ class RadioTransmissionAgent(SpecializedAgent):
                         raise RuntimeError(
                             "SDR voice TX from file requires optional deps: uv sync --extra voice_tx"
                         ) from e
-                    data, sr = sf.read(str(audio_path), dtype="float32", always_2d=False)
-                    # Modulate to 2 MHz (HackRF-friendly); run CPU-heavy scipy in executor to avoid blocking event loop.
                     tx_rate = 2_000_000
                     loop = asyncio.get_running_loop()
+                    # Run blocking file I/O in executor to avoid stalling the event loop.
+                    data, sr = await loop.run_in_executor(
+                        None,
+                        lambda: sf.read(str(audio_path), dtype="float32", always_2d=False),
+                    )
+                    # Modulate to 2 MHz (HackRF-friendly); run CPU-heavy scipy in executor to avoid blocking event loop.
                     if mode_name.value in ("NFM",):
                         iq = await loop.run_in_executor(
                             None, lambda: nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)

@@ -334,17 +334,18 @@ class HackRFBroker:
         loop = asyncio.get_running_loop()
 
         async def _fn(dev: Any) -> None:
-            # Generate a simple tone in int8 interleaved I/Q, matching HackRF expectations.
-            tone_hz = 1000.0
-            num_samples = int(duration_sec * sample_rate)
-            t = np.arange(num_samples, dtype=np.float64) / sample_rate
-            i = (127 * 0.3 * np.cos(2 * np.pi * tone_hz * t)).astype(np.int8)
-            q = (127 * 0.3 * np.sin(2 * np.pi * tone_hz * t)).astype(np.int8)
-            iq = np.empty(2 * num_samples, dtype=np.int8)
-            iq[0::2] = i
-            iq[1::2] = q
-
             def _blocking_tx() -> None:
+                # Generate tone and run TX in thread pool to avoid blocking the event loop
+                # (NumPy ops for up to ~60M samples can take hundreds of ms).
+                tone_hz = 1000.0
+                num_samples = int(duration_sec * sample_rate)
+                t = np.arange(num_samples, dtype=np.float64) / sample_rate
+                i = (127 * 0.3 * np.cos(2 * np.pi * tone_hz * t)).astype(np.int8)
+                q = (127 * 0.3 * np.sin(2 * np.pi * tone_hz * t)).astype(np.int8)
+                iq = np.empty(2 * num_samples, dtype=np.int8)
+                iq[0::2] = i
+                iq[1::2] = q
+                buf = iq.tobytes()
                 try:
                     dev.center_freq = int(frequency_hz)
                     dev.sample_rate = sample_rate
@@ -356,7 +357,6 @@ class HackRFBroker:
                     # Older or stub objects may not expose these attributes.
                     pass
                 try:
-                    buf = iq.tobytes()
                     stream_hackrf_iq_bytes(dev, buf, duration_sec)
                 except (AttributeError, TypeError) as e:
                     # Stub/test device or API mismatch — warn and skip (non-fatal for audit).
@@ -638,6 +638,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
             operator_id = receiver.station_id
         except Exception:
             operator_id = None
+        audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
         log_tx(
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,
@@ -645,6 +646,7 @@ async def tx_tone(request: Request) -> dict[str, Any]:
             rig_or_sdr="hackrf_broker",
             operator_id=operator_id,
             success=tx_succeeded,
+            audit_log_path=audit_log_path,
         )
     return {"success": True, "notes": "HackRF tone transmitted via remote receiver"}
 
@@ -764,6 +766,7 @@ async def tx_iq(request: Request) -> dict[str, Any]:
             operator_id = receiver.station_id
         except Exception:
             pass
+        audit_log_path = os.environ.get("TX_AUDIT_LOG_PATH") or None
         log_tx(
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,
@@ -772,6 +775,7 @@ async def tx_iq(request: Request) -> dict[str, Any]:
             operator_id=operator_id,
             occupied_bandwidth_hz=occupied_bandwidth_hz,
             success=tx_succeeded,
+            audit_log_path=audit_log_path,
         )
     return {"success": True, "notes": "HackRF IQ transmitted via remote receiver"}
 
