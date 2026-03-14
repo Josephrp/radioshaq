@@ -285,6 +285,17 @@ class HackRFDeviceManager:
             dev = self._open_device()
             return await fn(dev)
 
+    async def close(self) -> None:
+        """Release the underlying HackRF device handle."""
+        async with self._lock:
+            if self._device is not None:
+                try:
+                    self._device.close()
+                except Exception as e:
+                    logger.warning("HackRF device manager close failed: {}", repr(e))
+                finally:
+                    self._device = None
+
 
 class HackRFBroker:
     """Coordinate HackRF TX (and later RX) behind a single async interface."""
@@ -446,6 +457,9 @@ async def lifespan(app: FastAPI):
     await service.start()
     yield
     # Shutdown
+    await service.radio.close()
+    if device_manager is not None:
+        await device_manager.close()
 
 
 app = FastAPI(title="RadioShaq Remote Receiver", lifespan=lifespan)
