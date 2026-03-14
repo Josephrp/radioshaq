@@ -151,7 +151,13 @@ class DatabaseConfig(BaseModel):
         # Normalize 127.0.0.1 to localhost in the host component only (avoid corrupting password/db).
         parsed = urlparse(v)
         if parsed.hostname == "127.0.0.1":
-            netloc = parsed.netloc.replace("127.0.0.1", "localhost", 1)
+            netloc = parsed.netloc
+            if "@" in netloc:
+                userinfo, hostport = netloc.rsplit("@", 1)
+                hostport = hostport.replace("127.0.0.1", "localhost", 1)
+                netloc = f"{userinfo}@{hostport}"
+            else:
+                netloc = netloc.replace("127.0.0.1", "localhost", 1)
             v = urlunparse(parsed._replace(netloc=netloc))
         return v
 

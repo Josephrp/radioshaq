@@ -174,7 +174,9 @@ class RadioTransmissionAgent(SpecializedAgent):
                         )
                     elif mode_name.value == "CW":
                         # CW audio TX is typically keying; as a minimal baseline, emit a short carrier.
-                        iq = cw_tone_iq(duration_sec=0.5, rf_rate_hz=tx_rate)
+                        iq = await loop.run_in_executor(
+                            None, lambda: cw_tone_iq(duration_sec=0.5, rf_rate_hz=tx_rate)
+                        )
                     else:
                         iq = await loop.run_in_executor(
                             None, lambda: nfm_modulate(data, int(sr), tx_rate, deviation_hz=2_500.0)

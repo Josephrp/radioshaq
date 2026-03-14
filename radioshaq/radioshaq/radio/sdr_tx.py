@@ -188,18 +188,20 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
         self._check_compliance(frequency_hz, occupied_bandwidth_hz=25_000.0)
         dev = self._open()
         loop = asyncio.get_running_loop()
-        # Generate int8 interleaved I/Q for a tone (e.g. 1 kHz at sample_rate)
-        import numpy as np
-        tone_hz = 1000.0
-        num_samples = int(duration_sec * sample_rate)
-        t = np.arange(num_samples, dtype=np.float64) / sample_rate
-        i = (127 * 0.3 * np.cos(2 * np.pi * tone_hz * t)).astype(np.int8)
-        q = (127 * 0.3 * np.sin(2 * np.pi * tone_hz * t)).astype(np.int8)
-        iq = np.empty(2 * num_samples, dtype=np.int8)
-        iq[0::2] = i
-        iq[1::2] = q
+        success = False
 
         def _blocking_tx() -> None:
+            # Generate int8 interleaved I/Q for a tone (e.g. 1 kHz at sample_rate)
+            # inside the executor to avoid blocking the event loop.
+            tone_hz = 1000.0
+            num_samples = int(duration_sec * sample_rate)
+            t = np.arange(num_samples, dtype=np.float64) / sample_rate
+            i = (127 * 0.3 * np.cos(2 * np.pi * tone_hz * t)).astype(np.int8)
+            q = (127 * 0.3 * np.sin(2 * np.pi * tone_hz * t)).astype(np.int8)
+            iq = np.empty(2 * num_samples, dtype=np.int8)
+            iq[0::2] = i
+            iq[1::2] = q
+
             try:
                 dev.center_freq = int(frequency_hz)
                 dev.sample_rate = sample_rate
@@ -210,11 +212,13 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
             try:
                 buf = iq.tobytes()
                 stream_hackrf_iq_bytes(dev, buf, duration_sec)
-            except (AttributeError, TypeError, RuntimeError) as e:
+            except (AttributeError, TypeError) as e:
+                # Stub/API mismatch: skip hardware TX but still allow audit trail to record attempt.
                 logger.warning("HackRF TX not available ({}); audit only", repr(e))
 
         try:
             await loop.run_in_executor(None, _blocking_tx)
+            success = True
         except RuntimeError as e:
             msg = str(e)
             if "HACKRF_ERROR_LIBUSB" in msg or "libusb" in msg.lower():
@@ -225,7 +229,7 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
                 ) from e
             raise
         finally:
-            self._audit(frequency_hz, duration_sec, "tone")
+            self._audit(frequency_hz, duration_sec, "tone", success=success)
 
     async def transmit_iq(
         self,
@@ -254,6 +258,7 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
         duration_sec = len(iq) / (2.0 * sample_rate)
         dev = self._open()
         loop = asyncio.get_running_loop()
+        success = False
 
         def _blocking_tx() -> None:
             try:
@@ -266,11 +271,13 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
             try:
                 buf = iq.tobytes()
                 stream_hackrf_iq_bytes(dev, buf, duration_sec)
-            except (AttributeError, TypeError, RuntimeError) as e:
+            except (AttributeError, TypeError) as e:
+                # Stub/API mismatch: skip hardware TX but still allow audit trail to record attempt.
                 logger.warning("HackRF TX not available ({}); audit only", repr(e))
 
         try:
             await loop.run_in_executor(None, _blocking_tx)
+            success = True
         except RuntimeError as e:
             msg = str(e)
             if "HACKRF_ERROR_LIBUSB" in msg or "libusb" in msg.lower():
@@ -281,7 +288,7 @@ class HackRFTransmitter(_ComplianceCheckedTransmitter):
                 ) from e
             raise
         finally:
-            self._audit(frequency_hz, duration_sec, "iq")
+            self._audit(frequency_hz, duration_sec, "iq", success=success)
 
 
 class HackRFServiceClient(_ComplianceCheckedTransmitter):
