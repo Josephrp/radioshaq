@@ -9,7 +9,8 @@ from pathlib import Path
 
 # Project root (radioshaq/)
 ROOT = Path(__file__).resolve().parent.parent.parent
-ALEMBIC_INI = ROOT / "infrastructure" / "local" / "alembic.ini"
+# Use root Alembic config by default
+ALEMBIC_INI = ROOT / "alembic.ini"
 
 
 def _run(args: list[str]) -> int:
@@ -19,17 +20,17 @@ def _run(args: list[str]) -> int:
 
 
 def upgrade() -> int:
-    """Run: alembic -c infrastructure/local/alembic.ini upgrade head."""
+    """Run: alembic -c alembic.ini upgrade head."""
     return _run(["upgrade", "head"])
 
 
 def upgrade_sql() -> int:
-    """Run: alembic -c infrastructure/local/alembic.ini upgrade head --sql."""
+    """Run: alembic -c alembic.ini upgrade head --sql."""
     return _run(["upgrade", "head", "--sql"])
 
 
 def current() -> int:
-    """Run: alembic -c infrastructure/local/alembic.ini current."""
+    """Run: alembic -c alembic.ini current."""
     return _run(["current"])
 
 

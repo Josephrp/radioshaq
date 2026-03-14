@@ -67,7 +67,7 @@ module.exports = {
         BRIDGE_URL: 'ws://localhost:3001',
         BRIDGE_TOKEN: 'dev-bridge-token',
         // Alembic
-        ALEMBIC_CONFIG: 'infrastructure/local/alembic.ini',
+        ALEMBIC_CONFIG: 'alembic.ini',
         // Memory (per-callsign; optional Hindsight)
         RADIOSHAQ_MEMORY__ENABLED: 'true',
         RADIOSHAQ_MEMORY__HINDSIGHT_BASE_URL: 'http://localhost:8888',
@@ -310,7 +310,7 @@ module.exports = {
       watch: false,
       one_time: true,  // Run once and exit
       env: {
-        ALEMBIC_CONFIG: 'infrastructure/local/alembic.ini',
+        ALEMBIC_CONFIG: 'alembic.ini',
         DATABASE_URL: 'postgresql+asyncpg://radioshaq:radioshaq@localhost:5432/radioshaq',
       },
       log_file: path.join(logsDir, 'alembic.log'),

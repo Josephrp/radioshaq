@@ -46,7 +46,7 @@ async def process_inbound_message(
             try:
                 await callsign_repository.update_last_band(callsign, band)
             except Exception as e:
-                logger.debug("update_last_band failed: %s", e)
+                logger.debug("update_last_band failed: {}", e)
     # channel/chat_id are used by outbound handlers for delivery (radio_rx, sms, whatsapp)
     out = OutboundMessage(
         channel=message.channel,
@@ -58,7 +58,11 @@ async def process_inbound_message(
     )
     ok = await bus.publish_outbound(out)
     if not ok:
-        logger.warning("Outbound queue full, could not send reply to %s:%s", message.channel, message.chat_id)
+        logger.warning(
+            "Outbound queue full, could not send reply to {}:{}",
+            message.channel,
+            message.chat_id,
+        )
     return result
 
 
@@ -89,4 +93,4 @@ async def run_inbound_consumer(
             # Bus uses inbound_timeout; wake periodically to check stop_event
             continue
         except Exception as e:
-            logger.exception("Inbound consumer error: %s", e)
+            logger.exception("Inbound consumer error: {}", e)

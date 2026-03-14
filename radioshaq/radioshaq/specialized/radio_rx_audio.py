@@ -205,7 +205,7 @@ class ConfirmationManager:
             try:
                 await callback(pending)
             except Exception as e:
-                logger.warning("Confirmation callback error: %s", e)
+                logger.warning("Confirmation callback error: {}", e)
 
 
 class RadioAudioReceptionAgent(SpecializedAgent):
@@ -415,7 +415,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                         metadata={"band": self._current_band or "unknown", "source": "voice_listener"},
                     )
                 except Exception as e:
-                    logger.warning("Voice transcript store failed: %s", e)
+                    logger.warning("Voice transcript store failed: {}", e)
 
         # Publish to MessageBus so orchestrator can process (default capture path)
         if getattr(self.config, "voice_publish_to_bus", True) and self._message_bus and hasattr(self._message_bus, "publish_inbound"):
@@ -434,7 +434,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                 if not ok:
                     logger.debug("Voice segment dropped (bus full)")
             except Exception as e:
-                logger.warning("Voice publish_inbound failed: %s", e)
+                logger.warning("Voice publish_inbound failed: {}", e)
 
         response_text = await self._generate_response_text(transcript)
         if self.config.response_mode == ResponseMode.LISTEN_ONLY:
@@ -558,7 +558,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             finally:
                 Path(temp_path).unlink(missing_ok=True)
         except Exception as e:
-            logger.exception("ASR failed: %s", e)
+            logger.exception("ASR failed: {}", e)
             return None
 
     async def _generate_response_text(self, incoming_message: str) -> str:
@@ -591,7 +591,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
             result = await self.response_agent.execute(task)
             return result.get("success", False)
         except Exception as e:
-            logger.exception("Response send failed: %s", e)
+            logger.exception("Response send failed: {}", e)
             return False
 
     async def _action_transcribe_file(
@@ -621,7 +621,7 @@ class RadioAudioReceptionAgent(SpecializedAgent):
                 "model": self.config.asr_model,
             }
         except Exception as e:
-            logger.exception("ASR failed: %s", e)
+            logger.exception("ASR failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             return {"error": str(e), "audio_path": audio_path}
 

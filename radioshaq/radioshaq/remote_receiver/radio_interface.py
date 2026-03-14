@@ -6,7 +6,7 @@ import asyncio
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING, AsyncIterator
+from typing import TYPE_CHECKING, Any, AsyncIterator
 
 from loguru import logger
 
@@ -28,7 +28,11 @@ class SignalSample:
         return self.strength_db >= -90.0
 
 
-def create_sdr_from_env() -> SDRInterface:
+def create_sdr_from_env(
+    *,
+    device_manager: Any | None = None,
+    broker: Any | None = None,
+) -> "SDRInterface":
     """
     Build SDR from environment. SDR_TYPE=rtlsdr (default) or hackrf.
     RTL-SDR: RTLSDR_INDEX (default 0).
@@ -45,6 +49,8 @@ def create_sdr_from_env() -> SDRInterface:
             device_index=index,
             serial_number=serial,
             sample_rate=sample_rate,
+            device_manager=device_manager,
+            broker=broker,
         )
     else:
         from radioshaq.remote_receiver.backends.rtlsdr_backend import RtlSdrBackend
@@ -81,6 +87,17 @@ class SDRInterface:
     async def set_frequency(self, frequency_hz: float) -> None:
         """Tune to frequency in Hz."""
         await self._backend.set_frequency(frequency_hz)
+
+    async def configure(
+        self,
+        *,
+        mode: str | None = None,
+        audio_rate_hz: int | None = None,
+        bfo_hz: float | None = None,
+    ) -> None:
+        """Configure backend demod settings (if supported)."""
+        if hasattr(self._backend, "configure"):
+            await self._backend.configure(mode=mode, audio_rate_hz=audio_rate_hz, bfo_hz=bfo_hz)
 
     async def receive(self, duration_seconds: float) -> AsyncIterator[SignalSample]:
         """Stream signal samples for duration."""

@@ -68,7 +68,12 @@ class InMemoryInjectionQueue:
         )
         try:
             self._queue.put_nowait(msg)
-            logger.debug("Injected message for RX: band=%s freq=%s text=%s", band, frequency_hz, text[:50])
+            logger.debug(
+                "Injected message for RX: band={} freq={} text={}",
+                band,
+                frequency_hz,
+                text[:50],
+            )
         except asyncio.QueueFull:
             logger.warning("Injection queue full, dropping message")
 
@@ -92,7 +97,10 @@ class InMemoryInjectionQueue:
             self._queue.put_nowait(msg)
             return True
         except asyncio.QueueFull:
-            logger.warning("Injection queue full on re-put, dropping message (band=%s)", getattr(msg, "band", None))
+            logger.warning(
+                "Injection queue full on re-put, dropping message (band={})",
+                getattr(msg, "band", None),
+            )
             return False
 
     def qsize(self) -> int:

@@ -20,8 +20,10 @@ async def _maybe_reenqueue_outbound(bus: Any, msg: Any, channel_label: str) -> N
     retries = int(meta.get("_retries", 0))
     if retries >= MAX_OUTBOUND_RETRIES:
         logger.error(
-            "Outbound %s to %s failed %d times, dropping to dead-letter",
-            channel_label, msg.chat_id, MAX_OUTBOUND_RETRIES,
+            "Outbound {} to {} failed {} times, dropping to dead-letter",
+            channel_label,
+            msg.chat_id,
+            MAX_OUTBOUND_RETRIES,
         )
         return
     meta["_retries"] = retries + 1
@@ -39,7 +41,11 @@ async def _maybe_reenqueue_outbound(bus: Any, msg: Any, channel_label: str) -> N
                 metadata=meta,
             ))
     except Exception:
-        logger.error("Failed to re-enqueue outbound %s message to %s", channel_label, msg.chat_id)
+        logger.error(
+            "Failed to re-enqueue outbound {} message to {}",
+            channel_label,
+            msg.chat_id,
+        )
 
 
 async def _mark_emergency_sent(db: Any, msg: Any) -> None:
@@ -56,7 +62,11 @@ async def _mark_emergency_sent(db: Any, msg: Any) -> None:
             extra_data={"sent_at": datetime.now(timezone.utc).isoformat()},
         )
     except Exception as e:
-        logger.warning("Could not update sent_at for emergency event %s: %s", event_id, e)
+        logger.warning(
+            "Could not update sent_at for emergency event {}: {}",
+            event_id,
+            e,
+        )
 
 
 async def run_outbound_handler(
@@ -89,7 +99,7 @@ async def run_outbound_handler(
                     if handled is False:
                         await _maybe_reenqueue_outbound(bus, msg, "radio_rx")
                 except Exception as e:
-                    logger.warning("Outbound radio_rx failed: %s", e)
+                    logger.warning("Outbound radio_rx failed: {}", e)
                     await _maybe_reenqueue_outbound(bus, msg, "radio_rx")
             elif msg.channel == "sms":
                 sms_agent = agent_registry.get_agent("sms") if agent_registry else None
@@ -100,12 +110,15 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                         if result.get("success") is False:
-                            logger.warning("Outbound sms execute returned unsuccessful result for %s", msg.chat_id)
+                            logger.warning(
+                                "Outbound sms execute returned unsuccessful result for {}",
+                                msg.chat_id,
+                            )
                             await _maybe_reenqueue_outbound(bus, msg, "sms")
                         else:
                             await _mark_emergency_sent(db, msg)
                     except Exception as e:
-                        logger.warning("Outbound sms execute failed: %s", e)
+                        logger.warning("Outbound sms execute failed: {}", e)
                         await _maybe_reenqueue_outbound(bus, msg, "sms")
                 else:
                     logger.debug("Outbound sms: no sms agent, re-enqueuing")
@@ -123,22 +136,25 @@ async def run_outbound_handler(
                             upstream_callback=None,
                         )
                         if result.get("success") is False:
-                            logger.warning("Outbound whatsapp execute returned unsuccessful result for %s", msg.chat_id)
+                            logger.warning(
+                                "Outbound whatsapp execute returned unsuccessful result for {}",
+                                msg.chat_id,
+                            )
                             await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
                         else:
                             await _mark_emergency_sent(db, msg)
                     except Exception as e:
-                        logger.warning("Outbound whatsapp execute failed: %s", e)
+                        logger.warning("Outbound whatsapp execute failed: {}", e)
                         await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
                 else:
                     logger.debug("Outbound whatsapp: no whatsapp agent, re-enqueuing")
                     await _maybe_reenqueue_outbound(bus, msg, "whatsapp")
             else:
-                logger.debug("Outbound unsupported channel: %s", msg.channel)
+                logger.debug("Outbound unsupported channel: {}", msg.channel)
         except asyncio.CancelledError:
             logger.debug("Outbound handler cancelled")
             break
         except asyncio.TimeoutError:
             continue
         except Exception as e:
-            logger.exception("Outbound handler error: %s", e)
+            logger.exception("Outbound handler error: {}", e)

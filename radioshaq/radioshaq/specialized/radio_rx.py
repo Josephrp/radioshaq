@@ -8,6 +8,7 @@ from typing import Any
 from loguru import logger
 
 from radioshaq.specialized.base import SpecializedAgent
+from radioshaq.radio.modes import external_modem_for, normalize_mode
 
 
 class RadioReceptionAgent(SpecializedAgent):
@@ -70,7 +71,7 @@ class RadioReceptionAgent(SpecializedAgent):
 
         if self.rig_manager:
             await self.rig_manager.set_frequency(frequency)
-            await self.rig_manager.set_mode(mode)
+            await self.rig_manager.set_mode(str(normalize_mode(mode)))
 
         try:
             from radioshaq.radio.injection import get_injection_queue
@@ -79,7 +80,8 @@ class RadioReceptionAgent(SpecializedAgent):
             injection_queue = None
 
         while (loop.time() - start) < duration_seconds:
-            if self.digital_modes and mode in ("PSK31", "FT8", "RTTY", "CW"):
+            modem = external_modem_for(mode)
+            if self.digital_modes and modem and modem not in ("AX25", "APRS"):
                 try:
                     text = await asyncio.wait_for(
                         self.digital_modes.receive_text(timeout=1.0),

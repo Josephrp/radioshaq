@@ -34,7 +34,7 @@ class HQClient:
                 if r.status_code == 200:
                     logger.info("HQ connection OK")
         except Exception as e:
-            logger.warning("HQ connect check failed: %s", e)
+            logger.warning("HQ connect check failed: {}", e)
 
     async def upload(self, packet: dict[str, Any]) -> bool:
         """Upload a single packet to HQ."""
@@ -48,5 +48,5 @@ class HQClient:
                 )
                 return r.status_code in (200, 201)
         except Exception as e:
-            logger.warning("HQ upload failed: %s", e)
+            logger.warning("HQ upload failed: {}", e)
             return False

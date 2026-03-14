@@ -118,7 +118,7 @@ class PacketRadioInterface:
         )
         self._connected = True
         self._reader_task = asyncio.create_task(self._frame_reader())
-        logger.info("Connected to KISS TNC at %s:%d", self.kiss_host, self.kiss_port)
+        logger.info("Connected to KISS TNC at {}:{}", self.kiss_host, self.kiss_port)
 
     async def disconnect(self) -> None:
         """Disconnect from KISS TNC."""
@@ -220,9 +220,9 @@ class PacketRadioInterface:
                             try:
                                 handler(frame)
                             except Exception as e:
-                                logger.warning("Frame handler error: %s", e)
+                                logger.warning("Frame handler error: {}", e)
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.warning("KISS frame reader error: %s", e)
+                logger.warning("KISS frame reader error: {}", e)
                 await asyncio.sleep(1)

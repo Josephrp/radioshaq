@@ -18,9 +18,15 @@ from datetime import datetime, timezone
 from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse, urlunparse
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+try:
+    # Pydantic Settings v2 YAML support; optional so older versions still work.
+    from pydantic_settings import YamlConfigSettingsSource
+except ImportError:  # pragma: no cover - fallback when YAML source is unavailable
+    YamlConfigSettingsSource = None
 
 from radioshaq.constants import ASR_LANGUAGE_AUTO, ASR_LANGUAGE_VALUES
 
@@ -133,15 +139,26 @@ class DatabaseConfig(BaseModel):
     redis_url: str | None = Field(default="redis://localhost:6379/0")
     
     # Alembic
-    alembic_config: str = Field(default="infrastructure/local/alembic.ini")
+    alembic_config: str = Field(default="alembic.ini")
     auto_migrate: bool = Field(default=False)  # Run migrations on startup
     
     @field_validator("postgres_url")
     @classmethod
     def validate_postgres_url(cls, v: str) -> str:
-        """Ensure URL uses asyncpg driver."""
+        """Ensure URL uses asyncpg driver and normalize local host naming."""
         if v.startswith("postgresql://") and "asyncpg" not in v:
             v = v.replace("postgresql://", "postgresql+asyncpg://")
+        # Normalize 127.0.0.1 to localhost in the host component only (avoid corrupting password/db).
+        parsed = urlparse(v)
+        if parsed.hostname == "127.0.0.1":
+            netloc = parsed.netloc
+            if "@" in netloc:
+                userinfo, hostport = netloc.rsplit("@", 1)
+                hostport = hostport.replace("127.0.0.1", "localhost", 1)
+                netloc = f"{userinfo}@{hostport}"
+            else:
+                netloc = netloc.replace("127.0.0.1", "localhost", 1)
+            v = urlunparse(parsed._replace(netloc=netloc))
         return v
 
 
@@ -323,6 +340,18 @@ class RadioConfig(BaseModel):
     sdr_tx_serial: str | None = Field(default=None, description="HackRF serial (optional)")
     sdr_tx_max_gain: int = Field(default=47, ge=0, le=47)
     sdr_tx_allow_bands_only: bool = Field(default=True)
+    sdr_tx_mode: str = Field(
+        default="local",
+        description="SDR TX mode: 'local' (direct HackRF via pyhackrf2) or 'remote' (use HackRF broker service).",
+    )
+    sdr_tx_service_base_url: str | None = Field(
+        default=None,
+        description="Base URL for HackRF broker when sdr_tx_mode='remote' (e.g. http://localhost:8765).",
+    )
+    sdr_tx_service_token: str | None = Field(
+        default=None,
+        description="Bearer token (JWT or opaque) used by HackRFServiceClient when sdr_tx_mode='remote'.",
+    )
 
     # Audio RX/TX integration (voice_rx pipeline)
     audio_input_enabled: bool = Field(default=False)
@@ -435,6 +464,13 @@ class AudioConfig(BaseModel):
     denoising_backend: str = Field(default="rnnoise")  # "rnnoise", "spectral", "none"
     noise_calibration_seconds: float = Field(default=3.0, ge=1.0, le=10.0)
     min_snr_db: float = Field(default=3.0, ge=-10.0, le=40.0)
+    eleven_voice_isolator_enabled: bool = Field(
+        default=False,
+        description=(
+            "When True and asr_model is 'scribe', run ElevenLabs Voice Isolator "
+            "before Scribe ASR (requires ELEVENLABS_API_KEY)."
+        ),
+    )
 
     # VAD
     vad_enabled: bool = Field(default=True)
@@ -683,6 +719,24 @@ class TwilioConfig(BaseModel):
         default=None,
         description="WhatsApp sender phone number, E.164; must be WhatsApp-enabled in Twilio (env: RADIOSHAQ_TWILIO__WHATSAPP_FROM)",
     )
+    allow_unsigned_webhooks: bool = Field(
+        default=False,
+        description=(
+            "Allow processing Twilio webhooks without signature validation (development only). "
+            "When False, missing auth_token or signature blocks processing."
+        ),
+    )
+
+    @field_validator("account_sid", "auth_token", "from_number", "whatsapp_from", mode="before")
+    @classmethod
+    def _empty_str_to_none(cls, v: str | None) -> str | None:
+        # Normalize empty strings (from env or YAML) to None so tests can reliably
+        # detect "Twilio not configured" via attribute is None checks.
+        if v is None:
+            return None
+        if isinstance(v, str) and not v.strip():
+            return None
+        return v
 
 
 class EmergencyContactConfig(BaseModel):
@@ -730,7 +784,35 @@ class Config(BaseSettings):
         yaml_file_encoding="utf-8",
         extra="ignore",
     )
-    
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        """
+        Load configuration from (highest to lowest precedence):
+        1. Environment variables (RADIOSHAQ_*)
+        2. YAML file (config.yaml, when YamlConfigSettingsSource is available)
+        3. Explicit kwargs (init_settings)
+        4. Secrets files
+        """
+        yaml_settings = ()
+        if YamlConfigSettingsSource is not None:
+            yaml_settings = (YamlConfigSettingsSource(settings_cls),)
+        # Keep env vars highest priority so demos can override YAML easily.
+        return (
+            env_settings,
+            *yaml_settings,
+            dotenv_settings,
+            init_settings,
+            file_secret_settings,
+        )
+
     # Core settings
     mode: Mode = Field(default=Mode.FIELD)
     debug: bool = Field(default=False)

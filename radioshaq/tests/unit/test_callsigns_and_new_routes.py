@@ -293,6 +293,42 @@ def test_radio_send_tts_passes_frequency_to_radio_tx(
         app.state.agent_registry = old_registry
 
 
+@pytest.mark.unit
+def test_radio_send_audio_maps_libusb_error_to_503(
+    client: TestClient, auth_headers: dict[str, str]
+) -> None:
+    """When SDR transmitter raises a HackRF libusb error, /radio/send-audio returns HTTP 503."""
+    app = client.app
+    old_registry = getattr(app.state, "agent_registry", None)
+
+    async def _fail_exec(task: dict, upstream_callback: object | None = None) -> dict[str, object]:
+        return {
+            "success": False,
+            "notes": "HackRF libusb error (HACKRF_ERROR_LIBUSB). Check that the device is attached to WSL (usbipd-win), not in use by another process, and that libhackrf is installed.",
+        }
+
+    tx = MagicMock()
+    tx.execute = AsyncMock(side_effect=_fail_exec)
+
+    class _Registry:
+        def get_agent(self, name: str):
+            return tx if name == "radio_tx" else None
+
+    app.state.agent_registry = _Registry()
+    try:
+        r = client.post(
+            "/radio/send-audio",
+            headers=auth_headers,
+            files={"file": ("x.wav", io.BytesIO(b"\x00" * 200), "audio/wav")},
+            data={"frequency_hz": "145520000", "mode": "NFM"},
+        )
+        assert r.status_code == 503
+        detail = r.json().get("detail", "")
+        assert "HackRF libusb error" in detail
+    finally:
+        app.state.agent_registry = old_registry
+
+
 # ----- Messages from-audio (validation only with auth) -----
 
 

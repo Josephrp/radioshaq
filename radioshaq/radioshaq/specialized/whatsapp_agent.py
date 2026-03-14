@@ -69,7 +69,7 @@ class WhatsAppAgent(SpecializedAgent):
             await self.emit_result(upstream_callback, result)
             return result
         except Exception as e:
-            logger.exception("WhatsApp send failed: %s", e)
+            logger.exception("WhatsApp send failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 
@@ -104,5 +104,5 @@ class WhatsAppAgent(SpecializedAgent):
                 "message_sent": (message or "")[:100],
             }
         except Exception as e:
-            logger.exception("WhatsApp _do_send failed: %s", e)
+            logger.exception("WhatsApp _do_send failed: {}", e)
             raise

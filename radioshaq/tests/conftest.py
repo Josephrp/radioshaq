@@ -69,7 +69,21 @@ def env_overrides() -> dict[str, str]:
     return {
         "RADIOSHAQ_MODE": "field",
         "JWT_SECRET": "test-secret",
+        # Use HackRF broker mode by default in tests so compliance and service
+        # client tests exercise the TX endpoints without requiring real hardware.
+        "SDR_TYPE": "hackrf",
         "RADIOSHAQ_DATABASE__POSTGRES_URL": _TEST_DB_URL,
+        # Disable external ElevenLabs calls and require explicit API keys in tests.
+        "ELEVENLABS_API_KEY": "",
+        "RADIOSHAQ_AUDIO__ELEVEN_VOICE_ISOLATOR_ENABLED": "false",
+        "ELEVEN_VOICE_ISOLATOR_ENABLED": "false",
+        # Ensure Twilio is treated as unconfigured so SMS/WhatsApp tests match CI.
+        "RADIOSHAQ_TWILIO__ACCOUNT_SID": "",
+        "RADIOSHAQ_TWILIO__AUTH_TOKEN": "",
+        "RADIOSHAQ_TWILIO__FROM_NUMBER": "",
+        "RADIOSHAQ_TWILIO__WHATSAPP_FROM": "",
+        # Make sure callsign registry is not required by default in unit tests.
+        "RADIOSHAQ_RADIO__CALLSIGN_REGISTRY_REQUIRED": "false",
         "RADIOSHAQ_MEMORY__HINDSIGHT_ENABLED": "false",
     }
 

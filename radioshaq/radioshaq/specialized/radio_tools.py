@@ -109,5 +109,5 @@ class SendAudioOverRadioTool:
                 )
             return f"Error: {result.get('notes', result.get('error', 'Unknown failure'))}"
         except Exception as e:
-            logger.exception("send_audio_over_radio failed: %s", e)
+            logger.exception("send_audio_over_radio failed: {}", e)
             return f"Error: {e}"

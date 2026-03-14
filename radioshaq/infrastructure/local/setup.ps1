@@ -191,9 +191,9 @@ print(asyncio.run(test()))
         Write-Host "PostgreSQL is ready"
         Write-Host "Running database migrations..."
         if ($uvAvailable) {
-            uv run alembic -c infrastructure/local/alembic.ini upgrade head
+            uv run alembic -c alembic.ini upgrade head
         } else {
-            & .venv\Scripts\alembic.exe -c infrastructure\local\alembic.ini upgrade head
+            & .venv\Scripts\alembic.exe -c alembic.ini upgrade head
         }
         Write-Host "Database migrations complete"
     } else {

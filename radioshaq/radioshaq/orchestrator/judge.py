@@ -140,7 +140,7 @@ Respond with structured JSON only, no markdown:
                 next_action=data.get("next_action"),
             )
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Failed to parse task evaluation: %s", e)
+            logger.warning("Failed to parse task evaluation: {}", e)
             return default
 
     def _extract_json(self, text: str) -> str | None:
@@ -196,7 +196,7 @@ Respond with structured JSON only:
                     retry_eligible=bool(data.get("retry_eligible", False)),
                 )
         except Exception as e:
-            logger.warning("Subtask evaluation failed: %s", e)
+            logger.warning("Subtask evaluation failed: {}", e)
 
         return SubtaskEvaluation(
             subtask_id=subtask_id,

@@ -105,11 +105,10 @@ test = [
 sdr = [
     "pyrtlsdr>=0.4",
 ]
-# python-hackrf requires HackRF SDK (hackrf.h) at build time; SDK not commonly
-# installed on Windows. Install only on non-Windows; use hackrf on Linux/macOS or
-# install HackRF for Windows and sync without --all-extras then add hackrf manually.
+# pyhackrf2 provides HackRF class with read_samples(); requires system libhackrf at runtime.
+# Install only on non-Windows (or install libhackrf on Windows and add manually).
 hackrf = [
-    "python-hackrf>=1.5; sys_platform != 'win32'",
+    "pyhackrf2>=1.0; sys_platform != 'win32'",
 ]
 
 # Optional: Hindsight semantic memory. Requires urllib3>=2 (conflicts with boto3 urllib3<2).

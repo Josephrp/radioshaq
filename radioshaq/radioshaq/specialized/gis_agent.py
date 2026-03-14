@@ -115,7 +115,7 @@ class GISAgent(SpecializedAgent):
                 "count": len(operators),
             }
         except Exception as e:
-            logger.exception("GIS find_operators_nearby failed: %s", e)
+            logger.exception("GIS find_operators_nearby failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 
@@ -146,7 +146,7 @@ class GISAgent(SpecializedAgent):
                 "location": location,
             }
         except Exception as e:
-            logger.exception("GIS get_latest_location failed: %s", e)
+            logger.exception("GIS get_latest_location failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 
@@ -188,7 +188,7 @@ class GISAgent(SpecializedAgent):
                 "timestamp": loc["timestamp"],
             }
         except Exception as e:
-            logger.exception("GIS set_location failed: %s", e)
+            logger.exception("GIS set_location failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 

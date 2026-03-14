@@ -221,7 +221,11 @@ async def relay_message_between_bands_service(
             if ok and storage and storage.db and hasattr(storage.db, "mark_transcript_delivery_done"):
                 await storage.db.mark_transcript_delivery_done(relay_id)
         except Exception as e:
-            logger.warning("Relay immediate publish_outbound failed for transcript %s, worker will retry: %s", relay_id, e)
+            logger.warning(
+                "Relay immediate publish_outbound failed for transcript {} ({}); worker will retry",
+                relay_id,
+                e,
+            )
 
     immediate = not deliver_at and not is_sms_whatsapp
     radio_cfg = getattr(config, "radio", None) if config else None
@@ -246,7 +250,7 @@ async def relay_message_between_bands_service(
                     "mode": target_mode,
                 })
             except Exception as e:
-                logger.warning("Relay radio_tx on target band failed: %s", e)
+                logger.warning("Relay radio_tx on target band failed: {}", e)
 
     return {
         "ok": True,

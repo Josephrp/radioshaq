@@ -26,11 +26,11 @@ class AgentRegistry:
         """Register a specialized agent."""
         name = agent.name
         if name in self._agents:
-            logger.warning("Overwriting existing agent: %s", name)
+            logger.warning("Overwriting existing agent: {}", name)
         self._agents[name] = agent
         for cap in agent.capabilities:
             self._capability_index.setdefault(cap, []).append(name)
-        logger.debug("Registered agent %s with capabilities %s", name, agent.capabilities)
+        logger.debug("Registered agent {} with capabilities {}", name, agent.capabilities)
 
     def unregister_agent(self, name: str) -> bool:
         """Remove an agent by name. Returns True if removed."""

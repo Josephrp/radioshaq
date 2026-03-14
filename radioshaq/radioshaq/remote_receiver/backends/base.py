@@ -32,3 +32,17 @@ class SDRBackend(ABC):
     async def close(self) -> None:
         """Release device."""
         ...
+
+    async def configure(
+        self,
+        *,
+        mode: str | None = None,
+        audio_rate_hz: int | None = None,
+        bfo_hz: float | None = None,
+    ) -> None:
+        """Optional: configure demod settings for this backend.
+
+        Backends that support analog demod may implement this to change mode or audio rate
+        per stream connection.
+        """
+        _ = mode, audio_rate_hz, bfo_hz

@@ -32,7 +32,7 @@ DB_CHOICE_DOCKER = "docker"
 DB_CHOICE_URL = "url"
 DB_CHOICE_SKIP = "skip"
 COMPOSE_PATH = "infrastructure/local/docker-compose.yml"
-ALEMBIC_INI = "infrastructure/local/alembic.ini"
+ALEMBIC_INI = "alembic.ini"
 POSTGRES_PORT_DEFAULT = 5434
 
 # Roles that can have per-role LLM overrides (orchestrator, judge, whitelist, daily_summary)
@@ -958,20 +958,20 @@ def run_setup(
         do_docker = quick or typer.confirm("Start Docker Postgres and run migrations now?", default=True)
         if do_docker:
             if not _start_docker_postgres(project_root):
-                typer.echo("Setup wrote config but Docker failed. Start Postgres manually and run: alembic -c infrastructure/local/alembic.ini upgrade head", err=True)
+                typer.echo("Setup wrote config but Docker failed. Start Postgres manually and run: alembic -c alembic.ini upgrade head", err=True)
                 return 1
             typer.echo("Waiting for Postgres on port 5434...")
             if not _wait_for_port("127.0.0.1", POSTGRES_PORT_DEFAULT):
                 typer.echo("Postgres did not become ready. Check: docker compose -f infrastructure/local/docker-compose.yml logs postgres", err=True)
                 return 1
             if not _run_alembic_upgrade(project_root):
-                typer.echo("Migrations failed. Run manually: alembic -c infrastructure/local/alembic.ini upgrade head", err=True)
+                typer.echo("Migrations failed. Run manually: alembic -c alembic.ini upgrade head", err=True)
                 return 1
             typer.echo("Migrations complete.")
             migrations_done = True
     if db_url_val and not migrations_done and (not quick) and typer.confirm("Run migrations now?", default=True):
         if not _run_alembic_upgrade(project_root):
-            typer.echo("Migrations failed. Run manually: alembic -c infrastructure/local/alembic.ini upgrade head", err=True)
+            typer.echo("Migrations failed. Run manually: alembic -c alembic.ini upgrade head", err=True)
         else:
             typer.echo("Migrations complete.")
 

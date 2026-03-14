@@ -203,9 +203,9 @@ print(asyncio.run(test()))
     echo "PostgreSQL is ready"
     echo "Running database migrations..."
     if [ "$UV_AVAILABLE" = true ]; then
-      uv run alembic -c infrastructure/local/alembic.ini upgrade head
+      uv run alembic -c alembic.ini upgrade head
     else
-      "$PROJECT_ROOT/.venv/bin/alembic" -c infrastructure/local/alembic.ini upgrade head
+      "$PROJECT_ROOT/.venv/bin/alembic" -c alembic.ini upgrade head
     fi
     echo "Database migrations complete"
   else

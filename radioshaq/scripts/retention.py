@@ -44,7 +44,12 @@ async def run_retention() -> None:
         pg = PostGISManager(db_url)
         try:
             deleted = await pg.delete_transcripts_older_than(cutoff_t, limit=50_000)
-            logger.info("Retention: deleted %s transcript(s) older than %s days (cutoff %s)", deleted, transcript_days, cutoff_t.isoformat())
+            logger.info(
+                "Retention: deleted {} transcript(s) older than {} days (cutoff {})",
+                deleted,
+                transcript_days,
+                cutoff_t.isoformat(),
+            )
         finally:
             await pg.engine.dispose()
 
@@ -53,7 +58,12 @@ async def run_retention() -> None:
         memory = MemoryManager(db_url)
         try:
             deleted = await memory.delete_messages_older_than(cutoff_m, limit=50_000)
-            logger.info("Retention: deleted %s memory_messages older than %s days (cutoff %s)", deleted, memory_days, cutoff_m.isoformat())
+            logger.info(
+                "Retention: deleted {} memory_messages older than {} days (cutoff {})",
+                deleted,
+                memory_days,
+                cutoff_m.isoformat(),
+            )
         finally:
             await memory.engine.dispose()
 

@@ -36,27 +36,44 @@ target_metadata = Base.metadata
 
 def get_database_url() -> str:
     """Get database URL from environment or config.
-    
+
     Returns:
-        PostgreSQL connection URL for migrations (sync)
+        PostgreSQL connection URL for migrations (sync).
+        Uses psycopg2, adds connect_timeout and optional sslmode=disable
+        so migrations do not hang (e.g. on SSL handshake or slow network).
     """
+    # Query params: avoid hang on connect (timeout) and optional no-SSL (WSL/Docker)
+    connect_timeout = os.getenv("ALEMBIC_CONNECT_TIMEOUT", "10")
+    extra_params = f"connect_timeout={connect_timeout}"
+    if os.getenv("ALEMBIC_SSLMODE_DISABLE", "").lower() in ("1", "true", "yes"):
+        extra_params = f"sslmode=disable&{extra_params}"
+
     # Priority: DATABASE_URL > individual vars > default
     if database_url := os.getenv("DATABASE_URL"):
         # Convert async URL to sync URL if needed
         if "+asyncpg" in database_url:
-            return database_url.replace("+asyncpg", "")
+            database_url = database_url.replace("+asyncpg", "")
         if "+aiosqlite" in database_url:
-            return database_url.replace("+aiosqlite", "")
+            database_url = database_url.replace("+aiosqlite", "")
+        # Ensure sync driver for migrations (psycopg2)
+        if "postgresql://" in database_url and "+" not in database_url.split("//")[0]:
+            database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
+        # Append timeout (and optional sslmode) if not already present
+        base, _, query = database_url.partition("?")
+        if "connect_timeout" not in query:
+            query = f"{query}&{extra_params}" if query else extra_params
+            database_url = f"{base}?{query.lstrip('&')}"
         return database_url
-    
-    # Build from individual components
+
+    # Build from individual components (default port 5434 to match local Docker Postgres)
     host = os.getenv("POSTGRES_HOST", "localhost")
-    port = os.getenv("POSTGRES_PORT", "5432")
+    port = os.getenv("POSTGRES_PORT", "5434")
     database = os.getenv("POSTGRES_DB", "radioshaq")
     user = os.getenv("POSTGRES_USER", "radioshaq")
     password = os.getenv("POSTGRES_PASSWORD", "radioshaq")
-    
-    return f"postgresql://{user}:{password}@{host}:{port}/{database}"
+
+    url = f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{database}?{extra_params}"
+    return url
 
 
 def run_migrations_offline() -> None:

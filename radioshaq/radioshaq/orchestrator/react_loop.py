@@ -131,7 +131,7 @@ class REACTOrchestrator:
                     if cs.get("callsign")
                 }
             except Exception as e:
-                logger.debug("Load whitelisted_callsign_bands failed: %s", e)
+                logger.debug("Load whitelisted_callsign_bands failed: {}", e)
                 state.context["whitelisted_callsign_bands"] = {}
         else:
             state.context["whitelisted_callsign_bands"] = {}
@@ -161,7 +161,7 @@ class REACTOrchestrator:
                 messages.append({"role": "user", "content": request})
                 state.context["messages"] = messages
             except Exception as e:
-                logger.warning("Memory context load failed: %s", e)
+                logger.warning("Memory context load failed: {}", e)
 
         try:
             state = await self._run_react_loop(state, on_progress)
@@ -176,7 +176,7 @@ class REACTOrchestrator:
                         ],
                     )
                 except Exception as e:
-                    logger.warning("Memory append_messages failed: %s", e)
+                    logger.warning("Memory append_messages failed: {}", e)
                 try:
                     from radioshaq.memory.hindsight import retain_exchange
                     from radioshaq.config.resolve import get_memory_config_for_role
@@ -189,14 +189,14 @@ class REACTOrchestrator:
                         config=memory_config,
                     )
                 except Exception as e:
-                    logger.debug("Hindsight retain failed (non-fatal): %s", e)
+                    logger.debug("Hindsight retain failed (non-fatal): {}", e)
             return REACTResult(
                 success=state.final_response is not None,
                 state=state,
                 message=state.final_response or "Incomplete",
             )
         except Exception as e:
-            logger.exception("REACT loop failed: %s", e)
+            logger.exception("REACT loop failed: {}", e)
             return REACTResult(
                 success=False,
                 state=state,
@@ -264,7 +264,7 @@ class REACTOrchestrator:
                 )
             ]
         except (json.JSONDecodeError, TypeError, ValueError) as e:
-            logger.warning("Parse decomposed tasks failed: %s", e)
+            logger.warning("Parse decomposed tasks failed: {}", e)
             return [
                 DecomposedTask(
                     task_id="t1",
@@ -510,7 +510,7 @@ class REACTOrchestrator:
                     content, state.original_request
                 )
             except Exception as e:
-                logger.warning("Plan LLM call failed: %s", e)
+                logger.warning("Plan LLM call failed: {}", e)
                 state.decomposed_tasks = [
                     DecomposedTask(
                         task_id="t1",
@@ -649,7 +649,7 @@ class REACTOrchestrator:
                             task.payload["_retries"] = task.payload.get("_retries", 0) + 1
                             task.result = None
                     except Exception as e:
-                        logger.exception("Agent execution failed: %s", e)
+                        logger.exception("Agent execution failed: {}", e)
                         task.error = str(e)
                         task.result = {"error": str(e)}
                         subtask_eval = await self.judge.evaluate_subtask(

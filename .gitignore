@@ -188,6 +188,17 @@ result-*
 *.sqlite3
 db.sqlite3-journal
 
+# --- RadioShaq local data ---
+radioshaq/scripts/demo/recordings/
+radioshaq/config.yaml
+
+# --- RadioShaq web UI build output ---
+radioshaq/radioshaq/web_ui/assets/
+
+# --- RadioShaq local env / tools ---
+radioshaq/.venv-wsl/
+radioshaq/hackrf/
+
 # --- Optional: uncomment if you don’t want lockfiles in vcs ---
 # uv.lock
 # package-lock.json

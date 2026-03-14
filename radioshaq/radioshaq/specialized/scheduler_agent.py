@@ -106,7 +106,7 @@ class SchedulerAgent(SpecializedAgent):
                 "status": "pending",
             }
         except Exception as e:
-            logger.exception("Scheduler store_coordination_event failed: %s", e)
+            logger.exception("Scheduler store_coordination_event failed: {}", e)
             await self.emit_error(upstream_callback, str(e))
             raise
 

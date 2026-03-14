@@ -93,7 +93,7 @@ class WhitelistAgent(SpecializedAgent):
             )
             content = (response.content or "").strip()
         except Exception as e:
-            logger.exception("Whitelist LLM call failed: %s", e)
+            logger.exception("Whitelist LLM call failed: {}", e)
             return {
                 "approved": False,
                 "reason": "Evaluation failed.",
@@ -129,7 +129,7 @@ class WhitelistAgent(SpecializedAgent):
             if raw_callsign and isinstance(raw_callsign, str):
                 callsign_from_llm = raw_callsign.strip().upper()
         except (json.JSONDecodeError, TypeError) as e:
-            logger.warning("Whitelist LLM response not valid JSON: %s", e)
+            logger.warning("Whitelist LLM response not valid JSON: {}", e)
             reason = "Evaluation could not be parsed."
 
         callsign_to_register = stated_callsign or callsign_from_llm
@@ -144,7 +144,7 @@ class WhitelistAgent(SpecializedAgent):
                 await self.repository.register(callsign_to_register, source="whitelist")
                 callsign_registered = callsign_to_register
             except Exception as e:
-                logger.warning("Whitelist register failed: %s", e)
+                logger.warning("Whitelist register failed: {}", e)
                 reason = f"{reason} Registration failed."
                 callsign_registered = None
 

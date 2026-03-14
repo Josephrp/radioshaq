@@ -74,7 +74,7 @@ class DynamoDBStateStore:
             try:
                 resp = self._table.get_item(Key={"session_id": session_id})
             except ClientError as e:
-                logger.warning("DynamoDB get_session_state failed: %s", e)
+                logger.warning("DynamoDB get_session_state failed: {}", e)
                 return None
             return resp.get("Item")
 

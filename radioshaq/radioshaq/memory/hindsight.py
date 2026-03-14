@@ -126,7 +126,7 @@ def retain_exchange(
             client.retain(**kwargs)
         return True
     except Exception as e:
-        logger.warning("Hindsight retain failed: %s", e)
+        logger.warning("Hindsight retain failed: {}", e)
         return False
 
 

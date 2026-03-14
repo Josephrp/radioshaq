@@ -71,13 +71,13 @@ async def run_voice_listener(
     )
     freq, mode = _voice_frequency_and_mode(band, band_plans)
     if freq <= 0:
-        logger.warning("Voice listener: band %s has no plan, skipping", band)
+        logger.warning("Voice listener: band {} has no plan, skipping", band)
         return
     if not radio_rx_audio_agent:
         logger.warning("Voice listener: no radio_rx_audio agent, exiting")
         return
 
-    logger.info("Voice listener started for band %s (%.0f Hz %s)", band, freq, mode)
+    logger.info("Voice listener started for band {} ({:.0f} Hz {})", band, freq, mode)
     while not stop_event.is_set():
         try:
             await radio_rx_audio_agent.execute(
@@ -92,7 +92,7 @@ async def run_voice_listener(
         except asyncio.CancelledError:
             break
         except Exception as e:
-            logger.exception("Voice listener error: %s", e)
+            logger.exception("Voice listener error: {}", e)
         if not stop_event.is_set():
             await asyncio.sleep(0.5)
     logger.debug("Voice listener stopped")

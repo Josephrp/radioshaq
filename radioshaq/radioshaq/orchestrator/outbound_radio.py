@@ -51,7 +51,7 @@ async def handle_one_outbound_radio(
     else:
         mode = mode or "FM"
     if freq is None or freq <= 0:
-        logger.warning("Outbound radio_rx: could not resolve frequency for band %s", band)
+        logger.warning("Outbound radio_rx: could not resolve frequency for band {}", band)
         return False
     try:
         await radio_tx_agent.execute({
@@ -63,7 +63,7 @@ async def handle_one_outbound_radio(
         })
         return True
     except Exception as e:
-        logger.warning("Outbound radio_tx execute failed: %s", e)
+        logger.warning("Outbound radio_tx execute failed: {}", e)
         return False
 
 
@@ -94,4 +94,4 @@ async def run_outbound_radio_handler(
         except asyncio.TimeoutError:
             continue
         except Exception as e:
-            logger.exception("Outbound radio handler error: %s", e)
+            logger.exception("Outbound radio handler error: {}", e)

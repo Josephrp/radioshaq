@@ -273,7 +273,7 @@ class AudioStreamProcessor:
         denoised_frame, snr = self.denoiser.process(frame)
         if len(denoised_frame) != self.frame_samples:
             logger.warning(
-                "Denoised frame length %s != %s, resizing may cause artifacts",
+                "Denoised frame length {} != {}, resizing may cause artifacts",
                 len(denoised_frame),
                 self.frame_samples,
             )
