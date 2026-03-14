@@ -100,15 +100,20 @@ class RtlSdrBackend(SDRBackend):
                                 NfmConfig(audio_rate_hz=self._audio_rate),
                                 rf_rate_hz=self.sample_rate,
                             )
-                        audio = self._nfm.demod(s)
-                        audio_pcm = float_to_pcm16(audio)
+                        nfm = self._nfm
+                        audio_pcm = await loop.run_in_executor(
+                            None, lambda: float_to_pcm16(nfm.demod(s))
+                        )
                     elif self._rx_mode in {"am"}:
                         if self._am is None:
                             self._am = AmDemodulator(
                                 AnalogConfig(audio_rate_hz=self._audio_rate, bfo_hz=self._bfo_hz),
                                 rf_rate_hz=self.sample_rate,
                             )
-                        audio_pcm = float_to_pcm16(self._am.demod(s))
+                        am = self._am
+                        audio_pcm = await loop.run_in_executor(
+                            None, lambda: float_to_pcm16(am.demod(s))
+                        )
                     elif self._rx_mode in {"usb", "lsb"}:
                         if self._ssb is None:
                             self._ssb = SsbDemodulator(
@@ -116,14 +121,20 @@ class RtlSdrBackend(SDRBackend):
                                 rf_rate_hz=self.sample_rate,
                                 sideband=self._rx_mode.upper(),
                             )
-                        audio_pcm = float_to_pcm16(self._ssb.demod(s))
+                        ssb = self._ssb
+                        audio_pcm = await loop.run_in_executor(
+                            None, lambda: float_to_pcm16(ssb.demod(s))
+                        )
                     elif self._rx_mode in {"cw"}:
                         if self._cw is None:
                             self._cw = CwAudioDemodulator(
                                 AnalogConfig(audio_rate_hz=self._audio_rate, bfo_hz=self._bfo_hz),
                                 rf_rate_hz=self.sample_rate,
                             )
-                        audio_pcm = float_to_pcm16(self._cw.demod(s))
+                        cw = self._cw
+                        audio_pcm = await loop.run_in_executor(
+                            None, lambda: float_to_pcm16(cw.demod(s))
+                        )
                 except Exception as e:
                     logger.debug("RTL-SDR read failed: {}", e)
                     strength_db = -100.0

@@ -633,10 +633,13 @@ async def tx_tone(request: Request) -> dict[str, Any]:
 
 
 # Max decoded IQ size: int8 interleaved = 2 bytes/sample → duration_sec = bytes / (sample_rate * 2).
-# At 2 MHz: 4 MB/s. Capped at 50 s of IQ.
+# At 2 MHz: 4 MB/s. Capped at ~16 s of IQ to limit peak memory (see below).
 # RAM: full request body (base64 ~4/3 × this), decoded iq_bytes, and a copy during TX are all in memory;
-# disk is not used. Ensure the receiver process has enough RAM for ~2–3× MAX_IQ_BYTES peak.
-MAX_IQ_BYTES = 200 * 1024 * 1024  # 200 MB (~50 s @ 2 MHz int8 interleaved)
+# disk is not used. Peak per request ≈ 2.33× decoded size (raw JSON + decode + TX copy).
+# content-length check is hint-only (spoofable); consider LimitUploadSize-style middleware for hard cap.
+MAX_IQ_BYTES = 64 * 1024 * 1024  # 64 MB (~16 s @ 2 MHz int8 interleaved; ~150 MB peak per request)
+# Approximate max JSON body size for that IQ (base64 ~4/3 × decoded + JSON overhead).
+MAX_IQ_BODY_BYTES = int(MAX_IQ_BYTES * 4 / 3) + 1024
 
 
 @app.post("/tx/iq")
@@ -649,7 +652,7 @@ async def tx_iq(request: Request) -> dict[str, Any]:
     content_length = request.headers.get("content-length")
     if content_length is not None:
         try:
-            if int(content_length) > MAX_IQ_BYTES:
+            if int(content_length) > MAX_IQ_BODY_BYTES:
                 raise HTTPException(
                     status_code=413,
                     detail="IQ payload too large",

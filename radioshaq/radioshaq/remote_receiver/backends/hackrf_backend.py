@@ -188,8 +188,9 @@ class HackRFBackend(SDRBackend):
                                     NfmConfig(audio_rate_hz=self._audio_rate),
                                     rf_rate_hz=self.sample_rate,
                                 )
+                            nfm = self._nfm
                             audio_pcm = await loop.run_in_executor(
-                                None, lambda: float_to_pcm16(self._nfm.demod(s))
+                                None, lambda: float_to_pcm16(nfm.demod(s))
                             )
                         elif self._rx_mode in {"am"}:
                             if self._am is None:
@@ -200,8 +201,9 @@ class HackRFBackend(SDRBackend):
                                     ),
                                     rf_rate_hz=self.sample_rate,
                                 )
+                            am = self._am
                             audio_pcm = await loop.run_in_executor(
-                                None, lambda: float_to_pcm16(self._am.demod(s))
+                                None, lambda: float_to_pcm16(am.demod(s))
                             )
                         elif self._rx_mode in {"usb", "lsb"}:
                             if self._ssb is None:
@@ -213,8 +215,9 @@ class HackRFBackend(SDRBackend):
                                     rf_rate_hz=self.sample_rate,
                                     sideband=self._rx_mode.upper(),
                                 )
+                            ssb = self._ssb
                             audio_pcm = await loop.run_in_executor(
-                                None, lambda: float_to_pcm16(self._ssb.demod(s))
+                                None, lambda: float_to_pcm16(ssb.demod(s))
                             )
                         elif self._rx_mode in {"cw"}:
                             if self._cw is None:
@@ -225,8 +228,9 @@ class HackRFBackend(SDRBackend):
                                     ),
                                     rf_rate_hz=self.sample_rate,
                                 )
+                            cw = self._cw
                             audio_pcm = await loop.run_in_executor(
-                                None, lambda: float_to_pcm16(self._cw.demod(s))
+                                None, lambda: float_to_pcm16(cw.demod(s))
                             )
                     except Exception as e:
                         logger.warning(

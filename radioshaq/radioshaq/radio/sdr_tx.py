@@ -112,8 +112,15 @@ class _ComplianceCheckedTransmitter:
                 ):
                     raise ValueError(f"Frequency {frequency_hz} Hz is not in an allowed band")
 
-    def _audit(self, frequency_hz: float, duration_sec: float, mode: str = "tone") -> None:
-        """Write TX audit log."""
+    def _audit(
+        self,
+        frequency_hz: float,
+        duration_sec: float,
+        mode: str = "tone",
+        *,
+        success: bool = True,
+    ) -> None:
+        """Write TX audit log (success or failure)."""
         log_tx(
             frequency_hz=frequency_hz,
             duration_sec=duration_sec,
@@ -121,6 +128,7 @@ class _ComplianceCheckedTransmitter:
             rig_or_sdr="hackrf",
             operator_id=None,
             audit_log_path=self.audit_log_path,
+            success=success,
         )
 
 
@@ -328,6 +336,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
         """Transmit a simple tone via the remote HackRF broker."""
         # Conservative occupied BW estimate for a tone.
         self._check_compliance(frequency_hz, occupied_bandwidth_hz=25_000.0)
+        success = False
         try:
             await self._post(
                 "/tx/tone",
@@ -337,6 +346,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
                     "sample_rate": sample_rate,
                 },
             )
+            success = True
         except httpx.HTTPStatusError as e:
             detail = ""
             try:
@@ -351,7 +361,8 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
                     "not in use by another process, and that libhackrf is installed."
                 ) from e
             raise
-        self._audit(frequency_hz, duration_sec, "tone")
+        finally:
+            self._audit(frequency_hz, duration_sec, "tone", success=success)
 
     async def transmit_iq(
         self,
@@ -378,6 +389,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
         duration_sec = len(iq) / (2.0 * sample_rate)
         iq_bytes = iq.tobytes()
         iq_b64 = base64.b64encode(iq_bytes).decode("ascii")
+        success = False
         try:
             await self._post(
                 "/tx/iq",
@@ -388,6 +400,7 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
                     "occupied_bandwidth_hz": occupied_bandwidth_hz,
                 },
             )
+            success = True
         except httpx.HTTPStatusError as e:
             detail = ""
             try:
@@ -402,4 +415,5 @@ class HackRFServiceClient(_ComplianceCheckedTransmitter):
                     "not in use by another process, and that libhackrf is installed."
                 ) from e
             raise
-        self._audit(frequency_hz, duration_sec, "iq")
+        finally:
+            self._audit(frequency_hz, duration_sec, "iq", success=success)
