@@ -14,8 +14,13 @@ let runtimeToken: string | null = null;
 export function setApiToken(token: string | null) {
   runtimeToken = token;
 }
+
+function getRuntimeToken(): string | null {
+  return runtimeToken;
+}
+
 function authHeaders(): HeadersInit {
-  const token = runtimeToken ?? import.meta.env.VITE_RADIOSHAQ_TOKEN;
+  const token = getRuntimeToken();
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
   if (token) (headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
   return headers;
@@ -236,8 +241,9 @@ export async function registerCallsignFromAudio(file: File, callsign?: string): 
   const form = new FormData();
   form.append('file', file);
   const headers: Record<string, string> = {};
-  if (runtimeToken ?? import.meta.env.VITE_RADIOSHAQ_TOKEN) {
-    headers['Authorization'] = `Bearer ${runtimeToken ?? import.meta.env.VITE_RADIOSHAQ_TOKEN}`;
+  const token = getRuntimeToken();
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   const url = callsign ? `${API_BASE}/callsigns/register-from-audio?callsign=${encodeURIComponent(callsign.trim().toUpperCase())}` : `${API_BASE}/callsigns/register-from-audio`;
   const res = await fetch(url, { method: 'POST', headers, body: form });
@@ -448,7 +454,7 @@ export function subscribeEmergencyStream(
   onCount: (count: number) => void,
   abortController: AbortController
 ): void {
-  const token = runtimeToken ?? import.meta.env.VITE_RADIOSHAQ_TOKEN;
+  const token = getRuntimeToken();
   if (!token) {
     onCount(0);
     return;

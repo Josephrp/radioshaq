@@ -38,6 +38,9 @@
     "updateLocation": "Actualizar mi ubicación",
     "lat": "Latitud",
     "lng": "Longitud",
+    "setLocation": "Establecer ubicación",
+    "latInvalid": "La latitud debe estar entre -90 y 90.",
+    "lngInvalid": "La longitud debe estar entre -180 y 180.",
     "locationUpdated": "Ubicación actualizada.",
     "viewOnMap": "Ver en mapa",
     "noLocationsForCallsigns": "No hay ubicaciones para estos indicativos.",
@@ -54,7 +57,9 @@
     "approve": "Aprobar y enviar",
     "reject": "Rechazar",
     "allowNotifications": "Permitir notificaciones",
-    "autoRefresh": "La lista se actualiza cada 12 s; la app también comprueba cada 15 s y reproduce una alerta y muestra una notificación cuando llegan nuevos mensajes."
+    "autoRefresh": "La lista se actualiza cada 12 s; la app también comprueba cada 15 s y reproduce una alerta y muestra una notificación cuando llegan nuevos mensajes.",
+    "mapTitle": "Eventos en el mapa",
+    "viewOnMap": "Ver en mapa"
   },
   "license": {
     "title": "Se requiere aceptación de la licencia",

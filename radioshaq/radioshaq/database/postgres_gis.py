@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any, Sequence
 
 from geoalchemy2.functions import ST_DWithin, ST_GeogFromText
-from sqlalchemy import delete, select, text, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -624,6 +624,21 @@ class PostGISManager:
 
             result = await session.execute(query)
             return [row.to_dict() for row in result.scalars()]
+
+    async def count_pending_coordination_events(
+        self,
+        event_type: str | None = None,
+        status: str = "pending",
+    ) -> int:
+        """Return the number of coordination events matching the filters (COUNT(*) query)."""
+        async with self.async_session() as session:
+            query = select(func.count()).select_from(CoordinationEvent).where(
+                CoordinationEvent.status == status
+            )
+            if event_type:
+                query = query.where(CoordinationEvent.event_type == event_type)
+            result = await session.execute(query)
+            return result.scalar_one() or 0
 
     async def get_emergency_events_with_locations(
         self,

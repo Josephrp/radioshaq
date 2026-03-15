@@ -31,6 +31,7 @@ except ImportError:  # pragma: no cover - fallback when YAML source is unavailab
 from radioshaq.constants import ASR_LANGUAGE_AUTO, ASR_LANGUAGE_VALUES
 
 logger = logging.getLogger(__name__)
+INSECURE_JWT_SECRETS = frozenset({"dev-secret", "dev-secret-change-in-production", "test"})
 
 
 class Mode(StrEnum):
@@ -124,7 +125,7 @@ class DatabaseConfig(BaseModel):
     
     # PostgreSQL with PostGIS (default port 5434 matches docker-compose to avoid host 5432 conflict)
     postgres_url: str = Field(
-        default="postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq",
+        default="postgresql+asyncpg://radioshaq:radioshaq@localhost:5434/radioshaq",
         description="PostgreSQL connection URL with asyncpg driver",
     )
     postgres_pool_size: int = Field(default=10, ge=1, le=100)
@@ -183,11 +184,11 @@ class JWTConfig(BaseModel):
     @field_validator("secret_key")
     @classmethod
     def validate_secret(cls, v: str) -> str:
-        """Warn about insecure secrets."""
-        if v in ("dev-secret", "dev-secret-change-in-production", "test"):
-            # In production, this should raise an error
-            pass
-        return v
+        """Normalize and require a non-empty secret string."""
+        value = (v or "").strip()
+        if not value:
+            raise ValueError("jwt.secret_key must not be empty")
+        return value
 
 
 class LLMConfig(BaseModel):
@@ -860,7 +861,17 @@ class Config(BaseSettings):
     
     @model_validator(mode="after")
     def create_directories(self) -> Config:
-        """Ensure workspace and data directories exist."""
+        """Ensure directories exist and block insecure runtime defaults."""
+        secret = (self.jwt.secret_key or "").strip()
+        if secret in INSECURE_JWT_SECRETS:
+            if self.debug:
+                logger.warning(
+                    "Using insecure jwt.secret_key in debug mode; set RADIOSHAQ_JWT__SECRET_KEY before production"
+                )
+            else:
+                raise ValueError(
+                    "Insecure jwt.secret_key configured. Set RADIOSHAQ_JWT__SECRET_KEY to a strong secret or enable debug for local development."
+                )
         self.workspace_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir.mkdir(parents=True, exist_ok=True)
         return self

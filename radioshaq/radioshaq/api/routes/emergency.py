@@ -92,10 +92,14 @@ async def create_emergency_request(
 async def _get_pending_emergency_count(request: Request) -> int:
     """Return number of pending emergency events (for use by pending-count and SSE stream)."""
     db = getattr(request.app.state, "db", None)
-    if db is None or not hasattr(db, "get_pending_coordination_events"):
+    if db is None or not hasattr(db, "count_pending_coordination_events"):
+        if db is not None and hasattr(db, "get_pending_coordination_events"):
+            events = await db.get_pending_coordination_events(
+                max_results=1000, event_type="emergency"
+            )
+            return len(events)
         return 0
-    events = await db.get_pending_coordination_events(max_results=1000, event_type="emergency")
-    return len(events)
+    return await db.count_pending_coordination_events(event_type="emergency", status="pending")
 
 
 @router.get("/pending-count")
@@ -203,7 +207,10 @@ async def approve_emergency_event(
     message_bus = getattr(request.app.state, "message_bus", None)
     if not message_bus or not hasattr(message_bus, "publish_outbound"):
         await db.update_coordination_event(event_id, status="pending")
-        return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Message bus not available"}
+        raise HTTPException(
+            status_code=503,
+            detail="Message bus not available; approval rolled back to pending",
+        )
     from radioshaq.vendor.nanobot.bus.events import OutboundMessage
     content = extra.get("message") or event.get("notes") or "Emergency notification from RadioShaq."
     try:
@@ -222,7 +229,10 @@ async def approve_emergency_event(
         raise HTTPException(status_code=503, detail=f"Outbound bus error: {exc}") from exc
     if not ok:
         await db.update_coordination_event(event_id, status="pending")
-        return {"ok": True, "event_id": event_id, "status": "pending", "sent": False, "detail": "Outbound queue full"}
+        raise HTTPException(
+            status_code=503,
+            detail="Outbound queue full; approval rolled back to pending",
+        )
     await db.update_coordination_event(
         event_id,
         status="approved",

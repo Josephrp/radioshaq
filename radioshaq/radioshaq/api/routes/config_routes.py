@@ -69,9 +69,10 @@ async def get_config_llm(
     out = _llm_config_dict(config, redact=True)
     override = getattr(request.app.state, "llm_config_override", None)
     if override:
-        for k in _LLM_SECRET_KEYS:
-            override.pop(k, None)
-        out = {**out, **override}
+        sanitized_override = {
+            k: v for k, v in dict(override).items() if k not in _LLM_SECRET_KEYS
+        }
+        out = {**out, **sanitized_override}
     out["_meta"] = {"config_applies_after": CONFIG_APPLIES_AFTER_RESTART}
     return out
 

@@ -130,7 +130,7 @@ function OperatorMapGoogle({
       mapRef.current = null;
       infoWindowRef.current = null;
     };
-  }, []);
+  }, [clearMarkers]);
 
   useEffect(() => {
     const map = mapRef.current;

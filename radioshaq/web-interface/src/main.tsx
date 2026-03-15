@@ -6,7 +6,7 @@ import App from './App';
 
 if (import.meta.env.VITE_SHAKODS_API != null || import.meta.env.VITE_SHAKODS_TOKEN != null) {
   console.warn(
-    'Deprecated: VITE_SHAKODS_API and VITE_SHAKODS_TOKEN are no longer used. Use VITE_RADIOSHAQ_API and VITE_RADIOSHAQ_TOKEN instead.'
+    'Deprecated: VITE_SHAKODS_API and VITE_SHAKODS_TOKEN are no longer used. Use VITE_RADIOSHAQ_API and runtime token login (/auth/token) instead.'
   );
 }
 

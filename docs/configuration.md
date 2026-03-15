@@ -100,6 +100,8 @@ PostgreSQL (with optional PostGIS) is the primary store for transcripts, callsig
 python radioshaq/infrastructure/local/run_alembic.py upgrade head
 ```
 
+**Docker Compose overrides:** The `radioshaq/infrastructure/local/docker-compose.yml` Postgres services accept env vars to customize credentials and ports. Defaults: `POSTGRES_USER=radioshaq`, `POSTGRES_PASSWORD=radioshaq`, `POSTGRES_DB=radioshaq`, `POSTGRES_PORT=5434` (main); `POSTGRES_TEST_*` for the test DB (port 5433). If you override these, set `RADIOSHAQ_DATABASE__POSTGRES_URL` (and `POSTGRES_*` for Alembic) to match.
+
 See [Quick Start](quick-start.md) for credentials and troubleshooting.
 
 ---

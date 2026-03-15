@@ -12,7 +12,7 @@ npm install
 ## Environment
 
 - `VITE_RADIOSHAQ_API` – API base URL (default: `http://localhost:8000`)
-- `VITE_RADIOSHAQ_TOKEN` – Optional Bearer token for authenticated API calls
+- Authentication token is set at runtime via login (`/auth/token`) and `setApiToken(...)`; it is not read from `VITE_` build-time env vars
 - `VITE_GOOGLE_MAPS_API_KEY` – Optional. Google Maps JavaScript API key for the **Map** page, **Radio** page field map panel, and **Transcripts** “View on map”. Create a key in [Google Cloud Console](https://console.cloud.google.com/apis/credentials), enable **Maps JavaScript API**, and restrict the key by HTTP referrer to your app origin(s) to avoid misuse. If unset, map features show a short message instead of a map.
 
 ## Run
@@ -21,7 +21,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:3000. The dev server proxies `/api` and `/ws` to the RadioShaq API (port 8000).
+Open <http://localhost:3000>. The dev server proxies `/api` and `/ws` to the RadioShaq API (port 8000).
 
 ## Build
 

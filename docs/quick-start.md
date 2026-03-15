@@ -52,7 +52,7 @@ Add `--hindsight` to also start the Hindsight container (semantic memory). Or st
 --8<-- "snippets/postgres-up.sh"
 ```
 
-If you use a different host/port or URL, set `RADIOSHAQ_DATABASE__POSTGRES_URL` before running migrations and the API.
+If you use a different host/port or URL, set `RADIOSHAQ_DATABASE__POSTGRES_URL` before running migrations and the API. To customize Docker Postgres credentials or ports, set `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` (and matching `RADIOSHAQ_DATABASE__POSTGRES_URL`) before running `docker compose up`; see [Configuration → Database](configuration.md#database).
 
 ---
 
