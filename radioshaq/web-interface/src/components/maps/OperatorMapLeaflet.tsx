@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
+import DOMPurify from 'dompurify';
 import { getTileLayerProps } from '../../maps/mapSourceConfig';
 import type { OperatorMapProps } from './OperatorMap';
 
@@ -8,7 +9,7 @@ const DEFAULT_HEIGHT = 480;
 
 function ChangeView({ center, zoom }: { center: { lat: number; lng: number }; zoom: number }) {
   const map = useMap();
-  useMemo(() => {
+  useEffect(() => {
     map.setView([center.lat, center.lng], zoom);
   }, [map, center.lat, center.lng, zoom]);
   return null;
@@ -71,7 +72,7 @@ export function OperatorMapLeaflet({
           >
             <Popup>
               {m.infoHtml ? (
-                <div dangerouslySetInnerHTML={{ __html: m.infoHtml }} />
+                <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(m.infoHtml) }} />
               ) : (
                 <span>{m.label ?? m.id}</span>
               )}
