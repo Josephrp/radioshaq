@@ -149,8 +149,8 @@ def write_env(
     override_keys = {
         "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD",
         "RADIOSHAQ_MODE", "RADIOSHAQ_JWT__SECRET_KEY", "RADIOSHAQ_LLM__PROVIDER",
-        "MISTRAL_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY", "GEMINI_API_KEY",
-        "RADIOSHAQ_LLM__MISTRAL_API_KEY", "RADIOSHAQ_LLM__OPENAI_API_KEY", "RADIOSHAQ_LLM__ANTHROPIC_API_KEY", "RADIOSHAQ_LLM__GEMINI_API_KEY",
+        "MISTRAL_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
+        "RADIOSHAQ_LLM__MISTRAL_API_KEY", "RADIOSHAQ_LLM__OPENAI_API_KEY", "RADIOSHAQ_LLM__ANTHROPIC_API_KEY",
         "RADIOSHAQ_TWILIO__ACCOUNT_SID", "RADIOSHAQ_TWILIO__AUTH_TOKEN",
         "RADIOSHAQ_TWILIO__FROM_NUMBER", "RADIOSHAQ_TWILIO__WHATSAPP_FROM",
         "RADIOSHAQ_TTS__PROVIDER", "ELEVENLABS_API_KEY",
@@ -190,7 +190,6 @@ def write_env(
             "openai": "OPENAI_API_KEY",
             "anthropic": "ANTHROPIC_API_KEY",
             "huggingface": "HF_TOKEN",
-            "gemini": "GEMINI_API_KEY",
         }.get(llm_provider.lower())
         if key_var:
             lines.append(_env_line(key_var, llm_api_key))
@@ -345,19 +344,17 @@ def _prompt_llm() -> tuple[str, Optional[str], Optional[str], Optional[str], Opt
     Returns (provider, api_key_or_none, model_or_none, custom_api_base_or_none, huggingface_api_base_or_none).
     """
     provider = typer.prompt(
-        "LLM provider (mistral / openai / anthropic / custom / huggingface / gemini)",
+        "LLM provider (mistral / openai / anthropic / custom / huggingface)",
         default="mistral",
         show_default=True,
     ).strip().lower() or "mistral"
-    if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface", "gemini"):
+    if provider not in ("mistral", "openai", "anthropic", "custom", "huggingface"):
         provider = "mistral"
     model_default = "mistral-large-latest"
     if provider == "custom":
         model_default = "ollama/llama2"
     elif provider == "huggingface":
         model_default = "Qwen/Qwen2.5-7B-Instruct-1M"
-    elif provider == "gemini":
-        model_default = "gemini-2.5-flash"
     model: Optional[str] = typer.prompt(
         "LLM model (e.g. mistral-large-latest, ollama/llama2, Qwen/Qwen2.5-7B-Instruct-1M)",
         default=model_default,
@@ -931,7 +928,6 @@ def run_setup(
     config.llm.anthropic_api_key = None
     config.llm.custom_api_key = None
     config.llm.huggingface_api_key = None
-    config.llm.gemini_api_key = None
     config.twilio.auth_token = None
 
     config_path = project_root / CONFIG_FILENAME

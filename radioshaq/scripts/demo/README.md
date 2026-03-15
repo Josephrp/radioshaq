@@ -29,52 +29,6 @@ $TOKEN = $r.access_token
 | **inject_audio.py** | Pass `--subject op1` (and optional `--role field`, `--station-id STATION-01`). Script calls `/auth/token` then uses the token for inject/relay. For **TTS-only** (no inject), no token needed. |
 | **curl / manual** | Call `POST /auth/token?...` once, then set `Authorization: Bearer <access_token>` on every request. |
 | **stream_receiver_ws.py** | Gets token from `--hq-url` (or use `--token`) to connect to receiver WebSocket. |
-| **run_*_demo.py** (suite below) | Use `demo_utils.get_token()` with `--base-url` and optional `--subject` / `--role` / `--station-id`. |
-
----
-
-## Live HackRF + LLM demo suite
-
-A set of **Markdown playbooks** and **Python drivers** that exercise agents, radio RX/TX, and orchestration (excluding Twilio). All drivers use the shared **`demo_utils.py`** module for tokens and API calls; they exit with **non-zero** on failure and print a short **summary** (JSON or table) at the end.
-
-| Demo | Playbook | Script | Hardware |
-|------|----------|--------|----------|
-| **Run all** | — | [run_all_demos.py](run_all_demos.py) | Optional (see below) |
-| Coverage map | [coverage-matrix.md](coverage-matrix.md) | — | — |
-| Full HackRF (existing) | [demo-hackrf-full.md](demo-hackrf-full.md) | stream_receiver_ws, run_demo | HackRF RX (optional TX) |
-| Option C (no Twilio) | [demo-option-c-no-twilio.md](demo-option-c-no-twilio.md) | run_full_live_demo_option_c.py --no-twilio | HackRF TX optional |
-| Voice RX audio | [demo-voice-rx-audio.md](demo-voice-rx-audio.md) | run_voice_rx_audio_demo.py | Mic or virtual audio |
-| Radio RX injection | [demo-radio-rx-injection.md](demo-radio-rx-injection.md) | run_radio_rx_injection_demo.py | None |
-| HackRF TX audio | [demo-hackrf-tx-audio.md](demo-hackrf-tx-audio.md) | run_hackrf_tx_audio_demo.py | HackRF |
-| Voice-to-voice loop | [demo-voice-to-voice-loop.md](demo-voice-to-voice-loop.md) | run_voice_to_voice_loop_demo.py | HackRF TX optional |
-| Whitelist + registry | [demo-whitelist-and-registry.md](demo-whitelist-and-registry.md) | run_whitelist_flow_demo.py | None |
-| Orchestrator + Judge | [demo-orchestrator-judge.md](demo-orchestrator-judge.md) | run_orchestrator_judge_demo.py | None |
-| Scheduler | [demo-scheduler.md](demo-scheduler.md) | run_scheduler_demo.py | None |
-| GIS location + propagation | [demo-gis-location.md](demo-gis-location.md) | run_gis_demo.py | Postgres/PostGIS |
-
-**Run from project root** (e.g. `radioshaq/`): `uv run python scripts/demo/run_<name>_demo.py --base-url http://localhost:8000 ...`. **Hardware and LLM:** Live demos are intended for **real HackRF** and **real LLM** (no stub). Demos that use RF (full HackRF, HackRF TX audio, Option C TX, voice-to-voice TX) require HackRF connected and configured; use `--require-hardware` so the script exits non-zero if SDR TX is not available. Integration tests in `tests/integration/test_demos_live_like_flows.py` use stubbed hardware for CI.
-
-**Run all demos (single script, rich terminal feedback):**
-
-```bash
-# API must be running (uv run radioshaq run-api). Runs inject, relay, whitelist, orchestrator, scheduler, voice-rx poll; Option C / TX / voice-to-voice only if --recordings-dir is set.
-uv run python scripts/demo/run_all_demos.py
-
-# With recordings (enables Option C, HackRF TX audio, voice-to-voice)
-uv run python scripts/demo/run_all_demos.py --recordings-dir scripts/demo/recordings
-
-# Require real HackRF for TX demos (exit non-zero if SDR TX not configured)
-uv run python scripts/demo/run_all_demos.py --recordings-dir scripts/demo/recordings --require-hardware
-
-# Run only specific demos: --only run_demo run_radio_rx_injection_demo
-# Skip demos: --skip run_full_live_demo_option_c run_hackrf_tx_audio_demo
-```
-
----
-
-## WSL: exact commands (copy-paste)
-
-**[WSL-COMMANDS.md](WSL-COMMANDS.md)** — Ordered copy-paste commands for (A) run-all-demos only (no HackRF) and (B) full demo with HackRF receiver + stream + run_all_demos. Paths use `/mnt/c/Users/MeMyself/monorepo`; replace with your repo path if different.
 
 ---
 
@@ -226,16 +180,11 @@ Prereqs:
 - Twilio configured (see config `twilio.*`)
 - HackRF connected + `radio.sdr_tx_enabled: true` for SDR transmit
 
-Run (with Twilio):
+Run:
 
 ```bash
 uv run python scripts/demo/run_full_live_demo_option_c.py --recordings-dir path/to/recordings --sms-to +15551234567 --whatsapp-to +15551234567
+#
+# Example with your WhatsApp number:
+# uv run python scripts/demo/run_full_live_demo_option_c.py --recordings-dir path/to/recordings --whatsapp-to +33685789865
 ```
-
-Run **without Twilio** (no SMS/WhatsApp credentials needed):
-
-```bash
-uv run python scripts/demo/run_full_live_demo_option_c.py --recordings-dir path/to/recordings --no-twilio
-```
-
-See [demo-option-c-no-twilio.md](demo-option-c-no-twilio.md) for the no-Twilio playbook.

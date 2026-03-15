@@ -468,7 +468,7 @@ def _load_config_for_cli(config_dir: Optional[Path] = None) -> Optional[dict]:
 def _safe_llm_dict(llm: Any) -> dict:
     """Dict from LLMConfig with API keys redacted."""
     d = llm.model_dump(mode="json") if hasattr(llm, "model_dump") else {}
-    for k in ("mistral_api_key", "openai_api_key", "anthropic_api_key", "custom_api_key", "huggingface_api_key", "gemini_api_key"):
+    for k in ("mistral_api_key", "openai_api_key", "anthropic_api_key", "custom_api_key"):
         if d.get(k):
             d[k] = "(set)"
     return d

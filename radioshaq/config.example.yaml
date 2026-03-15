@@ -44,14 +44,13 @@ jwt:
 # LLM (set API key in env or here; prefer env for secrets)
 # -----------------------------------------------------------------------------
 llm:
-  provider: mistral             # mistral | openai | anthropic | custom | huggingface | gemini
+  provider: mistral             # mistral | openai | anthropic | custom | huggingface
   model: mistral-large-latest
   mistral_api_key: null
   openai_api_key: null
   anthropic_api_key: null
   custom_api_base: null
   custom_api_key: null
-  gemini_api_key: null         # For provider: gemini; or set GEMINI_API_KEY
   huggingface_api_key: null     # For provider: huggingface; or set HF_TOKEN
   huggingface_api_base: null   # Optional; default https://router.huggingface.co/v1
   temperature: 0.1

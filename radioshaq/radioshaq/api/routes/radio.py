@@ -75,43 +75,26 @@ async def radio_status(
     _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
-    Report whether a radio (CAT rig) is connected and/or SDR TX (HackRF) is configured.
-    When CAT is connected, include current frequency and mode. For live demos, check
-    sdr_tx_available to ensure HackRF TX path is enabled (real hardware when device attached).
+    Report whether a radio (CAT rig) is connected. When connected, optionally include
+    current frequency and mode from the rig.
     """
     radio_tx = get_radio_tx_agent(request)
     if not radio_tx:
-        return {
-            "connected": False,
-            "reason": "radio_tx_agent_not_available",
-            "sdr_tx_available": False,
-            "sdr_tx_reason": "radio_tx_agent_not_available",
-        }
-    out: dict[str, Any] = {}
+        return {"connected": False, "reason": "radio_tx_agent_not_available"}
     rig_manager = getattr(radio_tx, "rig_manager", None)
-    if rig_manager and hasattr(rig_manager, "is_connected"):
-        connected = rig_manager.is_connected()
-        out["connected"] = connected
-        if connected:
-            try:
-                state = await rig_manager.get_state()
-                if state:
-                    out["frequency_hz"] = state.frequency
-                    out["mode"] = getattr(state.mode, "value", str(state.mode))
-                    out["ptt"] = state.ptt
-            except Exception:
-                pass
-    else:
-        out["connected"] = False
-        out["reason"] = "rig_not_configured"
-
-    sdr_transmitter = getattr(radio_tx, "sdr_transmitter", None)
-    if sdr_transmitter is not None:
-        out["sdr_tx_available"] = True
-        out["sdr_tx_reason"] = "configured"
-    else:
-        out["sdr_tx_available"] = False
-        out["sdr_tx_reason"] = "sdr_tx_disabled_or_unavailable"
+    if not rig_manager or not hasattr(rig_manager, "is_connected"):
+        return {"connected": False, "reason": "rig_not_configured"}
+    connected = rig_manager.is_connected()
+    out: dict[str, Any] = {"connected": connected}
+    if connected:
+        try:
+            state = await rig_manager.get_state()
+            if state:
+                out["frequency_hz"] = state.frequency
+                out["mode"] = getattr(state.mode, "value", str(state.mode))
+                out["ptt"] = state.ptt
+        except Exception:
+            pass
     return out
 
 

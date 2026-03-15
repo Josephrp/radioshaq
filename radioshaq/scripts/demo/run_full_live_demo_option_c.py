@@ -65,8 +65,6 @@ def main() -> int:
     ap.add_argument("--tx-frequency-hz", type=float, default=145_520_000.0, help="HackRF TX center frequency (Hz)")
     ap.add_argument("--tx-mode", default="NFM", help="HackRF TX mode (NFM/AM/USB/LSB/CW)")
     ap.add_argument("--tx-wav", default="", help="Specific WAV file (in recordings-dir) to transmit via /radio/send-audio")
-    ap.add_argument("--no-twilio", action="store_true", help="Skip SMS and WhatsApp relay steps (no Twilio credentials required)")
-    ap.add_argument("--require-hardware", action="store_true", help="Exit non-zero if HackRF SDR TX not configured (ensures real hardware for TX steps)")
     args = ap.parse_args()
 
     base = args.base_url.rstrip("/")
@@ -82,15 +80,11 @@ def main() -> int:
     print(f"Source callsign:     {args.source_callsign}")
     print(f"Destination callsign:{args.dest_callsign}")
     print(f"Band label:          {args.band}")
-    if args.no_twilio:
-        print("SMS/WhatsApp:        skipped (--no-twilio)")
-    elif args.sms_to:
+    if args.sms_to:
         print(f"SMS relay target:    {args.sms_to}")
     else:
         print("SMS relay target:    (skipped – no --sms-to provided)")
-    if args.no_twilio:
-        print("WhatsApp relay tgt:  skipped (--no-twilio)")
-    elif args.whatsapp_to:
+    if args.whatsapp_to:
         print(f"WhatsApp relay tgt:  {args.whatsapp_to}")
     else:
         print("WhatsApp relay tgt:  (skipped – no --whatsapp-to provided)")
@@ -123,15 +117,7 @@ def main() -> int:
     if r.status_code == 200:
         status = r.json()
         print("[radio/status]", status)
-        sdr_available = status.get("sdr_tx_available", False)
-        if args.require_hardware and not sdr_available:
-            print(
-                "[radio/status][fail] --require-hardware: HackRF SDR TX is not configured. "
-                "Set RADIOSHAQ_RADIO__SDR_TX_ENABLED=1, attach HackRF, and install pyhackrf2 (uv sync --extra hackrf).",
-                file=sys.stderr,
-            )
-            return 5
-        if not status.get("connected", False) and not sdr_available:
+        if not status.get("connected", False):
             reason = status.get("reason", "unknown")
             print(
                 "[radio/status][warn] connected=False "
@@ -215,7 +201,7 @@ def main() -> int:
     r.raise_for_status()
     print("[relay][radio]", r.json())
 
-    if not args.no_twilio and args.sms_to.strip():
+    if args.sms_to.strip():
         _print_step("Relay (SMS) via outbound dispatcher")
         relay_sms = {
             "message": "DEMO SMS relay: this should be sent via Twilio if configured.",
@@ -232,12 +218,9 @@ def main() -> int:
         print("[relay][sms] Waiting 3s for outbound dispatcher to pick up message...")
         time.sleep(3)
     else:
-        if args.no_twilio:
-            print("[relay][sms] Skipped (--no-twilio).")
-        else:
-            print("[relay][sms] Skipped (no --sms-to provided).")
+        print("[relay][sms] Skipped (no --sms-to provided).")
 
-    if not args.no_twilio and args.whatsapp_to.strip():
+    if args.whatsapp_to.strip():
         _print_step("Relay (WhatsApp) via outbound dispatcher")
         relay_wa = {
             "message": "DEMO WhatsApp relay: this should be sent via Twilio if configured.",
@@ -254,10 +237,7 @@ def main() -> int:
         print("[relay][whatsapp] Waiting 3s for outbound dispatcher to pick up message...")
         time.sleep(3)
     else:
-        if args.no_twilio:
-            print("[relay][whatsapp] Skipped (--no-twilio).")
-        else:
-            print("[relay][whatsapp] Skipped (no --whatsapp-to provided).")
+        print("[relay][whatsapp] Skipped (no --whatsapp-to provided).")
 
     _print_step("HackRF TX (send-audio via deployed API)")
     tx_wav = Path(args.tx_wav) if args.tx_wav else wavs[0]

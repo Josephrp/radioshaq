@@ -24,7 +24,6 @@ _LLM_SECRET_KEYS = {
     "anthropic_api_key",
     "custom_api_key",
     "huggingface_api_key",
-    "gemini_api_key",
 }
 
 

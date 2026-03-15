@@ -121,18 +121,17 @@ API endpoints expect a Bearer JWT. Tokens are issued by `POST /auth/token` (subj
 
 ## LLM
 
-The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`). For **[Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers)** (serverless models from Groq, Together, etc.), set `provider: huggingface`, `model` (e.g. `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`), and **`huggingface_api_key`** or `HF_TOKEN`; the client uses the HF router URL as `api_base`. For **Google Gemini** (Google AI Studio), set `provider: gemini`, `model` (e.g. `gemini-2.5-flash`, `gemini-2.5-pro`), and **`gemini_api_key`** or `GEMINI_API_KEY`.
+The orchestrator (REACT loop), judge, whitelist agent, and daily-summary cron use an LLM. Set the provider, model, and the matching API key. For **local/custom** endpoints (e.g. [Ollama](https://ollama.ai)), set `provider: custom`, `model` (e.g. `ollama/llama2` or `llama2`), and **`custom_api_base`** (e.g. `http://localhost:11434`). For **[Hugging Face Inference Providers](https://huggingface.co/docs/inference-providers)** (serverless models from Groq, Together, etc.), set `provider: huggingface`, `model` (e.g. `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`), and **`huggingface_api_key`** or `HF_TOKEN`; the client uses the HF router URL as `api_base`.
 
 | Option | Env var | Default | Description |
 |--------|---------|---------|-------------|
-| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`, `huggingface`, `gemini`. |
-| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`; for **huggingface**: `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`; for **gemini**: `gemini-2.5-flash`, `gemini-2.5-pro`). |
+| `llm.provider` | `RADIOSHAQ_LLM__PROVIDER` | `mistral` | One of: `mistral`, `openai`, `anthropic`, `custom`, `huggingface`. |
+| `llm.model` | `RADIOSHAQ_LLM__MODEL` | `mistral-large-latest` | Model name (e.g. `mistral-small-latest`, `gpt-4o`, `ollama/llama2`; for **huggingface**: `openai/gpt-oss-120b:groq`, `Qwen/Qwen2.5-7B-Instruct-1M`). |
 | `llm.mistral_api_key` | `RADIOSHAQ_LLM__MISTRAL_API_KEY` | `null` | Mistral API key (or set `MISTRAL_API_KEY` if your code reads it). |
 | `llm.openai_api_key` | `RADIOSHAQ_LLM__OPENAI_API_KEY` | `null` | OpenAI API key. |
 | `llm.anthropic_api_key` | `RADIOSHAQ_LLM__ANTHROPIC_API_KEY` | `null` | Anthropic API key. |
 | `llm.custom_api_base` | `RADIOSHAQ_LLM__CUSTOM_API_BASE` | `null` | **Custom provider base URL** (e.g. `http://localhost:11434` for Ollama). Passed to LiteLLM. |
 | `llm.custom_api_key` | `RADIOSHAQ_LLM__CUSTOM_API_KEY` | `null` | Custom provider API key. |
-| `llm.gemini_api_key` | `RADIOSHAQ_LLM__GEMINI_API_KEY` | `null` | **Gemini** API key (Google AI Studio; or set `GEMINI_API_KEY`). |
 | `llm.huggingface_api_key` | `RADIOSHAQ_LLM__HUGGINGFACE_API_KEY` | `null` | **Hugging Face** token for [Inference Providers](https://huggingface.co/docs/inference-providers) (or set `HF_TOKEN`). Token needs "Inference Providers" permission. |
 | `llm.huggingface_api_base` | `RADIOSHAQ_LLM__HUGGINGFACE_API_BASE` | `null` | Optional; default `https://router.huggingface.co/v1` when provider is `huggingface`. |
 | `llm.temperature` | `RADIOSHAQ_LLM__TEMPERATURE` | `0.1` | Sampling temperature (0–2). |

@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { searchTranscripts, playTranscript, type TranscriptItem } from '../../services/radioshaqApi';
-import { TranscriptMapModal } from '../../components/maps/TranscriptMapModal';
-import { isGoogleMapsConfigured } from '../../maps/googleMapsLoader';
 
 export function TranscriptsPage() {
   const { t } = useTranslation();
@@ -14,7 +12,6 @@ export function TranscriptsPage() {
   const [destinationOnly, setDestinationOnly] = useState(false);
   const [limit, setLimit] = useState(50);
   const [playingId, setPlayingId] = useState<number | null>(null);
-  const [mapModalTranscript, setMapModalTranscript] = useState<TranscriptItem | null>(null);
 
   const load = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -105,10 +102,10 @@ export function TranscriptsPage() {
         <p>No transcripts found.</p>
       ) : (
         <ul style={{ listStyle: 'none', padding: 0 }}>
-          {transcripts.map((transcriptItem) => {
-            const id = idOf(transcriptItem);
-            const text = transcriptItem.transcript_text ?? (transcriptItem as Record<string, unknown>).transcript_text ?? '';
-            const src = transcriptItem.source_callsign ?? (transcriptItem as Record<string, unknown>).source_callsign ?? '?';
+          {transcripts.map((t) => {
+            const id = idOf(t);
+            const text = t.transcript_text ?? (t as Record<string, unknown>).transcript_text ?? '';
+            const src = t.source_callsign ?? (t as Record<string, unknown>).source_callsign ?? '?';
             return (
               <li
                 key={id}
@@ -125,32 +122,21 @@ export function TranscriptsPage() {
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <strong>[{id}]</strong> {String(src)}: {String(text).slice(0, 80)}{String(text).length > 80 ? '…' : ''}
+                  <strong>[{id}]</strong> {String(src)}: {(String(text)).slice(0, 80)}{(String(text)).length > 80 ? '…' : ''}
                 </div>
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  {isGoogleMapsConfigured() && (
-                    <button type="button" onClick={() => setMapModalTranscript(transcriptItem)}>
-                      {t('map.viewOnMap')}
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => handlePlay(id)}
-                    disabled={playingId !== null}
-                  >
-                    {playingId === id ? 'Playing…' : 'Play over radio'}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => handlePlay(id)}
+                  disabled={playingId !== null}
+                  style={{ flexShrink: 0 }}
+                >
+                  {playingId === id ? 'Playing…' : 'Play over radio'}
+                </button>
               </li>
             );
           })}
         </ul>
       )}
-
-      <TranscriptMapModal
-        transcript={mapModalTranscript}
-        onClose={() => setMapModalTranscript(null)}
-      />
     </div>
   );
 }
