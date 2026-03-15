@@ -145,14 +145,24 @@ async def _handle_inbound(request: Request, explicit_channel: str) -> Response:
         "signature_validated": signature_validated,
     }
 
-    # Opt-out handling (STOP): record directly if DB available, then acknowledge.
+    # Opt-out handling (STOP): record in DB first; only acknowledge if persisted (TCPA/CASL).
     if body.upper() in _OPTOUT_KEYWORDS:
         db = getattr(request.app.state, "db", None)
-        if db is not None and hasattr(db, "record_opt_out_by_phone"):
-            try:
-                await db.record_opt_out_by_phone(from_phone, channel)
-            except Exception as e:
-                logger.warning("Opt-out record failed (channel={} phone={}): {}", channel, from_phone, e)
+        if db is None or not hasattr(db, "record_opt_out_by_phone"):
+            raise HTTPException(
+                status_code=503,
+                detail="Opt-out not available; database not configured",
+            )
+        try:
+            await db.record_opt_out_by_phone(from_phone, channel)
+        except Exception as e:
+            logger.error(
+                "Opt-out record failed (channel={} phone={}): {}", channel, from_phone, e
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Opt-out could not be recorded; please try again",
+            ) from e
         return _twiml_response("You have been opted out. Reply START to re-subscribe.")
 
     inbound = InboundMessage(

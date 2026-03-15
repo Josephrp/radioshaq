@@ -24,7 +24,7 @@ def _is_voxtral_like_model_id(model_id: str) -> bool:
     if not model_id or not model_id.strip():
         return False
     s = model_id.strip().lower()
-    return s == "voxtral" or "voxtral" in s or s.startswith("shakods/") or s.startswith("mistralai/voxtral")
+    return s == "voxtral" or "voxtral" in s or s.startswith("radioshaq/") or s.startswith("mistralai/voxtral")
 
 
 def transcribe_audio(
