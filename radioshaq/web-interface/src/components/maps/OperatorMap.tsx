@@ -51,6 +51,8 @@ function OperatorMapGoogle({
   const mapRef = useRef<google.maps.Map | null>(null);
   const markersRef = useRef<google.maps.Marker[]>([]);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const centerRef = useRef(center);
+  const zoomRef = useRef(zoom);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
@@ -63,6 +65,11 @@ function OperatorMapGoogle({
   }, []);
 
   useEffect(() => {
+    centerRef.current = center;
+    zoomRef.current = zoom;
+  }, [center, zoom]);
+
+  useEffect(() => {
     if (!containerRef.current) return;
     setMapError(null);
     setMapReady(false);
@@ -71,9 +78,11 @@ function OperatorMapGoogle({
       .then((google) => {
         if (cancelled || !containerRef.current) return;
         try {
+          const latestCenter = centerRef.current;
+          const latestZoom = zoomRef.current;
           const map = new google.maps.Map(containerRef.current, {
-            center: { lat: center.lat, lng: center.lng },
-            zoom,
+            center: { lat: latestCenter.lat, lng: latestCenter.lng },
+            zoom: latestZoom,
             mapTypeControl: true,
             fullscreenControl: true,
             streetViewControl: true,
@@ -105,10 +114,10 @@ function OperatorMapGoogle({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
     map.setCenter({ lat: center.lat, lng: center.lng });
     map.setZoom(zoom);
-  }, [center.lat, center.lng, zoom]);
+  }, [center.lat, center.lng, zoom, mapReady]);
 
   useEffect(() => {
     const map = mapRef.current;

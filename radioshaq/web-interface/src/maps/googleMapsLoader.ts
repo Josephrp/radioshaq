@@ -18,7 +18,13 @@ export function loadGoogleMaps(): Promise<typeof google> {
     return Promise.reject(new Error('VITE_GOOGLE_MAPS_API_KEY is not set. Set it in .env or .env.local for map features.'));
   }
   setOptions({ key: API_KEY, v: 'weekly' });
-  loadPromise = importLibrary('maps').then(() => (globalThis as unknown as { google: typeof google }).google);
+  loadPromise = importLibrary('maps')
+    .then(() => (globalThis as unknown as { google: typeof google }).google)
+    .catch((err) => {
+      // Allow retry after transient failures instead of caching a rejected promise forever.
+      loadPromise = null;
+      throw err;
+    });
   return loadPromise;
 }
 
