@@ -76,7 +76,7 @@ def _llm_model_string_from_llm_config(llm: LLMConfig) -> str:
             model = "gemini-2.5-flash"
         else:
             model = raw_model
-        if "gemini/" in model:
+        if model.startswith("gemini/"):
             return model
         return f"gemini/{model}"
     if "/" not in model and not model.startswith(("openai/", "anthropic/", "mistral/", "custom/", "ollama/")):

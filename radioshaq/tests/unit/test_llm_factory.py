@@ -91,6 +91,12 @@ def test_llm_model_string_gemini_already_prefixed():
     assert _llm_model_string_from_llm_config(llm) == "gemini/gemini-2.5-pro"
 
 
+def test_llm_model_string_gemini_prefix_match_only():
+    """Only a leading gemini/ prefix should bypass normalization."""
+    llm = LLMConfig(provider=LLMProvider.GEMINI, model="pro-gemini/flash")
+    assert _llm_model_string_from_llm_config(llm) == "gemini/pro-gemini/flash"
+
+
 def test_llm_api_key_from_llm_config_gemini():
     """When provider is gemini, return gemini_api_key."""
     llm = LLMConfig(provider=LLMProvider.GEMINI, gemini_api_key="key123")

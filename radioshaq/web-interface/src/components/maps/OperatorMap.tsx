@@ -26,6 +26,26 @@ export interface OperatorMapProps {
 
 const DEFAULT_HEIGHT = 480;
 
+function getGoogleMarkerIcon(
+  google: typeof globalThis.google,
+  marker: OperatorMapMarker
+): string | google.maps.Symbol | undefined {
+  if (marker.iconUrl) {
+    return marker.iconUrl;
+  }
+  if (!marker.color) {
+    return undefined;
+  }
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    scale: 8,
+    fillColor: marker.color,
+    fillOpacity: 0.9,
+    strokeColor: '#fff',
+    strokeWeight: 1.5,
+  };
+}
+
 /**
  * Unified map: branches on getMapProvider(). Renders Google or Leaflet (OSM) implementation.
  */
@@ -131,7 +151,7 @@ function OperatorMapGoogle({
           map: mapRef.current!,
           title: m.label ?? m.id,
           label: m.label ? { text: m.label, color: '#000' } : undefined,
-          icon: m.iconUrl ?? undefined,
+          icon: getGoogleMarkerIcon(google, m),
         });
         if (m.infoHtml) {
           marker.addListener('click', () => {
