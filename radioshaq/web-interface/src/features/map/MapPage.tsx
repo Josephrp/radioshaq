@@ -114,7 +114,7 @@ export function MapPage() {
 
   useEffect(() => {
     fetchNearby(center.lat, center.lng, radiusKm * 1000);
-  }, [radiusKm]);
+  }, [radiusKm, fetchNearby]);
 
   useEffect(() => {
     listEmergencyEventsWithLocation({ limit: 50 })

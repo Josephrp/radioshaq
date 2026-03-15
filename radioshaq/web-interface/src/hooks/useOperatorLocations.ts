@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getOperatorLocation,
   getOperatorsNearby,
@@ -124,9 +124,11 @@ export function useOperatorsNearby(params: UseOperatorsNearbyParams): UseOperato
   const [data, setData] = useState<OperatorsNearbyResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const latestRequestIdRef = useRef(0);
 
   const refetch = useCallback(async () => {
     if (!center || !enabled) return;
+    const requestId = ++latestRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -137,47 +139,31 @@ export function useOperatorsNearby(params: UseOperatorsNearbyParams): UseOperato
         recent_hours,
         max_results,
       });
+      if (latestRequestIdRef.current !== requestId) return;
       setData(res);
     } catch (e) {
+      if (latestRequestIdRef.current !== requestId) return;
       setError(e instanceof Error ? e.message : 'Failed to load operators nearby');
       setData(null);
     } finally {
+      if (latestRequestIdRef.current !== requestId) return;
       setLoading(false);
     }
   }, [center?.lat, center?.lng, radius_meters, recent_hours, max_results, enabled]);
 
   useEffect(() => {
     if (!center || !enabled) {
+      latestRequestIdRef.current += 1;
       setData(null);
       setError(null);
+      setLoading(false);
       return;
     }
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    getOperatorsNearby({
-      latitude: center.lat,
-      longitude: center.lng,
-      radius_meters,
-      recent_hours,
-      max_results,
-    })
-      .then((res) => {
-        if (!cancelled) setData(res);
-      })
-      .catch((e) => {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to load operators nearby');
-          setData(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void refetch();
     return () => {
-      cancelled = true;
+      latestRequestIdRef.current += 1;
     };
-  }, [center?.lat, center?.lng, radius_meters, recent_hours, max_results, enabled]);
+  }, [center?.lat, center?.lng, radius_meters, recent_hours, max_results, enabled, refetch]);
 
   return { data, loading, error, refetch };
 }

@@ -7,6 +7,7 @@ GET /gis/emergency-events for emergency events with locations (for map overlays)
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -175,7 +176,7 @@ async def get_operators_nearby(
 
 @router.get("/emergency-events")
 async def get_emergency_events_with_locations(
-    since: str | None = Query(None, description="ISO timestamp; only events created_at >= since"),
+    since: datetime | None = Query(None, description="ISO timestamp; only events created_at >= since"),
     status: str | None = Query(None, description="Filter by status (e.g. pending, approved)"),
     limit: int = Query(100, ge=1, le=500),
     db: Any = Depends(get_db),
@@ -186,5 +187,9 @@ async def get_emergency_events_with_locations(
         raise HTTPException(status_code=503, detail="Database not available")
     if not hasattr(db, "get_emergency_events_with_locations"):
         return {"events": [], "count": 0}
-    events = await db.get_emergency_events_with_locations(since=since, status=status, limit=limit)
+    events = await db.get_emergency_events_with_locations(
+        since=since.isoformat() if since is not None else None,
+        status=status,
+        limit=limit,
+    )
     return {"events": events, "count": len(events)}

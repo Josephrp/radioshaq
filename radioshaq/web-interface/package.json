@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "verify:leaflet-assets": "node scripts/verify-leaflet-assets.mjs",
+    "build": "npm run verify:leaflet-assets && tsc -b && vite build",
     "preview": "vite preview"
   },
   "dependencies": {
