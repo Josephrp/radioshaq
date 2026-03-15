@@ -125,7 +125,7 @@ class DatabaseConfig(BaseModel):
     
     # PostgreSQL with PostGIS (default port 5434 matches docker-compose to avoid host 5432 conflict)
     postgres_url: str = Field(
-        default="postgresql+asyncpg://localhost:5434/radioshaq",
+        default="postgresql+asyncpg://radioshaq:radioshaq@localhost:5434/radioshaq",
         description="PostgreSQL connection URL with asyncpg driver",
     )
     postgres_pool_size: int = Field(default=10, ge=1, le=100)

@@ -1,8 +1,15 @@
 # Docker Compose for RadioShaq local development
 #
 # Postgres is mapped to host port 5434 to avoid conflict with a local PostgreSQL
-# already using 5432. Set DATABASE_URL=postgresql+asyncpg://radioshaq:radioshaq@127.0.0.1:5434/radioshaq
-# (or use default in config).
+# already using 5432. Default URL: postgresql+asyncpg://radioshaq:radioshaq@localhost:5434/radioshaq
+# (or use RADIOSHAQ_DATABASE__POSTGRES_URL).
+#
+# Override Postgres credentials/ports via env vars (defaults shown):
+#   POSTGRES_USER=radioshaq  POSTGRES_PASSWORD=radioshaq  POSTGRES_DB=radioshaq
+#   POSTGRES_PORT=5434  (host port for main Postgres)
+#   POSTGRES_TEST_USER=radioshaq  POSTGRES_TEST_PASSWORD=radioshaq  POSTGRES_TEST_DB=radioshaq_test
+#   POSTGRES_TEST_PORT=5433  (host port for test Postgres)
+# If you change these, set RADIOSHAQ_DATABASE__POSTGRES_URL to match.
 #
 # Usage:
 #   docker compose up -d postgres   # Start Postgres on 5434
@@ -21,20 +28,20 @@ services:
     container_name: radioshaq-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: radioshaq
-      POSTGRES_PASSWORD: radioshaq
-      POSTGRES_DB: radioshaq
+      POSTGRES_USER: ${POSTGRES_USER:-radioshaq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-radioshaq}
+      POSTGRES_DB: ${POSTGRES_DB:-radioshaq}
       LANG: en_US.utf8
       LC_ALL: en_US.utf8
     ports:
-      - "5434:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     volumes:
       # Persist database data
       - postgres_data:/var/lib/postgresql/data
       # Initial setup scripts
       - ./postgres/init:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radioshaq -d radioshaq"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -50,15 +57,15 @@ services:
     container_name: radioshaq-postgres-test
     restart: unless-stopped
     environment:
-      POSTGRES_USER: radioshaq
-      POSTGRES_PASSWORD: radioshaq
-      POSTGRES_DB: radioshaq_test
+      POSTGRES_USER: ${POSTGRES_TEST_USER:-radioshaq}
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-radioshaq}
+      POSTGRES_DB: ${POSTGRES_TEST_DB:-radioshaq_test}
     ports:
-      - "5433:5432"
+      - "${POSTGRES_TEST_PORT:-5433}:5432"
     volumes:
       - postgres_test_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U radioshaq -d radioshaq_test"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5

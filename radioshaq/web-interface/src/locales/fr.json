@@ -38,6 +38,9 @@
     "updateLocation": "Mettre à jour ma position",
     "lat": "Latitude",
     "lng": "Longitude",
+    "setLocation": "Définir la position",
+    "latInvalid": "La latitude doit être comprise entre -90 et 90.",
+    "lngInvalid": "La longitude doit être comprise entre -180 et 180.",
     "locationUpdated": "Position mise à jour.",
     "viewOnMap": "Voir sur la carte",
     "noLocationsForCallsigns": "Aucune position pour ces indicatifs.",
@@ -54,7 +57,9 @@
     "approve": "Approuver et envoyer",
     "reject": "Rejeter",
     "allowNotifications": "Autoriser les notifications",
-    "autoRefresh": "La liste s'actualise toutes les 12 s ; l'app vérifie aussi toutes les 15 s et joue une alerte et affiche une notification à l'arrivée de nouveaux messages."
+    "autoRefresh": "La liste s'actualise toutes les 12 s ; l'app vérifie aussi toutes les 15 s et joue une alerte et affiche une notification à l'arrivée de nouveaux messages.",
+    "mapTitle": "Événements sur la carte",
+    "viewOnMap": "Voir sur la carte"
   },
   "license": {
     "title": "Acceptation de la licence requise",
