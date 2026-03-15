@@ -1,13 +1,17 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 
+import { getMapProvider } from '../../maps/mapSourceConfig';
 import { loadGoogleMaps } from '../../maps/googleMapsLoader';
+import { OperatorMapLeaflet } from './OperatorMapLeaflet';
 
 export interface OperatorMapMarker {
   id: string;
   position: { lat: number; lng: number };
   label?: string;
+  subtitle?: string;
   infoHtml?: string;
   iconUrl?: string;
+  color?: string;
 }
 
 export interface OperatorMapProps {
@@ -16,15 +20,27 @@ export interface OperatorMapProps {
   markers: OperatorMapMarker[];
   height?: number | string;
   className?: string;
+  /** When provider is OSM, optional tile source id. */
+  tileSourceId?: string;
 }
 
 const DEFAULT_HEIGHT = 480;
 
 /**
- * Renders a Google Map with operator markers and info windows.
- * Requires VITE_GOOGLE_MAPS_API_KEY. Handles resize and prop updates.
+ * Unified map: branches on getMapProvider(). Renders Google or Leaflet (OSM) implementation.
  */
-export function OperatorMap({
+export function OperatorMap(props: OperatorMapProps) {
+  const provider = getMapProvider();
+  if (provider === 'osm') {
+    return <OperatorMapLeaflet {...props} />;
+  }
+  return <OperatorMapGoogle {...props} />;
+}
+
+/**
+ * Google Maps implementation. Requires VITE_GOOGLE_MAPS_API_KEY.
+ */
+function OperatorMapGoogle({
   center,
   zoom,
   markers,
@@ -65,23 +81,6 @@ export function OperatorMap({
           });
           mapRef.current = map;
           infoWindowRef.current = new google.maps.InfoWindow();
-
-          markers.forEach((m) => {
-            const marker = new google.maps.Marker({
-              position: { lat: m.position.lat, lng: m.position.lng },
-              map,
-              title: m.label ?? m.id,
-              label: m.label ? { text: m.label, color: '#000' } : undefined,
-              icon: m.iconUrl ?? undefined,
-            });
-            if (m.infoHtml) {
-              marker.addListener('click', () => {
-                infoWindowRef.current?.setContent(m.infoHtml!);
-                infoWindowRef.current?.open(map, marker);
-              });
-            }
-            markersRef.current.push(marker);
-          });
           if (!cancelled) setMapReady(true);
         } catch (err) {
           if (!cancelled) {
@@ -113,7 +112,7 @@ export function OperatorMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !mapReady) return;
     clearMarkers();
     loadGoogleMaps().then((google) => {
       if (!mapRef.current || !infoWindowRef.current) return;
@@ -134,7 +133,7 @@ export function OperatorMap({
         markersRef.current.push(marker);
       });
     });
-  }, [markers, clearMarkers]);
+  }, [markers, clearMarkers, mapReady]);
 
   const heightStyle = typeof height === 'number' ? `${height}px` : height;
 

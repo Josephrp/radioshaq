@@ -25,6 +25,9 @@
   "map": {
     "title": "Mapa de operadores",
     "notConfigured": "Google Maps no está configurado. Establezca VITE_GOOGLE_MAPS_API_KEY en .env para mostrar el mapa.",
+    "switchToOsm": "O cambie a OpenStreetMap arriba.",
+    "provider": "Proveedor de mapa",
+    "tileSource": "Capa de teselas",
     "callsignPlaceholder": "ej. EA5ABC",
     "centerOnCallsign": "Centrar en indicativo",
     "radius": "Radio",

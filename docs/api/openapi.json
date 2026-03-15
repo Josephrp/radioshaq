@@ -3,7 +3,7 @@
   "info": {
     "title": "RadioShaq API",
     "description": "Strategic Autonomous Ham Radio and Knowledge Operations Dispatch System",
-    "version": "0.1.0"
+    "version": "0.1.3"
   },
   "paths": {
     "/health": {
@@ -49,6 +49,28 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Ready Health Ready Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Metrics",
+        "description": "Prometheus scrape endpoint. Exposes radioshaq_uptime_seconds, radioshaq_callsigns_registered_total,\nand optional GPU gauges (when nvidia-smi is available). Install prometheus-client for full metrics.",
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
                 }
               }
             }
@@ -296,7 +318,7 @@
           "radio"
         ],
         "summary": "Bands",
-        "description": "List supported bands (from band plan).",
+        "description": "List supported bands (from effective band plan for config region).",
         "operationId": "bands_radio_bands_get",
         "responses": {
           "200": {
@@ -312,6 +334,35 @@
                   },
                   "type": "object",
                   "title": "Response Bands Radio Bands Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/radio/status": {
+      "get": {
+        "tags": [
+          "radio"
+        ],
+        "summary": "Radio Status",
+        "description": "Report whether a radio (CAT rig) is connected and/or SDR TX (HackRF) is configured.\nWhen CAT is connected, include current frequency and mode. For live demos, check\nsdr_tx_available to ensure HackRF TX path is enabled (real hardware when device attached).",
+        "operationId": "radio_status_radio_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Radio Status Radio Status Get"
                 }
               }
             }
@@ -371,6 +422,625 @@
             "HTTPBearer": []
           }
         ]
+      }
+    },
+    "/radio/send-audio": {
+      "post": {
+        "tags": [
+          "radio"
+        ],
+        "summary": "Send Audio",
+        "description": "Transmit an uploaded audio file over radio (CAT or SDR via radio_tx agent).\n\nThis is primarily for live demos where the client cannot reference server-local paths.",
+        "operationId": "send_audio_radio_send_audio_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "frequency_hz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Frequency Hz"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mode"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_send_audio_radio_send_audio_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Send Audio Radio Send Audio Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gis/location": {
+      "post": {
+        "tags": [
+          "gis"
+        ],
+        "summary": "Post Location",
+        "description": "Store operator location. v1 strict: requires latitude and longitude.\nIf only location_text is provided, returns 400 with clarification.",
+        "operationId": "post_location_gis_location_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostLocationBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/gis/location/{callsign}": {
+      "get": {
+        "tags": [
+          "gis"
+        ],
+        "summary": "Get Location",
+        "description": "Return latest stored location for callsign (explicit lat/lon).",
+        "operationId": "get_location_gis_location__callsign__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LocationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gis/operators-nearby": {
+      "get": {
+        "tags": [
+          "gis"
+        ],
+        "summary": "Get Operators Nearby",
+        "description": "Find operators within radius of a point (from persisted operator_locations).",
+        "operationId": "get_operators_nearby_gis_operators_nearby_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "latitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 90.0,
+              "minimum": -90.0,
+              "title": "Latitude"
+            }
+          },
+          {
+            "name": "longitude",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "maximum": 180.0,
+              "minimum": -180.0,
+              "title": "Longitude"
+            }
+          },
+          {
+            "name": "radius_meters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "minimum": 0,
+              "default": 50000,
+              "title": "Radius Meters"
+            }
+          },
+          {
+            "name": "recent_hours",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 24,
+              "title": "Recent Hours"
+            }
+          },
+          {
+            "name": "max_results",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Max Results"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Operators Nearby Gis Operators Nearby Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gis/emergency-events": {
+      "get": {
+        "tags": [
+          "gis"
+        ],
+        "summary": "Get Emergency Events With Locations",
+        "description": "Return emergency coordination events that have a location, with lat/lon for map overlays.",
+        "operationId": "get_emergency_events_with_locations_gis_emergency_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ISO timestamp; only events created_at >= since",
+              "title": "Since"
+            },
+            "description": "ISO timestamp; only events created_at >= since"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by status (e.g. pending, approved)",
+              "title": "Status"
+            },
+            "description": "Filter by status (e.g. pending, approved)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Emergency Events With Locations Gis Emergency Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/{callsign}/blocks": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Blocks",
+        "description": "Get core memory blocks (user, identity, ideaspace, system_instructions) for a callsign.",
+        "operationId": "get_blocks_memory__callsign__blocks_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Blocks Memory  Callsign  Blocks Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/{callsign}/blocks/{block_type}": {
+      "put": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Update Block",
+        "description": "Replace a core block's content.",
+        "operationId": "update_block_memory__callsign__blocks__block_type__put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          },
+          {
+            "name": "block_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Type"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Block Memory  Callsign  Blocks  Block Type  Put"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/{callsign}/blocks/{block_type}/append": {
+      "post": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Append Block",
+        "description": "Append content to a core block.",
+        "operationId": "append_block_memory__callsign__blocks__block_type__append_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          },
+          {
+            "name": "block_type",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Block Type"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "title": "Body"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Append Block Memory  Callsign  Blocks  Block Type  Append Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/memory/{callsign}/summaries": {
+      "get": {
+        "tags": [
+          "memory"
+        ],
+        "summary": "Get Summaries",
+        "description": "Get daily summaries for a callsign (last `days` days).",
+        "operationId": "get_summaries_memory__callsign__summaries_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 7,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": true
+                  },
+                  "title": "Response Get Summaries Memory  Callsign  Summaries Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/messages/process": {
@@ -606,7 +1276,7 @@
           "transcripts"
         ],
         "summary": "Search Transcripts",
-        "description": "Search transcripts (received/relayed messages). Use for demo so User 2 can poll\nfor messages on a band or for their callsign (e.g. after relay from 40m to 2m).\nWhen whitelist is configured, only transcripts whose source/destination is in the whitelist are returned.",
+        "description": "Search transcripts (received/relayed messages). Use for demo so User 2 can poll\nfor messages on a band or for their callsign (e.g. after relay from 40m to 2m).\nFor a callsign to poll their messages on a band: use callsign=<their_callsign>&destination_only=true&band=<band>.\nOmit band to get messages across all bands.\nWhen whitelist is configured, only transcripts whose source/destination is in the whitelist are returned.",
         "operationId": "search_transcripts_transcripts_get",
         "security": [
           {
@@ -703,6 +1373,18 @@
               "title": "Band"
             },
             "description": "Filter by band name (e.g. 40m, 2m); uses extra_data.band"
+          },
+          {
+            "name": "destination_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "If True and callsign set, return only transcripts where callsign is destination",
+              "default": false,
+              "title": "Destination Only"
+            },
+            "description": "If True and callsign set, return only transcripts where callsign is destination"
           },
           {
             "name": "since",
@@ -1009,6 +1691,64 @@
       }
     },
     "/callsigns/registered/{callsign}": {
+      "patch": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Patch Callsign Bands",
+        "description": "Set preferred_bands for a registered callsign. Band names must be in effective band plan (e.g. 40m, 2m).",
+        "operationId": "patch_callsign_bands_callsigns_registered__callsign__patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchCallsignBandsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Patch Callsign Bands Callsigns Registered  Callsign  Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
       "delete": {
         "tags": [
           "callsigns"
@@ -1058,13 +1798,401 @@
         }
       }
     },
+    "/callsigns/registered/{callsign}/contact-preferences": {
+      "get": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Get Contact Preferences",
+        "description": "Get contact preferences for a registered callsign (\u00a78.1).",
+        "operationId": "get_contact_preferences_callsigns_registered__callsign__contact_preferences_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Contact Preferences Callsigns Registered  Callsign  Contact Preferences Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "callsigns"
+        ],
+        "summary": "Patch Contact Preferences",
+        "description": "Set contact preferences (notify by SMS/WhatsApp when a message is left for this callsign). Sets consent_at when enabling notify_on_relay (\u00a78.1).",
+        "operationId": "patch_contact_preferences_callsigns_registered__callsign__contact_preferences_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "callsign",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Callsign"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchContactPreferencesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Patch Contact Preferences Callsigns Registered  Callsign  Contact Preferences Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergency/request": {
+      "post": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "Create Emergency Request",
+        "description": "Create an emergency coordination event (status=pending). Only allowed when\nemergency_contact is enabled and current region is in regions_allowed.",
+        "operationId": "create_emergency_request_emergency_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmergencyRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Create Emergency Request Emergency Request Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/emergency/pending-count": {
+      "get": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "Emergency Pending Count",
+        "description": "Return the number of pending emergency events. Use this to inform the operator\n(e.g. dashboard polling or script) that action is required; then list with GET /emergency/events.",
+        "operationId": "emergency_pending_count_emergency_pending_count_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Emergency Pending Count Emergency Pending Count Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/emergency/events/stream": {
+      "get": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "Emergency Events Stream",
+        "description": "Server-Sent Events stream of pending emergency count. Send event every 10s.\nOperator UI can subscribe to trigger audio and browser notifications when count > 0.",
+        "operationId": "emergency_events_stream_emergency_events_stream_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/emergency/events": {
+      "get": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "List Emergency Events",
+        "description": "List coordination events with event_type=emergency. Optional filter by status (e.g. pending, approved, rejected).",
+        "operationId": "list_emergency_events_emergency_events_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Emergency Events Emergency Events Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergency/events/{event_id}/approve": {
+      "post": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "Approve Emergency Event",
+        "description": "Approve an emergency event and queue the SMS/WhatsApp for outbound delivery.\nSets status=approved, records approved_at/approved_by/queued_at, and returns queued state.",
+        "operationId": "approve_emergency_event_emergency_events__event_id__approve_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Approve Emergency Event Emergency Events  Event Id  Approve Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emergency/events/{event_id}/reject": {
+      "post": {
+        "tags": [
+          "emergency"
+        ],
+        "summary": "Reject Emergency Event",
+        "description": "Reject an emergency event (do not send). Sets status=rejected and records rejected_at, rejected_by.",
+        "operationId": "reject_emergency_event_emergency_events__event_id__reject_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "event_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Event Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Reject Emergency Event Emergency Events  Event Id  Reject Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/inject/message": {
       "post": {
         "tags": [
           "inject"
         ],
         "summary": "Inject Message",
-        "description": "Inject a message into the RX path for demo/testing.\n\nThe message will be available to receivers (radio_rx / digital_modes)\nwhen they poll the injection queue. Use for:\n- User injection script (e.g. audio \u2192 text \u2192 this endpoint)\n- Simulating one user emitting on a band for another to receive",
+        "description": "Inject a message into the RX path for demo/testing.\n\nThe message will be available to receivers (radio_rx / digital_modes)\nwhen they poll the injection queue. Unless inject_skip_bus is True,\nalso publish to MessageBus so the orchestrator processes it.",
         "operationId": "inject_message_inject_message_post",
         "requestBody": {
           "content": {
@@ -1085,6 +2213,64 @@
                   "additionalProperties": true,
                   "type": "object",
                   "title": "Response Inject Message Inject Message Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/receiver/upload": {
+      "post": {
+        "tags": [
+          "receiver"
+        ],
+        "summary": "Receiver Upload",
+        "description": "Accept upload from a remote receiver station.\n\nCalled by radioshaq.remote_receiver (SDR service) when HQ_URL points here.\nRequires Bearer JWT. When receiver_upload_store is enabled, persists transcript\nwith band (from frequency). When receiver_upload_inject is enabled, injects\ninto the RX path after store.",
+        "operationId": "receiver_upload_receiver_upload_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReceiverUploadBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ]
+                  },
+                  "type": "object",
+                  "title": "Response Receiver Upload Receiver Upload Post"
                 }
               }
             }
@@ -1153,13 +2339,102 @@
         }
       }
     },
+    "/internal/opt-out": {
+      "post": {
+        "tags": [
+          "internal"
+        ],
+        "summary": "Opt Out",
+        "description": "Record opt-out for notify-on-relay (\u00a78.1). Call when user sends STOP via SMS/WhatsApp.\nProvide either callsign or phone + channel (sms/whatsapp). Clears that contact and sets opt_out_at.\nRequires a valid Bearer token (e.g. service JWT used by your Twilio webhook handler or Lambda).",
+        "operationId": "opt_out_internal_opt_out_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptOutBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Opt Out Internal Opt Out Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/twilio/sms": {
+      "post": {
+        "tags": [
+          "twilio"
+        ],
+        "summary": "Twilio Sms Webhook",
+        "description": "Inbound SMS webhook from Twilio.",
+        "operationId": "twilio_sms_webhook_twilio_sms_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/twilio/whatsapp": {
+      "post": {
+        "tags": [
+          "twilio"
+        ],
+        "summary": "Twilio Whatsapp Webhook",
+        "description": "Inbound WhatsApp webhook from Twilio.",
+        "operationId": "twilio_whatsapp_webhook_twilio_whatsapp_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/config/audio": {
       "get": {
         "tags": [
           "audio"
         ],
         "summary": "Get Audio Config",
-        "description": "Get current audio configuration (env/file + optional runtime overrides).",
+        "description": "Get current audio configuration (env/file + optional runtime overrides).\nRuntime overrides do not affect active agents until process restart.",
         "operationId": "get_audio_config_api_v1_config_audio_get",
         "responses": {
           "200": {
@@ -1186,7 +2461,7 @@
           "audio"
         ],
         "summary": "Update Audio Config",
-        "description": "Update audio configuration (runtime overlay only; does not persist to file).",
+        "description": "Update audio configuration (runtime overlay only; does not persist to file).\nRestart required for changes to affect active agents (voice_rx, etc.).",
         "operationId": "update_audio_config_api_v1_config_audio_patch",
         "requestBody": {
           "content": {
@@ -1205,11 +2480,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Update Audio Config Api V1 Config Audio Patch"
-                }
+                "schema": {}
               }
             }
           },
@@ -1237,18 +2508,14 @@
           "audio"
         ],
         "summary": "Reset Audio Config",
-        "description": "Clear runtime audio config overrides.",
+        "description": "Clear runtime audio config overrides. Restart required for agents to use file/env config.",
         "operationId": "reset_audio_config_api_v1_config_audio_reset_post",
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Reset Audio Config Api V1 Config Audio Reset Post"
-                }
+                "schema": {}
               }
             }
           }
@@ -1295,7 +2562,7 @@
           "audio"
         ],
         "summary": "Test Audio Device",
-        "description": "Test an audio device by ID (placeholder).",
+        "description": "Test that an audio device can be opened for playback and capture.\n\nThis performs a very short open/close cycle for the given device ID using sounddevice.\nIt does not play audible tones by design, but verifies that the OS/driver accept\na basic stream configuration for this device.",
         "operationId": "test_audio_device_api_v1_audio_devices__device_id__test_post",
         "security": [
           {
@@ -1491,10 +2758,250 @@
           }
         }
       }
+    },
+    "/api/v1/config/llm": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get Config Llm",
+        "description": "Get current LLM configuration (API keys redacted). Runtime overrides merged if set.\nRuntime overrides do not affect active orchestrator/agents until process restart.",
+        "operationId": "get_config_llm_api_v1_config_llm_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Llm Api V1 Config Llm Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Update Config Llm",
+        "description": "Update LLM configuration (runtime overlay only; does not persist to file).\nAPI keys in body are not stored. Restart required for changes to affect orchestrator/agents.",
+        "operationId": "update_config_llm_api_v1_config_llm_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/config/memory": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get Config Memory",
+        "description": "Get current memory/Hindsight configuration. Runtime overrides merged if set.\nRuntime overrides do not affect active components until process restart.",
+        "operationId": "get_config_memory_api_v1_config_memory_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Memory Api V1 Config Memory Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Update Config Memory",
+        "description": "Update memory configuration (runtime overlay only; does not persist to file).\nRestart required for changes to affect active components.",
+        "operationId": "update_config_memory_api_v1_config_memory_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/config/overrides": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get Config Overrides",
+        "description": "Get per-role LLM and memory overrides. Keys: orchestrator, judge, whitelist, daily_summary, memory.\nRuntime overrides do not affect active orchestrator/agents until process restart.",
+        "operationId": "get_config_overrides_api_v1_config_overrides_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Config Overrides Api V1 Config Overrides Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Update Config Overrides",
+        "description": "Update per-role overrides (runtime overlay only; does not persist to file).\nRestart required for changes to affect orchestrator/agents.",
+        "operationId": "update_config_overrides_api_v1_config_overrides_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Body"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "ApproveBody": {
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "ApproveBody",
+        "description": "Body for POST /emergency/events/{id}/approve."
+      },
       "Body_message_from_audio_messages_from_audio_post": {
         "properties": {
           "file": {
@@ -1575,6 +3082,64 @@
           "file"
         ],
         "title": "Body_register_from_audio_callsigns_register_from_audio_post"
+      },
+      "Body_send_audio_radio_send_audio_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_send_audio_radio_send_audio_post"
+      },
+      "EmergencyRequestBody": {
+        "properties": {
+          "target_callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Callsign",
+            "description": "Target callsign (optional)"
+          },
+          "contact_phone": {
+            "type": "string",
+            "title": "Contact Phone",
+            "description": "Contact phone E.164 for SMS/WhatsApp"
+          },
+          "contact_channel": {
+            "type": "string",
+            "title": "Contact Channel",
+            "description": "sms or whatsapp"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contact_phone",
+          "contact_channel"
+        ],
+        "title": "EmergencyRequestBody",
+        "description": "Body for POST /emergency/request."
       },
       "HTTPValidationError": {
         "properties": {
@@ -1744,6 +3309,324 @@
         "title": "InjectMessageBody",
         "description": "Body for POST /inject/message (user injection for demo)."
       },
+      "LocationResponse": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "callsign": {
+            "type": "string",
+            "title": "Callsign"
+          },
+          "latitude": {
+            "type": "number",
+            "title": "Latitude"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "Longitude"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "callsign",
+          "latitude",
+          "longitude",
+          "source",
+          "timestamp"
+        ],
+        "title": "LocationResponse",
+        "description": "Response for stored or retrieved location (explicit lat/lon, no raw geometry)."
+      },
+      "OptOutBody": {
+        "properties": {
+          "callsign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Callsign",
+            "description": "Callsign to opt out"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone",
+            "description": "Phone (E.164) to opt out; used if callsign not set"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel",
+            "description": "sms or whatsapp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "channel"
+        ],
+        "title": "OptOutBody",
+        "description": "Body for POST /internal/opt-out. Used by webhook when user sends STOP."
+      },
+      "PatchCallsignBandsBody": {
+        "properties": {
+          "preferred_bands": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "minItems": 0,
+            "title": "Preferred Bands",
+            "description": "Preferred bands e.g. [40m, 2m]"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preferred_bands"
+        ],
+        "title": "PatchCallsignBandsBody",
+        "description": "Body for PATCH /callsigns/registered/{callsign}."
+      },
+      "PatchContactPreferencesBody": {
+        "properties": {
+          "notify_sms_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Sms Phone",
+            "description": "E.164; set to empty string to clear"
+          },
+          "notify_whatsapp_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify Whatsapp Phone",
+            "description": "E.164; set to empty string to clear"
+          },
+          "notify_on_relay": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notify On Relay",
+            "description": "Enable notify when a message is left for this callsign"
+          },
+          "consent_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Source",
+            "description": "api / web / voice; required when enabling notify_on_relay"
+          },
+          "consent_confirmed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Consent Confirmed",
+            "description": "Explicit consent; required for EU/UK/ZA when enabling notify"
+          }
+        },
+        "type": "object",
+        "title": "PatchContactPreferencesBody",
+        "description": "Body for PATCH /callsigns/registered/{callsign}/contact-preferences (\u00a78.1)."
+      },
+      "PostLocationBody": {
+        "properties": {
+          "callsign": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Callsign",
+            "description": "Operator callsign"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 90.0,
+                "minimum": -90.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude",
+            "description": "Latitude (WGS 84)"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 180.0,
+                "minimum": -180.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude",
+            "description": "Longitude (WGS 84)"
+          },
+          "location_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location Text",
+            "description": "Free-text place (v1 strict: not used for storage alone)"
+          },
+          "accuracy_meters": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy Meters"
+          },
+          "altitude_meters": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Altitude Meters"
+          }
+        },
+        "type": "object",
+        "required": [
+          "callsign"
+        ],
+        "title": "PostLocationBody",
+        "description": "Body for POST /gis/location. Provide either (latitude, longitude) or location_text (v1: text alone returns 400)."
+      },
+      "ReceiverUploadBody": {
+        "properties": {
+          "station_id": {
+            "type": "string",
+            "title": "Station Id",
+            "description": "Receiver station ID"
+          },
+          "operator_id": {
+            "type": "string",
+            "title": "Operator Id",
+            "description": "Operator/sub from JWT"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp",
+            "description": "ISO timestamp"
+          },
+          "frequency_hz": {
+            "type": "number",
+            "title": "Frequency Hz",
+            "description": "Frequency in Hz"
+          },
+          "signal_strength_db": {
+            "type": "number",
+            "title": "Signal Strength Db",
+            "description": "Signal strength dB"
+          },
+          "decoded_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decoded Text",
+            "description": "Decoded text if any"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "Mode (e.g. FM, FT8)",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "station_id",
+          "operator_id",
+          "timestamp",
+          "frequency_hz",
+          "signal_strength_db"
+        ],
+        "title": "ReceiverUploadBody",
+        "description": "Payload from a remote receiver station (SDR samples/decoded data)."
+      },
       "RegisterBody": {
         "properties": {
           "callsign": {
@@ -1757,6 +3640,21 @@
             "title": "Source",
             "description": "api or audio",
             "default": "api"
+          },
+          "preferred_bands": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Bands",
+            "description": "Preferred bands e.g. [40m, 2m]"
           }
         },
         "type": "object",
@@ -1765,6 +3663,24 @@
         ],
         "title": "RegisterBody",
         "description": "Body for POST /callsigns/register."
+      },
+      "RejectBody": {
+        "properties": {
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "RejectBody",
+        "description": "Body for POST /emergency/events/{id}/reject."
       },
       "RelayBody": {
         "properties": {
@@ -1778,8 +3694,16 @@
             "title": "Source Band"
           },
           "target_band": {
-            "type": "string",
-            "title": "Target Band"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Band",
+            "description": "Target band (e.g. 2m) when target_channel=radio; ignored when target_channel is sms/whatsapp"
           },
           "source_frequency_hz": {
             "anyOf": [
@@ -1830,6 +3754,18 @@
             ],
             "title": "Session Id"
           },
+          "deliver_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deliver At",
+            "description": "ISO datetime when message should be delivered (optional)"
+          },
           "source_audio_path": {
             "anyOf": [
               {
@@ -1851,16 +3787,39 @@
               }
             ],
             "title": "Target Audio Path"
+          },
+          "target_channel": {
+            "type": "string",
+            "title": "Target Channel",
+            "description": "Delivery channel: radio, sms, or whatsapp",
+            "default": "radio"
+          },
+          "destination_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination Phone",
+            "description": "E.164 phone for SMS/WhatsApp when target_channel is sms or whatsapp"
+          },
+          "emergency": {
+            "type": "boolean",
+            "title": "Emergency",
+            "description": "If true and target_channel is sms/whatsapp, queue for human approval (Section 9)",
+            "default": false
           }
         },
         "type": "object",
         "required": [
           "message",
-          "source_band",
-          "target_band"
+          "source_band"
         ],
         "title": "RelayBody",
-        "description": "Body for POST /messages/relay (band translation)."
+        "description": "Body for POST /messages/relay (band translation or SMS/WhatsApp)."
       },
       "SendTTSBody": {
         "properties": {

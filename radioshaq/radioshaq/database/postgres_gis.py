@@ -595,13 +595,13 @@ class PostGISManager:
         status: str | None = "pending",
     ) -> list[dict[str, Any]]:
         """Get coordination events, optionally filtered by status.
-        
+
         Args:
             callsign: Filter by callsign (initiator or target)
             event_type: Filter by event_type (e.g. emergency)
             max_results: Maximum results
             status: Filter by status (default "pending"). Pass None to get all statuses.
-            
+
         Returns:
             List of event dicts
         """
@@ -621,9 +621,58 @@ class PostGISManager:
                 )
             if event_type:
                 query = query.where(CoordinationEvent.event_type == event_type)
-            
+
             result = await session.execute(query)
             return [row.to_dict() for row in result.scalars()]
+
+    async def get_emergency_events_with_locations(
+        self,
+        since: str | None = None,
+        status: str | None = None,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Get coordination events with event_type=emergency that have a location, with lat/lon decoded.
+
+        Returns list of dicts with id, type, latitude, longitude, initiator_callsign,
+        target_callsign, status, created_at. Events without a location are excluded.
+        """
+        async with self.async_session() as session:
+            conditions = [
+                "event_type = 'emergency'",
+                "location IS NOT NULL",
+            ]
+            params: dict[str, Any] = {"limit": limit}
+            if since is not None:
+                conditions.append("created_at >= :since")
+                params["since"] = since
+            if status is not None:
+                conditions.append("status = :status")
+                params["status"] = status
+            where_clause = " AND ".join(conditions)
+            q = text(f"""
+                SELECT id, event_type,
+                       ST_Y(location::geometry) AS latitude,
+                       ST_X(location::geometry) AS longitude,
+                       initiator_callsign, target_callsign, status, created_at
+                FROM coordination_events
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT :limit
+            """)
+            result = await session.execute(q, params)
+            return [
+                {
+                    "id": row.id,
+                    "type": row.event_type,
+                    "latitude": float(row.latitude),
+                    "longitude": float(row.longitude),
+                    "initiator_callsign": row.initiator_callsign,
+                    "target_callsign": row.target_callsign,
+                    "status": row.status,
+                    "created_at": row.created_at.isoformat() if row.created_at else None,
+                }
+                for row in result
+            ]
     
     async def save_session_state(
         self,

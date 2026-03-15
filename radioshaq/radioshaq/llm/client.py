@@ -75,6 +75,8 @@ class LLMClient:
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
+        # Fallback order: explicit then Mistral/OpenAI/Anthropic/HF/Gemini. Consider
+        # making this model-aware (e.g. prefer OPENAI_API_KEY when model starts with openai/).
         api_key = (
             self.api_key
             or os.environ.get("MISTRAL_API_KEY")
@@ -129,6 +131,7 @@ class LLMClient:
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
+        # Same fallback order as chat() (see comment there).
         api_key = (
             self.api_key
             or os.environ.get("MISTRAL_API_KEY")

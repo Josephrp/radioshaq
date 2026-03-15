@@ -2,6 +2,7 @@
 
 POST/GET /gis/location for operator location CRUD.
 GET /gis/operators-nearby for spatial query.
+GET /gis/emergency-events for emergency events with locations (for map overlays).
 """
 
 from __future__ import annotations
@@ -170,3 +171,20 @@ async def get_operators_nearby(
         "operators": operators_for_response,
         "count": len(operators_for_response),
     }
+
+
+@router.get("/emergency-events")
+async def get_emergency_events_with_locations(
+    since: str | None = Query(None, description="ISO timestamp; only events created_at >= since"),
+    status: str | None = Query(None, description="Filter by status (e.g. pending, approved)"),
+    limit: int = Query(100, ge=1, le=500),
+    db: Any = Depends(get_db),
+    _user: TokenPayload = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Return emergency coordination events that have a location, with lat/lon for map overlays."""
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not available")
+    if not hasattr(db, "get_emergency_events_with_locations"):
+        return {"events": [], "count": 0}
+    events = await db.get_emergency_events_with_locations(since=since, status=status, limit=limit)
+    return {"events": events, "count": len(events)}

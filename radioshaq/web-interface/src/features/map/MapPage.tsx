@@ -3,14 +3,29 @@ import { useTranslation } from 'react-i18next';
 import {
   getOperatorLocation,
   getOperatorsNearby,
+  listEmergencyEventsWithLocation,
   type OperatorLocation,
+  type EmergencyEventLocation,
 } from '../../services/radioshaqApi';
 import { OperatorMap, type OperatorMapMarker } from '../../components/maps/OperatorMap';
+import {
+  getMapProvider,
+  setMapProvider,
+  getDefaultMapCenter,
+  getDefaultMapRadiusMeters,
+  getMapSources,
+  getActiveMapSourceId,
+  type MapProvider,
+} from '../../maps/mapSourceConfig';
 import { isGoogleMapsConfigured } from '../../maps/googleMapsLoader';
+import { escapeHtml } from '../../utils/escapeHtml';
 
-const DEFAULT_CENTER = { lat: 39.8283, lng: -98.5795 };
 const RADII_KM = [10, 50, 200, 1000] as const;
-const DEFAULT_RADIUS_KM = 50;
+
+function radiusKmFromMeters(m: number): number {
+  const km = m / 1000;
+  return RADII_KM.find((r) => r >= km) ?? 50;
+}
 
 function operatorToMarker(op: OperatorLocation, index: number): OperatorMapMarker {
   const dist =
@@ -24,9 +39,24 @@ function operatorToMarker(op: OperatorLocation, index: number): OperatorMapMarke
     label: op.callsign,
     infoHtml: `
       <div style="padding:4px;min-width:140px">
-        <strong>${op.callsign}</strong>
-        ${dist ? `<br/><span style="font-size:12px;color:#666">${dist}</span>` : ''}
-        <br/><span style="font-size:11px;color:#888">Last seen: ${lastSeen}</span>
+        <strong>${escapeHtml(op.callsign)}</strong>
+        ${dist ? `<br/><span style="font-size:12px;color:#666">${escapeHtml(dist)}</span>` : ''}
+        <br/><span style="font-size:11px;color:#888">Last seen: ${escapeHtml(String(lastSeen))}</span>
+      </div>
+    `,
+  };
+}
+
+function emergencyToMarker(ev: EmergencyEventLocation): OperatorMapMarker {
+  return {
+    id: `ev-${ev.id}`,
+    position: { lat: ev.latitude, lng: ev.longitude },
+    label: ev.initiator_callsign ?? `#${ev.id}`,
+    color: ev.status === 'pending' ? '#c62828' : ev.status === 'approved' ? '#2e7d32' : '#666',
+    infoHtml: `
+      <div style="padding:4px;min-width:140px">
+        <strong>${escapeHtml(ev.initiator_callsign ?? '')}</strong> → ${escapeHtml(ev.target_callsign ?? '—')}
+        <br/><span style="font-size:11px;color:#888">${escapeHtml(ev.status ?? '')} · ${escapeHtml(ev.created_at ?? '')}</span>
       </div>
     `,
   };
@@ -34,13 +64,28 @@ function operatorToMarker(op: OperatorLocation, index: number): OperatorMapMarke
 
 export function MapPage() {
   const { t } = useTranslation();
-  const [center, setCenter] = useState(DEFAULT_CENTER);
-  const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM);
+  const defaultCenter = getDefaultMapCenter();
+  const defaultRadiusM = getDefaultMapRadiusMeters();
+  const [provider, setProviderState] = useState<MapProvider>(getMapProvider);
+  const [center, setCenter] = useState(defaultCenter);
+  const [radiusKm, setRadiusKm] = useState(radiusKmFromMeters(defaultRadiusM));
   const [markers, setMarkers] = useState<OperatorMapMarker[]>([]);
+  const [emergencyMarkers, setEmergencyMarkers] = useState<OperatorMapMarker[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [callsignSearch, setCallsignSearch] = useState('');
   const [searching, setSearching] = useState(false);
+  const [tileSourceId, setTileSourceId] = useState<string>(getActiveMapSourceId);
+
+  const handleProviderChange = (p: MapProvider) => {
+    setMapProvider(p);
+    setProviderState(p);
+  };
+
+  const mapSources = getMapSources();
+  const showTileSwitcher = provider === 'osm' && mapSources.length > 1;
+  const googleConfigured = isGoogleMapsConfigured();
+  const showGoogleWarning = provider === 'google' && !googleConfigured;
 
   const fetchNearby = useCallback(async (lat: number, lng: number, radiusMeters: number) => {
     setLoading(true);
@@ -71,6 +116,12 @@ export function MapPage() {
     fetchNearby(center.lat, center.lng, radiusKm * 1000);
   }, [radiusKm]);
 
+  useEffect(() => {
+    listEmergencyEventsWithLocation({ limit: 50 })
+      .then((r) => setEmergencyMarkers(r.events.map(emergencyToMarker)))
+      .catch(() => setEmergencyMarkers([]));
+  }, []);
+
   const handleCenterOnCallsign = async (e: React.FormEvent) => {
     e.preventDefault();
     const cs = callsignSearch.trim().toUpperCase();
@@ -92,18 +143,53 @@ export function MapPage() {
     setRadiusKm(km);
   };
 
-  if (!isGoogleMapsConfigured()) {
-    return (
-      <div>
-        <h1>{t('map.title')}</h1>
-        <p style={{ color: '#666' }}>{t('map.notConfigured')}</p>
-      </div>
-    );
-  }
-
   return (
     <div className="map-page">
       <h1>{t('map.title')}</h1>
+
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '0.75rem',
+          alignItems: 'center',
+          marginBottom: '0.75rem',
+        }}
+      >
+        <span style={{ fontSize: '0.9rem', color: '#666' }}>{t('map.provider')}:</span>
+        <select
+          value={provider}
+          onChange={(e) => handleProviderChange(e.target.value as MapProvider)}
+          style={{ padding: '0.35rem 0.5rem' }}
+          aria-label={t('map.provider')}
+        >
+          <option value="osm">OpenStreetMap</option>
+          <option value="google">Google Maps</option>
+        </select>
+        {showTileSwitcher && (
+          <>
+            <span style={{ fontSize: '0.9rem', color: '#666' }}>{t('map.tileSource')}:</span>
+            <select
+              value={tileSourceId}
+              onChange={(e) => setTileSourceId(e.target.value)}
+              style={{ padding: '0.35rem 0.5rem' }}
+              aria-label={t('map.tileSource')}
+            >
+              {mapSources.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+      </div>
+
+      {showGoogleWarning && (
+        <p role="alert" style={{ color: '#c62828', marginBottom: '1rem' }}>
+          {t('map.notConfigured')} {t('map.switchToOsm')}
+        </p>
+      )}
       {error && (
         <p role="alert" style={{ color: 'crimson' }}>
           {error}
@@ -152,14 +238,18 @@ export function MapPage() {
         {loading && <span style={{ fontSize: '0.9rem', color: '#666' }}>{t('common.loading')}</span>}
       </div>
 
-      <OperatorMap
-        center={center}
-        zoom={radiusKm >= 200 ? 5 : radiusKm >= 50 ? 7 : 9}
-        markers={markers}
-        height={500}
-      />
+      {!showGoogleWarning && (
+        <OperatorMap
+          center={center}
+          zoom={radiusKm >= 200 ? 5 : radiusKm >= 50 ? 7 : 9}
+          markers={[...markers, ...emergencyMarkers]}
+          height={500}
+          tileSourceId={provider === 'osm' ? tileSourceId : undefined}
+        />
+      )}
       <p style={{ marginTop: '0.75rem', fontSize: '0.9rem', color: '#666' }}>
         {t('map.operatorCount', { count: markers.length })}
+        {emergencyMarkers.length > 0 && ` · ${emergencyMarkers.length} emergency events`}
       </p>
     </div>
   );

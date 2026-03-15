@@ -6,10 +6,11 @@ import {
   setOperatorLocation,
   type OperatorLocation,
 } from '../../services/radioshaqApi';
+import { escapeHtml } from '../../utils/escapeHtml';
 import { OperatorMap, type OperatorMapMarker } from './OperatorMap';
-import { isGoogleMapsConfigured } from '../../maps/googleMapsLoader';
+import { getDefaultMapCenter } from '../../maps/mapSourceConfig';
 
-const DEFAULT_CENTER = { lat: 39.8283, lng: -98.5795 };
+const DEFAULT_CENTER = getDefaultMapCenter();
 const FIELD_RADIUS_METERS = 100000;
 
 function operatorToMarker(op: OperatorLocation, index: number): OperatorMapMarker {
@@ -24,9 +25,9 @@ function operatorToMarker(op: OperatorLocation, index: number): OperatorMapMarke
     label: op.callsign,
     infoHtml: `
       <div style="padding:4px;min-width:140px">
-        <strong>${op.callsign}</strong>
-        ${dist ? `<br/><span style="font-size:12px;color:#666">${dist}</span>` : ''}
-        <br/><span style="font-size:11px;color:#888">Last seen: ${lastSeen}</span>
+        <strong>${escapeHtml(op.callsign)}</strong>
+        ${dist ? `<br/><span style="font-size:12px;color:#666">${escapeHtml(dist)}</span>` : ''}
+        <br/><span style="font-size:11px;color:#888">Last seen: ${escapeHtml(String(lastSeen))}</span>
       </div>
     `,
   };
@@ -72,7 +73,7 @@ export function FieldMapPanel({ stationCallsign: propCallsign, height = 360 }: F
           id: `station-${loc.callsign}`,
           position: { lat: loc.latitude, lng: loc.longitude },
           label: loc.callsign,
-          infoHtml: `<div style="padding:4px"><strong>${loc.callsign}</strong> (this station)</div>`,
+          infoHtml: `<div style="padding:4px"><strong>${escapeHtml(loc.callsign)}</strong> (this station)</div>`,
         };
         const others = res.operators
           .filter((o) => (o as OperatorLocation).callsign !== callsign && o.latitude != null && o.longitude != null)
@@ -124,15 +125,6 @@ export function FieldMapPanel({ stationCallsign: propCallsign, height = 360 }: F
       setUpdating(false);
     }
   };
-
-  if (!isGoogleMapsConfigured()) {
-    return (
-      <section style={{ marginTop: '1rem', padding: '0.75rem', border: '1px solid #ddd', borderRadius: 8 }}>
-        <h2 style={{ marginTop: 0 }}>{t('map.fieldMapTitle')}</h2>
-        <p style={{ fontSize: '0.9rem', color: '#666' }}>{t('map.notConfigured')}</p>
-      </section>
-    );
-  }
 
   return (
     <section style={{ marginTop: '1.5rem', padding: '1rem', border: '1px solid #ddd', borderRadius: 8 }}>

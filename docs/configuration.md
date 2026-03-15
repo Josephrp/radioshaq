@@ -156,6 +156,7 @@ Per-callsign memory: core blocks, recent messages, daily summaries, and optional
 | `memory.recent_messages_limit` | `RADIOSHAQ_MEMORY__RECENT_MESSAGES_LIMIT` | `40` | Max recent messages included in context. |
 | `memory.daily_summary_days` | `RADIOSHAQ_MEMORY__DAILY_SUMMARY_DAYS` | `7` | Days of daily summaries to include. |
 | `memory.summary_timezone` | `RADIOSHAQ_MEMORY__SUMMARY_TIMEZONE` | `America/New_York` | Timezone for daily summary windows. |
+| `memory.memory_retention_days` | `RADIOSHAQ_MEMORY__MEMORY_RETENTION_DAYS` | `0` | Delete memory_messages older than N days; 0 = no delete. |
 
 ---
 
@@ -243,6 +244,14 @@ Controls the physical rig (CAT), optional FLDIGI, packet, and SDR TX. If `radio.
 | `radio.listener_concurrent_bands` | `RADIOSHAQ_RADIO__LISTENER_CONCURRENT_BANDS` | `true` | If true, one monitor task per band in parallel; if false, single receiver round-robin. |
 | `radio.relay_inject_target_band` | `RADIOSHAQ_RADIO__RELAY_INJECT_TARGET_BAND` | `false` | When relaying (no deliver_at), inject the relayed message into the target band RX queue. |
 | `radio.relay_tx_target_band` | `RADIOSHAQ_RADIO__RELAY_TX_TARGET_BAND` | `false` | When relaying (no deliver_at), transmit the relayed message on the target band via radio_tx. |
+| `radio.station_callsign` | `RADIOSHAQ_RADIO__STATION_CALLSIGN` | `null` | Station callsign for reply call-out; defaults to packet_callsign. |
+| `radio.response_radio_format_enabled` | `RADIOSHAQ_RADIO__RESPONSE_RADIO_FORMAT_ENABLED` | `false` | Wrap reply in radio format (station de caller … Over/K). |
+| `radio.response_radio_format_style` | `RADIOSHAQ_RADIO__RESPONSE_RADIO_FORMAT_STYLE` | `over` | Sign-off: `over` \| `prosign` (K) \| `none`. |
+| `radio.voice_store_keywords` | (list in YAML) | `null` | Only store voice segments containing at least one keyword (case-insensitive). |
+| `radio.band_listener_store` | `RADIOSHAQ_RADIO__BAND_LISTENER_STORE` | `true` | When storage set, store band-listener messages as transcripts. |
+| `radio.band_listener_store_min_length` | `RADIOSHAQ_RADIO__BAND_LISTENER_STORE_MIN_LENGTH` | `0` | Min message length to store from band listener. |
+| `radio.transcript_retention_days` | `RADIOSHAQ_RADIO__TRANSCRIPT_RETENTION_DAYS` | `0` | If > 0, delete transcripts older than N days. |
+| `radio.relay_store_only_relayed` | `RADIOSHAQ_RADIO__RELAY_STORE_ONLY_RELAYED` | `false` | When true, relay stores only relayed transcript, not source. |
 
 **Relay:** Relay is **store-only by default**. Recipients get messages by **polling** `GET /transcripts?callsign=<their_callsign>&destination_only=true&band=<target_band>`. When `relay_inject_target_band` or `relay_tx_target_band` is enabled, they apply to both the API and the orchestrator relay tool.
 
@@ -337,6 +346,9 @@ When `radio.audio_input_enabled` is true, the voice_rx pipeline captures audio f
 | `audio.ptt_coordination_enabled` | `RADIOSHAQ_AUDIO__PTT_COORDINATION_ENABLED` | `true` | PTT coordination for half-duplex. |
 | `audio.ptt_cooldown_ms` | `RADIOSHAQ_AUDIO__PTT_COOLDOWN_MS` | `500` | PTT cooldown (ms). |
 | `audio.break_in_enabled` | `RADIOSHAQ_AUDIO__BREAK_IN_ENABLED` | `true` | Allow break-in. |
+| `audio.eleven_voice_isolator_enabled` | `RADIOSHAQ_AUDIO__ELEVEN_VOICE_ISOLATOR_ENABLED` | `false` | When true and asr_model is scribe, run ElevenLabs Voice Isolator before Scribe (requires ELEVENLABS_API_KEY). |
+| `audio.voice_publish_to_bus` | `RADIOSHAQ_AUDIO__VOICE_PUBLISH_TO_BUS` | `true` | Publish transcribed voice segments to MessageBus for orchestrator. |
+| `audio.voice_source_callsign_default` | `RADIOSHAQ_AUDIO__VOICE_SOURCE_CALLSIGN_DEFAULT` | `null` | Default sender_id for voice when not parsed (e.g. 'VOICE'); null = 'UNKNOWN'. |
 
 **Response modes:**  
 - **listen_only** — Transcribe only; no TX.  
@@ -422,6 +434,21 @@ Environment variables override file values.
 
 ---
 
+## Emergency contact
+
+Emergency contact settings control whether the station can receive and display emergency events (e.g. from external systems) and how approval/regions work. All options use the **`RADIOSHAQ_EMERGENCY_CONTACT__`** prefix.
+
+| Option | Env var | Default | Description |
+|--------|---------|---------|-------------|
+| `emergency_contact.enabled` | `RADIOSHAQ_EMERGENCY_CONTACT__ENABLED` | `false` | Enable emergency contact / event handling. |
+| `emergency_contact.regions_allowed` | `RADIOSHAQ_EMERGENCY_CONTACT__REGIONS_ALLOWED` | (list) | Allowed regions for emergency events (e.g. list of region codes). |
+| `emergency_contact.approval_required` | `RADIOSHAQ_EMERGENCY_CONTACT__APPROVAL_REQUIRED` | `true` | Require human approval before acting on emergency events. |
+| `emergency_contact.allowed_event_types` | `RADIOSHAQ_EMERGENCY_CONTACT__ALLOWED_EVENT_TYPES` | (list) | Event types to accept (e.g. alert types). |
+
+See [Response & compliance](response-compliance-and-monitoring.md) for emergency workflows and the project doc *Notify and emergency compliance plan* (in `radioshaq/docs/`) for region-specific rules.
+
+---
+
 ## PM2 (process manager)
 
 Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settings.
@@ -448,5 +475,29 @@ Used when running under PM2 (e.g. `ecosystem.config.js`). Log and process settin
 - **TTS** — When `radio.voice_use_tts` is true (or when a task sets `use_tts: true`), speech is generated per **`tts.provider`**: **`elevenlabs`** (set **`ELEVENLABS_API_KEY`**) or **`kokoro`** (local; `uv sync --extra tts_kokoro`). See [TTS (text-to-speech)](#tts-text-to-speech).
 - **ASR** — Voice pipeline and audio upload use **`audio.asr_model`**: **`voxtral`** / **`whisper`** (local; `uv sync --extra audio`) or **`scribe`** (ElevenLabs API; **`ELEVENLABS_API_KEY`**).
 - **Alembic** — Migrations read **`DATABASE_URL`** or **`POSTGRES_HOST`**, **`POSTGRES_PORT`**, **`POSTGRES_DB`**, **`POSTGRES_USER`**, **`POSTGRES_PASSWORD`** (see [.env.example](reference/.env.example)).
+
+### Maps (web interface)
+
+The web UI can show **operator locations** and **emergency events** on a map. You can choose **OpenStreetMap** (free, no API key) or **Google Maps** (requires an API key). At launch the app reads the provider from: (1) **localStorage** key `radioshaq_mapProvider` (user's last choice), then (2) **`VITE_MAP_PROVIDER`** (`osm` or `google`). On the Map page you can switch between OpenStreetMap and Google Maps; the choice is saved in localStorage. If Google is selected and **`VITE_GOOGLE_MAPS_API_KEY`** is not set, the map shows a message to set the key or switch to OSM. Restrict the Google key by HTTP referrer in Google Cloud Console and enable only the APIs you need (e.g. Maps JavaScript API).
+
+**Front-end (Vite) env vars:**
+
+| Env var | Description |
+|---------|-------------|
+| `VITE_MAP_PROVIDER` | `osm` or `google`. |
+| `VITE_GOOGLE_MAPS_API_KEY` | Google Maps API key (when provider is `google`). |
+| `VITE_DEFAULT_MAP_CENTER_LAT` | Default map center latitude. |
+| `VITE_DEFAULT_MAP_CENTER_LON` | Default map center longitude. |
+| `VITE_DEFAULT_MAP_ZOOM` | Default zoom level. |
+| `VITE_DEFAULT_MAP_RADIUS_METERS` | Default radius in meters (e.g. for “nearby” queries). |
+| `VITE_MAP_SOURCE` | OSM: active tile source id (default `osm`). |
+| `VITE_MAP_TILE_URL` | OSM: Leaflet tile URL template (`{z}`, `{x}`, `{y}`, optional `{s}`). |
+| `VITE_MAP_TILE_ATTRIBUTION` | OSM: attribution text/HTML. |
+| `VITE_MAP_TILE_SUBDOMAINS` | OSM: subdomains (e.g. `a,b,c`). |
+| `VITE_MAP_SOURCES` | OSM: JSON array of tile sources (`id`, `name`, `tileUrlTemplate`, `attribution`, etc.). |
+
+**Where maps appear:** Map page (full-screen operator and emergency map), Emergency page (event map), Radio page (field map panel), Transcripts (“View on map”), Callsigns (“Set location”). When the provider is OpenStreetMap, the built-in source `osm` uses `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png`. For custom tiles use the single-source vars above, or provide multiple sources in `VITE_MAP_SOURCES`.
+
+Backend GIS endpoints (`POST/GET /gis/location`, `GET /gis/operators-nearby`, `GET /gis/emergency-events`) are documented in the [API Reference](api-reference.md). Backend tests: `radioshaq/tests/unit/test_gis_routes.py`; manually verify with `npm run dev` and the Map page.
 
 For a minimal path from zero to a running station, follow [Quick Start](quick-start.md); for hardware and rig-specific details, see [Radio Usage](radio-usage.md).

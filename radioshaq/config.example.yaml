@@ -73,6 +73,7 @@ memory:
   recent_messages_limit: 40
   daily_summary_days: 7
   summary_timezone: "America/New_York"
+  memory_retention_days: 0      # Delete memory_messages older than N days; 0 = no delete
 
 # -----------------------------------------------------------------------------
 # Per-role / per-subagent overrides (optional). Missing fields fall back to llm / memory above.
@@ -138,6 +139,11 @@ radio:
   station_callsign: null        # Our callsign for reply; defaults to packet_callsign
   response_radio_format_enabled: false
   response_radio_format_style: over   # over | prosign (K) | none
+  voice_store_keywords: null    # Only store voice segments containing at least one keyword (list; case-insensitive)
+  band_listener_store: true
+  band_listener_store_min_length: 0
+  transcript_retention_days: 0   # If > 0, delete transcripts older than N days
+  relay_store_only_relayed: false
 
 # -----------------------------------------------------------------------------
 # Audio (voice_rx pipeline: capture, VAD, ASR, triggers, response mode)
@@ -231,6 +237,15 @@ hq:
   field_registration_open: false
   auto_coordination_enabled: true
   coordination_interval_seconds: 30
+
+# -----------------------------------------------------------------------------
+# Emergency contact (emergency events, regions, approval; see response-compliance-and-monitoring.md)
+# -----------------------------------------------------------------------------
+emergency_contact:
+  enabled: false
+  regions_allowed: []           # e.g. [FCC, CA]
+  approval_required: true
+  allowed_event_types: []       # e.g. [emergency]
 
 # -----------------------------------------------------------------------------
 # PM2 (process manager)

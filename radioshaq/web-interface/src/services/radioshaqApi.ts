@@ -492,10 +492,11 @@ export interface OperatorLocation {
   latitude: number;
   longitude: number;
   source: string;
-  timestamp?: string;
+  timestamp?: string | null;
   confidence?: number | null;
-  last_seen_at?: string;
+  last_seen_at?: string | null;
   distance_meters?: number;
+  session_id?: string | null;
 }
 
 export interface OperatorsNearbyResponse {
@@ -504,6 +505,17 @@ export interface OperatorsNearbyResponse {
   radius_meters: number;
   operators: OperatorLocation[];
   count: number;
+}
+
+export interface EmergencyEventLocation {
+  id: number;
+  type: string;
+  latitude: number;
+  longitude: number;
+  initiator_callsign?: string;
+  target_callsign?: string | null;
+  status?: string;
+  created_at: string | null;
 }
 
 export async function getOperatorLocation(callsign: string): Promise<OperatorLocation> {
@@ -540,6 +552,7 @@ export async function setOperatorLocation(body: {
   longitude: number;
   altitude_meters?: number;
   accuracy_meters?: number;
+  location_text?: string | null;
 }): Promise<OperatorLocation> {
   const res = await fetch(`${API_BASE}/gis/location`, {
     method: 'POST',
@@ -550,8 +563,24 @@ export async function setOperatorLocation(body: {
       longitude: body.longitude,
       altitude_meters: body.altitude_meters,
       accuracy_meters: body.accuracy_meters,
+      location_text: body.location_text ?? undefined,
     }),
   });
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to set operator location');
+  return res.json();
+}
+
+export async function listEmergencyEventsWithLocation(params?: {
+  since?: string;
+  status?: string;
+  limit?: number;
+}): Promise<{ events: EmergencyEventLocation[]; count: number }> {
+  const search = new URLSearchParams();
+  if (params?.since) search.set('since', params.since);
+  if (params?.status) search.set('status', params.status);
+  if (params?.limit != null) search.set('limit', String(params.limit));
+  const q = search.toString() ? `?${search}` : '';
+  const res = await fetch(`${API_BASE}/gis/emergency-events${q}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to list emergency events with location');
   return res.json();
 }

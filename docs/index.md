@@ -97,6 +97,7 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
 - **SDR TX** — Optional HackRF transmit when `radio.sdr_tx_enabled` is true; band and compliance checks apply.
 - **Callsign whitelist** — Static list plus DB-backed registration; optional “registry required” for relay/store.
 - **Transcripts, relay, inject** — Store transcripts; relay between bands via the orchestrator tool `relay_message_between_bands` or `POST /messages/relay`. Delivery is poll-based by default (recipient uses `GET /transcripts?callsign=...&destination_only=true&band=...`); optional config can enable inject or TX on the target band. Inject test audio for demos; when multiple bands are monitored, inject is band-accurate.
+- **GIS / maps** — Operator location (`POST`/`GET /gis/location`), operators-nearby, and emergency events with location (`GET /gis/emergency-events`). The web UI Map page and map panels (Emergency, Radio, Transcripts, Callsigns) show locations; map provider (OSM vs Google) and API keys are set via front-end env vars — see [Configuration](configuration.md) (Maps / web interface subsection).
 - **Compliance** — TX audit log, band allowlist, and region-based restricted bands (e.g. FCC, CEPT) to keep operations within regulations.
 
 ---
@@ -111,6 +112,7 @@ So: you **set up** one or more field stations (and optionally an HQ and remote r
   - Inject for demo: `radioshaq message inject "text"`. 
   - List transcripts: `radioshaq transcripts list`. 
   - Health: `radioshaq health`. 
+  - **Config show:** `radioshaq config show [--section llm|memory|overrides] [--config-dir PATH]` — prints LLM, memory, and per-role overrides from config (API keys redacted).
   - Start API: `radioshaq run-api`.
   - **Launch (dev):** `radioshaq launch docker` (start Postgres), `radioshaq launch docker --hindsight` (Postgres + Hindsight), `radioshaq launch pm2` (Postgres + API via PM2), `radioshaq launch pm2 --hindsight` (same + Hindsight). Same commands on Windows, Linux, and macOS.
 

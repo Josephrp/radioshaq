@@ -2,7 +2,7 @@
 
 **S**trategic **H**am **R**adio **A**utonomous **Q**uery and **K**ontrol System
 
-An AI-powered orchestrator for ham radio operations, emergency communications, and field-to-HQ coordination. One install gives you the API, web UI, and optional remote SDR receiver.
+AI-powered orchestration for ham radio operations, emergency communications, and field-to-HQ coordination. One install provides the FastAPI backend, bundled web UI, and optional remote SDR receiver. Supports REACT-style reasoning, specialized agents (radio TX/RX, whitelist, SMS/WhatsApp, GIS, propagation), and tools for relay, TTS, and callsign registration.
 
 ---
 
@@ -12,38 +12,39 @@ An AI-powered orchestrator for ham radio operations, emergency communications, a
 pip install radioshaq
 ```
 
-**Optional (for SDR hardware):** `pip install radioshaq[sdr]` (RTL-SDR) or `radioshaq[hackrf]` (HackRF).
-
 **Requirements:** Python 3.11+
 
-**License notice:** RadioShaq is distributed under GPL-2.0-only. Official CLI and web UI require explicit license acceptance before normal use.
+**Optional extras:**
+
+| Extra | Purpose |
+|-------|---------|
+| `radioshaq[sdr]` | RTL-SDR for remote listen-only receiver |
+| `radioshaq[hackrf]` | HackRF for remote receiver (non-Windows) |
+| `radioshaq[audio]` | Local ASR (Whisper, Voxtral) |
+| `radioshaq[voice_tx]` | Play audio to rig (sounddevice, soundfile, pydub) |
+| `radioshaq[voice_rx]` | Capture + VAD for voice pipeline |
+| `radioshaq[tts_kokoro]` | Local TTS (Kokoro, no API key) |
+| `radioshaq[metrics]` | Prometheus `/metrics` endpoint |
+
+**License:** RadioShaq is distributed under **GPL-2.0-only**. The CLI and web UI require license acceptance before normal use (interactive prompt or `RADIOSHAQ_LICENSE_ACCEPTED=1`).
 
 ---
 
-## Easiest way to get started: interactive setup
+## Quick start
 
-From a project directory (or the repo root), run:
+**1. Interactive setup** (recommended)
 
 ```bash
 radioshaq setup
 ```
 
-This walks you through:
+Guides you through mode (field / hq / receiver), database (Docker or URL), JWT secret, optional LLM API key, and radio/voice options. Writes `.env` and `config.yaml`, can start Docker Postgres and run migrations.
 
-- **Mode** — field, hq, or receiver
-- **Database** — use Docker Postgres or an existing URL
-- **Secrets** — JWT secret, LLM API key (optional)
-- **Config** — writes `.env` and `config.yaml`, can start Docker and run migrations
+- `radioshaq setup --quick` — minimal prompts (mode + Docker?), then defaults  
+- `radioshaq setup --no-input --mode field` — non-interactive (CI); optional `--db-url`, `--config-dir`  
+- `radioshaq setup --reconfigure` — update existing config without starting over  
 
-**Minimal prompts:** `radioshaq setup --quick` (mode + “use Docker?” then defaults).
-
-**Non-interactive (CI/scripts):** `radioshaq setup --no-input --mode field` (optionally `--db-url postgresql://...`).
-
-**Reconfigure:** `radioshaq setup --reconfigure` to update existing config without starting over.
-
----
-
-## Run the API and web UI
+**2. Run API and web UI**
 
 ```bash
 radioshaq run-api
@@ -53,11 +54,9 @@ radioshaq run-api
 - **Web UI:** http://localhost:8000/  
 - **Health:** http://localhost:8000/health  
 
-Default host: `0.0.0.0`, port: `8000`. Override with `--host` and `--port`.
+Default bind: `0.0.0.0:8000`. Use `--host` and `--port` to override.
 
----
-
-## Get a token (auth)
+**3. Get a token**
 
 Most API calls need a Bearer JWT:
 
@@ -65,9 +64,7 @@ Most API calls need a Bearer JWT:
 radioshaq token --subject op1 --role field --station-id STATION-01
 ```
 
-Then set `RADIOSHAQ_TOKEN` to the printed value, or pass it in requests. Roles: `field`, `hq`, `receiver`.
-
-**Check API from the CLI:**
+Set `RADIOSHAQ_TOKEN` to the printed value. Roles: `field`, `hq`, `receiver`.
 
 ```bash
 radioshaq health
@@ -76,64 +73,69 @@ radioshaq health --ready
 
 ---
 
-## CLI at a glance
+## CLI reference
 
-| Command | What it does |
-|--------|------------------|
-| **setup** | |
+API base URL: `RADIOSHAQ_API` (default `http://localhost:8000`). Commands that call the API require `RADIOSHAQ_TOKEN` unless noted.
+
+| Command | Description |
+|---------|-------------|
+| **Setup** | |
 | `radioshaq setup` | Interactive setup: .env, config.yaml, optional Docker and migrations |
-| `radioshaq setup --quick` | Minimal prompts (mode, use Docker?), then defaults |
-| `radioshaq setup --no-input --mode field` | Non-interactive for CI; optional `--db-url`, `--config-dir` |
-| `radioshaq setup --reconfigure` | Update existing config (merge sections) |
+| `radioshaq setup --quick` | Minimal prompts |
+| `radioshaq setup --no-input --mode field` | Non-interactive; optional `--db-url`, `--config-dir` |
+| `radioshaq setup --reconfigure` | Update existing config |
 | **Server & auth** | |
 | `radioshaq run-api` | Start FastAPI server (and web UI at /). Options: `--host`, `--port`, `--reload` |
 | `radioshaq run-receiver` | Start remote SDR receiver (port 8765). Set `JWT_SECRET`, `STATION_ID`, `HQ_URL` |
-| `radioshaq token` | Get JWT. Options: `--subject`, `--role`, `--station-id`, `--base-url` |
-| `radioshaq health` | Liveness check; `radioshaq health --ready` for readiness |
-| **Callsigns** (require `RADIOSHAQ_TOKEN`) | |
+| `radioshaq token --subject X --role Y [--station-id Z]` | Get JWT; print `access_token` |
+| `radioshaq health` | Liveness; `radioshaq health --ready` for readiness |
+| **Callsigns** | |
 | `radioshaq callsigns list` | List registered callsigns |
 | `radioshaq callsigns add <callsign>` | Register a callsign |
-| `radioshaq callsigns remove <callsign>` | Remove from whitelist |
+| `radioshaq callsigns remove <callsign>` | Remove from registry |
 | `radioshaq callsigns register-from-audio <file>` | Register from audio (ASR) |
 | **Messages** | |
-| `radioshaq message process <text>` | Send message through REACT orchestrator |
-| `radioshaq message inject <text>` | Inject into RX path (demo). Options: `--band`, `--mode`, `--source-callsign` |
-| `radioshaq message whitelist-request <text>` | Whitelist request (orchestrator + optional TTS) |
-| `radioshaq message relay <msg> --source-band X --target-band Y` | Relay message between bands |
+| `radioshaq message process "<text>"` | Send message through REACT orchestrator |
+| `radioshaq message inject "<text>"` | Inject into RX path (demo). Options: `--band`, `--mode`, `--source-callsign`, `--destination-callsign` |
+| `radioshaq message whitelist-request "<text>"` | Whitelist request (orchestrator; optional TTS reply) |
+| `radioshaq message relay "<msg>" --source-band X --target-band Y` | Relay message between bands |
 | **Transcripts** | |
-| `radioshaq transcripts list` | List transcripts. Options: `--callsign`, `--band`, `--since`, `--limit` |
+| `radioshaq transcripts list` | List transcripts. Options: `--callsign`, `--band`, `--mode`, `--since`, `--limit` |
 | `radioshaq transcripts get <id>` | Get one transcript |
 | `radioshaq transcripts play <id>` | Play transcript as TTS over radio |
 | **Radio** | |
 | `radioshaq radio bands` | List bands |
-| `radioshaq radio send-tts <message>` | Send TTS over radio. Options: `--frequency-hz`, `--mode` |
+| `radioshaq radio send-tts "<message>"` | Send TTS over radio. Options: `--frequency-hz`, `--mode` |
+| **Config** | |
+| `radioshaq config show` | Show LLM, memory, overrides from config file (keys redacted). Option: `--section llm|memory|overrides` |
+| **Launch (dev)** | |
+| `radioshaq launch docker` | Start Docker Compose (Postgres; optional `--hindsight`) |
+| `radioshaq launch pm2` | Start Postgres + API under PM2 (optional `--hindsight`) |
 
-Use `radioshaq --help` and `radioshaq <command> --help` for options. API base URL: `RADIOSHAQ_API` (default `http://localhost:8000`).
+Use `radioshaq --help` and `radioshaq <command> --help` for options.
 
 ---
 
-## Remote receiver (SDR listen-only)
+## Remote receiver (SDR)
 
 For a listen-only station (e.g. Raspberry Pi + RTL-SDR) that streams to HQ:
 
 ```bash
-pip install radioshaq[sdr]   # or radioshaq[hackrf] for HackRF
+pip install radioshaq[sdr]   # or radioshaq[hackrf] for HackRF (non-Windows)
 export JWT_SECRET=your-secret
 export STATION_ID=RECEIVER-01
 export HQ_URL=http://your-hq:8000
 radioshaq run-receiver
 ```
 
-HQ accepts uploads at `POST /receiver/upload` (Bearer JWT). Default receiver port: `8765` (`--port` to change).
+HQ accepts uploads at `POST /receiver/upload` (Bearer JWT). Receiver default port: `8765` (`--port` to change).
 
 ---
 
-## After install (no interactive setup)
+## Manual configuration (no interactive setup)
 
-If you prefer to configure by hand:
-
-1. **Database:** Set `DATABASE_URL` or `POSTGRES_*` (and run migrations with your Alembic config).
-2. **Config:** Copy `config.example.yaml` to `config.yaml` and set `mode`, `database`, `auth`, etc. See [Configuration](https://radioshaq.readthedocs.io/configuration/).
+1. **Database:** Set `DATABASE_URL` or `RADIOSHAQ_DATABASE__POSTGRES_URL`; run migrations with your Alembic config.  
+2. **Config:** Copy `config.example.yaml` to `config.yaml` and set `mode`, `database`, `auth`, `llm`, etc.  
 3. **Start:** `radioshaq run-api`.
 
 ---

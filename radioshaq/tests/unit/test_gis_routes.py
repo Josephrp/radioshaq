@@ -141,3 +141,41 @@ def test_gis_routes_require_auth(client):
     assert r.status_code == 401
     r = client.get("/gis/operators-nearby", params={"latitude": 40.0, "longitude": -74.0})
     assert r.status_code == 401
+    r = client.get("/gis/emergency-events")
+    assert r.status_code == 401
+
+
+@pytest.mark.unit
+def test_get_emergency_events_with_locations_success(client_with_gis_db, auth_headers, mock_db):
+    """GET /gis/emergency-events returns 200 and list of events with lat/lon when DB supports it."""
+    mock_db.get_emergency_events_with_locations = AsyncMock(
+        return_value=[
+            {
+                "id": 1,
+                "type": "emergency",
+                "latitude": 48.85,
+                "longitude": 2.35,
+                "initiator_callsign": "K5ABC",
+                "target_callsign": "W1XYZ",
+                "status": "pending",
+                "created_at": "2025-03-10T12:00:00+00:00",
+            },
+        ]
+    )
+    r = client_with_gis_db.get("/gis/emergency-events", headers=auth_headers)
+    assert r.status_code == 200
+    data = r.json()
+    assert "events" in data
+    assert data["count"] == 1
+    assert data["events"][0]["latitude"] == 48.85
+    assert data["events"][0]["longitude"] == 2.35
+    assert data["events"][0]["initiator_callsign"] == "K5ABC"
+
+
+@pytest.mark.unit
+def test_get_emergency_events_empty_when_db_lacks_method(client_with_gis_db, auth_headers, mock_db):
+    """GET /gis/emergency-events returns 200 with empty list when db has no get_emergency_events_with_locations."""
+    del mock_db.get_emergency_events_with_locations
+    r = client_with_gis_db.get("/gis/emergency-events", headers=auth_headers)
+    assert r.status_code == 200
+    assert r.json() == {"events": [], "count": 0}

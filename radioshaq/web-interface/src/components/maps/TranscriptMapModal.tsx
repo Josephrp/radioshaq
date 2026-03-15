@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getOperatorLocation, type OperatorLocation } from '../../services/radioshaqApi';
+import { escapeHtml } from '../../utils/escapeHtml';
 import { OperatorMap, type OperatorMapMarker } from './OperatorMap';
-import { isGoogleMapsConfigured } from '../../maps/googleMapsLoader';
+import { getDefaultMapCenter } from '../../maps/mapSourceConfig';
 import type { TranscriptItem } from '../../services/radioshaqApi';
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -27,7 +28,7 @@ export interface TranscriptMapModalProps {
 export function TranscriptMapModal({ transcript, onClose }: TranscriptMapModalProps) {
   const { t } = useTranslation();
   const [markers, setMarkers] = useState<OperatorMapMarker[]>([]);
-  const [center, setCenter] = useState({ lat: 39.8283, lng: -98.5795 });
+  const [center, setCenter] = useState(getDefaultMapCenter);
   const [zoom, setZoom] = useState(4);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,7 +58,7 @@ export function TranscriptMapModal({ transcript, onClose }: TranscriptMapModalPr
         id: `tx-${callsign}-${i}`,
         position: { lat: loc.latitude, lng: loc.longitude },
         label: callsign,
-        infoHtml: `<div style="padding:4px"><strong>${callsign}</strong></div>`,
+        infoHtml: `<div style="padding:4px"><strong>${escapeHtml(callsign)}</strong></div>`,
       }));
       setMarkers(ms);
 
@@ -96,33 +97,6 @@ export function TranscriptMapModal({ transcript, onClose }: TranscriptMapModalPr
   }, [transcript, fetchLocations]);
 
   if (!transcript) return null;
-  if (!isGoogleMapsConfigured()) {
-    return (
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={t('map.viewOnMap')}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}
-        onClick={onClose}
-      >
-        <div
-          style={{ background: '#fff', padding: '1.5rem', borderRadius: 8, maxWidth: 400 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <p>{t('map.notConfigured')}</p>
-          <button type="button" onClick={onClose}>{t('common.cancel')}</button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div

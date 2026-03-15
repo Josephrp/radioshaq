@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { searchTranscripts, playTranscript, type TranscriptItem } from '../../services/radioshaqApi';
 import { TranscriptMapModal } from '../../components/maps/TranscriptMapModal';
-import { isGoogleMapsConfigured } from '../../maps/googleMapsLoader';
 
 export function TranscriptsPage() {
   const { t } = useTranslation();
@@ -128,11 +127,11 @@ export function TranscriptsPage() {
                   <strong>[{id}]</strong> {String(src)}: {String(text).slice(0, 80)}{String(text).length > 80 ? '…' : ''}
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-                  {isGoogleMapsConfigured() && (
+                  {(transcriptItem.source_callsign ?? (transcriptItem as Record<string, string>).source_callsign) ? (
                     <button type="button" onClick={() => setMapModalTranscript(transcriptItem)}>
                       {t('map.viewOnMap')}
                     </button>
-                  )}
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => handlePlay(id)}
