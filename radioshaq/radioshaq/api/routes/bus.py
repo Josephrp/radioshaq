@@ -25,6 +25,7 @@ class OptOutBody(BaseModel):
 async def publish_inbound(
     request: Request,
     body: dict[str, Any] = Body(..., embed=False),
+    _user: TokenPayload = Depends(get_current_user),
 ) -> dict[str, Any]:
     """
     Accept an inbound message (e.g. from Lambda) and publish to MessageBus.
