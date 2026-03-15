@@ -59,6 +59,7 @@ class LLMProvider(StrEnum):
     ANTHROPIC = "anthropic"
     CUSTOM = "custom"
     HUGGINGFACE = "huggingface"
+    GEMINI = "gemini"
 
 
 class RadioMode(StrEnum):
@@ -201,7 +202,8 @@ class LLMConfig(BaseModel):
     mistral_api_key: str | None = Field(default=None)
     openai_api_key: str | None = Field(default=None)
     anthropic_api_key: str | None = Field(default=None)
-    
+    gemini_api_key: str | None = Field(default=None)
+
     # Custom provider
     custom_api_base: str | None = Field(default=None)
     custom_api_key: str | None = Field(default=None)

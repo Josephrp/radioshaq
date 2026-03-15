@@ -81,7 +81,7 @@ Use case: **Voice RX** with `response_mode: auto_respond` (or confirm_first). Fo
 - **First contact + chat:** Use **POST /messages/process** with `message` and `sender_id` (or `callsign`). Enable memory in config so the station loads context and first-contact hint when there’s no prior history.
 - **Whitelist:** Use **POST /messages/whitelist-request** with text or audio; optionally send `callsign` in the body. Enable the bus consumer if replies go through the MessageBus.
 - **MessageBus radio replies:** Control whether outbound bus replies transmit and whether they use TTS with `radio.radio_reply_tx_enabled` and `radio.radio_reply_use_tts`.
-- **Radio-style call-out:** Set `radio.station_callsign` and optionally `radio.response_radio_format_enabled: true` so replies are wrapped as “STATION de CALLSIGN … Over.” See [Configuration](configuration.md) and the user-flow investigation in the repo for details.
+- **Radio-style call-out:** Set `radio.station_callsign` and optionally `radio.response_radio_format_enabled: true` (and `response_radio_format_style`: `over` | `prosign` | `none`) so replies are wrapped as “STATION de CALLSIGN … Over.” See [Configuration](configuration.md#radio) for the Radio table and options.
 
 ---
 

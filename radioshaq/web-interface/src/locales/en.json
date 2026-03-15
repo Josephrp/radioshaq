@@ -18,8 +18,34 @@
     "messages": "Messages",
     "transcripts": "Transcripts",
     "radio": "Radio",
+    "map": "Map",
     "settings": "Settings",
     "language": "Language"
+  },
+  "map": {
+    "title": "Operator map",
+    "notConfigured": "Google Maps is not configured. Set VITE_GOOGLE_MAPS_API_KEY in .env to show the map.",
+    "switchToOsm": "Or switch to OpenStreetMap above.",
+    "provider": "Map provider",
+    "tileSource": "Tile source",
+    "callsignPlaceholder": "e.g. K5ABC",
+    "centerOnCallsign": "Center on callsign",
+    "radius": "Radius",
+    "radiusWorld": "1000 km",
+    "operatorCount": "{{count}} operator(s) in view",
+    "fieldMapTitle": "Station & nearby operators",
+    "stationCallsign": "Station callsign",
+    "updateLocation": "Update my location",
+    "lat": "Latitude",
+    "lng": "Longitude",
+    "locationUpdated": "Location updated.",
+    "viewOnMap": "View on map",
+    "noLocationsForCallsigns": "No locations found for these callsigns.",
+    "noSourceCallsign": "No source callsign for this transcript.",
+    "distanceKm": "Distance: {{km}} km",
+    "setLocation": "Set location",
+    "latInvalid": "Latitude must be between -90 and 90.",
+    "lngInvalid": "Longitude must be between -180 and 180."
   },
   "emergency": {
     "title": "Emergency messages",
@@ -31,7 +57,9 @@
     "approve": "Approve & send",
     "reject": "Reject",
     "allowNotifications": "Allow notifications",
-    "autoRefresh": "List refreshes automatically every 12s; the app also checks for new pending messages every 15s and will play an alert and show a notification when new ones arrive."
+    "autoRefresh": "List refreshes automatically every 12s; the app also checks for new pending messages every 15s and will play an alert and show a notification when new ones arrive.",
+    "mapTitle": "Events on map",
+    "viewOnMap": "View on map"
   },
   "license": {
     "title": "License Acceptance Required",
@@ -143,6 +171,7 @@
     "huggingfaceApiKey": "Hugging Face API key",
     "huggingfaceApiKeyPlaceholder": "Set in .env as HF_TOKEN or paste here (not persisted by API)",
     "huggingfaceApiKeyNote": "Set your API key in .env as HF_TOKEN or via the setup wizard; it cannot be edited here.",
+    "geminiApiKeyNote": "Set your API key in .env as GEMINI_API_KEY or RADIOSHAQ_LLM__GEMINI_API_KEY, or via the setup wizard; it cannot be edited here.",
     "huggingfaceApiBase": "Hugging Face API base (optional)",
     "huggingfaceApiBasePlaceholder": "https://router.huggingface.co/v1",
     "temperature": "Temperature",

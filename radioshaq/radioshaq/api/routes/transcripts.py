@@ -56,7 +56,11 @@ async def search_transcripts(
     out = list(results)
     config = get_config(request)
     allowed = await get_effective_allowed_callsigns(db, config.radio)
+    # When whitelist is applied, include the authenticated user's callsign so they can see their own transcripts
     if allowed:
+        user_callsign = (getattr(user, "station_id", None) or getattr(user, "sub", None) or "").strip().upper()
+        if user_callsign:
+            allowed = set(allowed) | {user_callsign}
         out = [
             t
             for t in out

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Any
 
 from loguru import logger
@@ -44,6 +45,23 @@ class ChatResponseWithTools(ChatResponse):
 class LLMClient:
     """LLM client using LiteLLM (supports Mistral, OpenAI, Anthropic, etc.)."""
 
+    _PROVIDER_ENV_KEYS: dict[str, tuple[str, ...]] = {
+        "mistral": ("MISTRAL_API_KEY",),
+        "openai": ("OPENAI_API_KEY",),
+        "anthropic": ("ANTHROPIC_API_KEY",),
+        "huggingface": ("HF_TOKEN", "HUGGINGFACE_API_KEY"),
+        "gemini": ("GEMINI_API_KEY",),
+    }
+
+    _FALLBACK_ENV_CHAIN: tuple[str, ...] = (
+        "MISTRAL_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "HF_TOKEN",
+        "HUGGINGFACE_API_KEY",
+        "GEMINI_API_KEY",
+    )
+
     def __init__(
         self,
         model: str = "mistral/mistral-large-latest",
@@ -62,6 +80,33 @@ class LLMClient:
         self.temperature = temperature
         self.max_tokens = max_tokens
 
+    def _provider_from_model(self) -> str:
+        if "/" not in self.model:
+            return ""
+        return self.model.split("/", 1)[0].lower().strip()
+
+    def _resolve_api_key(self) -> str | None:
+        """Resolve API key by explicit value, then provider-matched env vars, then generic fallback."""
+        if self.api_key:
+            return self.api_key
+
+        provider = self._provider_from_model()
+        if self.api_base and "huggingface.co" in self.api_base:
+            provider = "huggingface"
+
+        provider_keys = self._PROVIDER_ENV_KEYS.get(provider, ())
+        for env_name in provider_keys:
+            value = os.environ.get(env_name)
+            if value:
+                return value
+
+        for env_name in self._FALLBACK_ENV_CHAIN:
+            value = os.environ.get(env_name)
+            if value:
+                return value
+
+        return None
+
     async def chat(
         self,
         messages: list[dict[str, str]],
@@ -69,19 +114,11 @@ class LLMClient:
         max_tokens: int | None = None,
     ) -> ChatResponse:
         """Send chat messages and return response."""
-        import os
-
         import litellm
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
-        api_key = (
-            self.api_key
-            or os.environ.get("MISTRAL_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("HF_TOKEN")
-            or os.environ.get("HUGGINGFACE_API_KEY")
-        )
+        api_key = self._resolve_api_key()
 
         kwargs: dict[str, Any] = {
             "model": self.model,
@@ -121,19 +158,11 @@ class LLMClient:
         Send messages with tool definitions; return content and tool_calls.
         Does not loop; caller must execute tools, append results, and call again until no tool_calls.
         """
-        import os
-
         import litellm
 
         temp = temperature if temperature is not None else self.temperature
         max_tok = max_tokens if max_tokens is not None else self.max_tokens
-        api_key = (
-            self.api_key
-            or os.environ.get("MISTRAL_API_KEY")
-            or os.environ.get("OPENAI_API_KEY")
-            or os.environ.get("HF_TOKEN")
-            or os.environ.get("HUGGINGFACE_API_KEY")
-        )
+        api_key = self._resolve_api_key()
 
         kwargs_tools: dict[str, Any] = {
             "model": self.model,

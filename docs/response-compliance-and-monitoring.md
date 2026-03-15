@@ -269,6 +269,5 @@ When the voice_rx pipeline is running, real-time audio metrics (VAD, SNR, state)
 ## See also
 
 - [Configuration](configuration.md) — env and config options
-- [API Reference](api-reference.md) — endpoints and auth
-
-Project docs in the repository (radioshaq/docs/): *Twilio SMS & WhatsApp*, *Notify and emergency compliance plan*, *SMS/WhatsApp implementation plan*.
+- [API Reference](api-reference.md) — endpoints and auth. Emergency events with location can be displayed on the web UI Map page and retrieved via **GET /gis/emergency-events** (see GIS subsection).
+- Project docs in the repository (radioshaq/docs/): *Twilio SMS & WhatsApp*, *Notify and emergency compliance plan*, *SMS/WhatsApp implementation plan*.

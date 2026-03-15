@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { listBands, sendTts } from '../../services/radioshaqApi';
+import { FieldMapPanel } from '../../components/maps/FieldMapPanel';
 
 export function RadioPage() {
   const { t } = useTranslation();
@@ -79,6 +80,8 @@ export function RadioPage() {
       <p style={{ marginTop: '1.5rem', fontSize: '0.9rem', color: '#555' }}>
         <Trans i18nKey="radio.relayHint" components={{ strong: <strong /> }} />
       </p>
+
+      <FieldMapPanel height={360} />
     </div>
   );
 }

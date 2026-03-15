@@ -111,3 +111,4 @@ Use the token in the `Authorization` header: `Bearer $TOKEN` (Bash) or `Bearer $
 - **Configure for production** — Set [Configuration](configuration.md): `RADIOSHAQ_JWT__SECRET_KEY`, LLM provider and API key, and optionally `RADIOSHAQ_MODE`, database URL, and log level.
 - **Connect a radio** — See [Radio Usage](radio-usage.md) for rig model IDs, ports, and voice TX/RX setup (IC-7300, FT-450D, RTL-SDR, HackRF).
 - **Explore the API** — Use the [API Reference](api-reference.md) and the live docs at http://localhost:8000/docs to try `/auth/token`, `/messages/process`, `/transcripts`, and relay/inject endpoints.
+- **Web UI / maps** — The web interface can show maps (operator locations, emergency events). Map provider and API keys are configured via front-end env vars (e.g. `VITE_MAP_PROVIDER`, `VITE_GOOGLE_MAPS_API_KEY`); see [Configuration](configuration.md) (Maps / web interface subsection).

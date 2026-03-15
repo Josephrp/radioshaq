@@ -89,6 +89,7 @@ export interface LlmConfigResponse {
   custom_api_base?: string | null;
   huggingface_api_key?: string | null;
   huggingface_api_base?: string | null;
+  gemini_api_key?: string | null;
   temperature?: number;
   max_tokens?: number;
   _meta?: ConfigResponseMeta;
@@ -482,4 +483,104 @@ export function subscribeEmergencyStream(
       }
     })
     .catch(() => {});
+}
+
+// ----- GIS (operator locations and operators-nearby) -----
+export interface OperatorLocation {
+  id: number;
+  callsign: string;
+  latitude: number;
+  longitude: number;
+  source: string;
+  timestamp?: string | null;
+  confidence?: number | null;
+  last_seen_at?: string | null;
+  distance_meters?: number;
+  session_id?: string | null;
+}
+
+export interface OperatorsNearbyResponse {
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  operators: OperatorLocation[];
+  count: number;
+}
+
+export interface EmergencyEventLocation {
+  id: number;
+  type: string;
+  latitude: number;
+  longitude: number;
+  initiator_callsign?: string;
+  target_callsign?: string | null;
+  status?: string;
+  created_at: string | null;
+}
+
+export async function getOperatorLocation(callsign: string): Promise<OperatorLocation> {
+  const res = await fetch(
+    `${API_BASE}/gis/location/${encodeURIComponent(callsign.trim().toUpperCase())}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to get operator location');
+  return res.json();
+}
+
+export async function getOperatorsNearby(params: {
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+  recent_hours?: number;
+  max_results?: number;
+}): Promise<OperatorsNearbyResponse> {
+  const search = new URLSearchParams({
+    latitude: String(params.latitude),
+    longitude: String(params.longitude),
+  });
+  if (params.radius_meters != null) search.set('radius_meters', String(params.radius_meters));
+  if (params.recent_hours != null) search.set('recent_hours', String(params.recent_hours));
+  if (params.max_results != null) search.set('max_results', String(params.max_results));
+  const res = await fetch(`${API_BASE}/gis/operators-nearby?${search}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to get operators nearby');
+  return res.json();
+}
+
+export async function setOperatorLocation(body: {
+  callsign: string;
+  latitude: number;
+  longitude: number;
+  altitude_meters?: number;
+  accuracy_meters?: number;
+  location_text?: string | null;
+}): Promise<OperatorLocation> {
+  const res = await fetch(`${API_BASE}/gis/location`, {
+    method: 'POST',
+    headers: authHeaders(),
+    body: JSON.stringify({
+      callsign: body.callsign.trim().toUpperCase(),
+      latitude: body.latitude,
+      longitude: body.longitude,
+      altitude_meters: body.altitude_meters,
+      accuracy_meters: body.accuracy_meters,
+      location_text: body.location_text ?? undefined,
+    }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to set operator location');
+  return res.json();
+}
+
+export async function listEmergencyEventsWithLocation(params?: {
+  since?: string;
+  status?: string;
+  limit?: number;
+}): Promise<{ events: EmergencyEventLocation[]; count: number }> {
+  const search = new URLSearchParams();
+  if (params?.since) search.set('since', params.since);
+  if (params?.status) search.set('status', params.status);
+  if (params?.limit != null) search.set('limit', String(params.limit));
+  const q = search.toString() ? `?${search}` : '';
+  const res = await fetch(`${API_BASE}/gis/emergency-events${q}`, { headers: authHeaders() });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail ?? 'Failed to list emergency events with location');
+  return res.json();
 }
